@@ -1,0 +1,9 @@
+{
+  "defaultLocale": "en",
+  "locales": ["pt-BR"],
+  "files": {
+    "gt": {
+      "output": "src/renderer/i18n/_gt/[locale].json"
+    }
+  }
+}

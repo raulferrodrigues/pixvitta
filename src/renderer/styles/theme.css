@@ -1,0 +1,74 @@
+@import "tailwindcss";
+
+@theme {
+  --color-pix-bg: var(--pix-bg);
+  --color-pix-panel: var(--pix-panel);
+  --color-pix-panel-hover: var(--pix-panel-hover);
+  --color-pix-text: var(--pix-text);
+  --color-pix-muted: var(--pix-muted);
+  --color-pix-accent: var(--pix-accent);
+  --color-pix-soft: var(--pix-soft);
+  --color-pix-heading: var(--pix-heading);
+  --color-pix-section: var(--pix-section);
+  --color-pix-empty: var(--pix-empty);
+  --color-pix-state: var(--pix-state);
+  --color-pix-border: var(--pix-border);
+  --color-pix-border-subtle: var(--pix-border-subtle);
+  --color-pix-overlay: var(--pix-overlay);
+  --color-pix-filmstrip: var(--pix-filmstrip);
+  --color-pix-filmstrip-border: var(--pix-filmstrip-border);
+  --color-pix-tile-border: var(--pix-tile-border);
+  --color-pix-tile-border-hover: var(--pix-tile-border-hover);
+  --color-pix-control: var(--pix-control);
+  --color-pix-control-muted: var(--pix-control-muted);
+  --color-pix-control-border: var(--pix-control-border);
+  --color-pix-recent: var(--pix-recent);
+  --color-pix-recent-hover: var(--pix-recent-hover);
+  --color-pix-recent-border: var(--pix-recent-border);
+  --color-pix-recent-text: var(--pix-recent-text);
+  --color-pix-recent-path: var(--pix-recent-path);
+  --color-pix-preferences-bg: var(--pix-preferences-bg);
+  --color-pix-preferences-text: var(--pix-preferences-text);
+  --color-pix-preferences-muted: var(--pix-preferences-muted);
+  --color-pix-preferences-heading: var(--pix-preferences-heading);
+  --color-pix-preferences-border: var(--pix-preferences-border);
+  --color-pix-preferences-input-border: var(--pix-preferences-input-border);
+}
+
+:root {
+  --pix-bg: #101214;
+  --pix-panel: #20272b;
+  --pix-panel-hover: #2b3439;
+  --pix-text: #f3f6f7;
+  --pix-muted: #b8c2c7;
+  --pix-accent: #8cd7ff;
+  --pix-soft: #d8e0e4;
+  --pix-heading: #f4f7f8;
+  --pix-section: #8fa0a8;
+  --pix-empty: #8f9ba1;
+  --pix-state: #c8d0d4;
+  --pix-border: rgb(255 255 255 / 10%);
+  --pix-border-subtle: rgb(255 255 255 / 7%);
+  --pix-overlay: rgb(16 18 20 / 78%);
+  --pix-filmstrip: rgb(16 18 20 / 72%);
+  --pix-filmstrip-border: rgb(255 255 255 / 8%);
+  --pix-tile-border: #3a444a;
+  --pix-tile-border-hover: #68777f;
+  --pix-control: #263038;
+  --pix-control-muted: rgb(32 39 43 / 58%);
+  --pix-control-border: #52636c;
+  --pix-recent: #181e22;
+  --pix-recent-hover: #222b30;
+  --pix-recent-border: #303a40;
+  --pix-recent-text: #edf3f5;
+  --pix-recent-path: #91a0a7;
+  --pix-preferences-bg: var(--pix-bg);
+  --pix-preferences-text: var(--pix-text);
+  --pix-preferences-muted: var(--pix-muted);
+  --pix-preferences-heading: var(--pix-section);
+  --pix-preferences-border: var(--pix-border);
+  --pix-preferences-input-border: var(--pix-control-border);
+  --pix-scrollbar-thumb: #6a747a;
+  --pix-scrollbar-thumb-hover: #8a969d;
+  --pix-topbar-height: 44px;
+}

@@ -1,0 +1,13 @@
+.media-viewer { position: relative; display: flex; min-width: 0; min-height: 0; align-items: center; justify-content: center; overflow: hidden; }
+.media-viewer-interaction { display: flex; width: 100%; height: 100%; min-width: 0; min-height: 0; align-items: center; justify-content: center; overflow: hidden; }
+.media-object { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+.media-scale-fit-window { width: 100%; height: 100%; object-fit: contain; }
+.media-scale-native-or-smaller { width: auto; height: auto; object-fit: contain; }
+.image-object { transform-origin: center; user-select: none; will-change: transform; -webkit-user-drag: none; }
+.is-image-zoomed .image-object { cursor: grab; }
+.is-image-panning .image-object { cursor: grabbing; }
+.video-object { image-rendering: auto; }
+.media-filename-overlay { position: absolute; right: 0; bottom: 0; left: 0; z-index: 3; display: flex; min-width: 0; align-items: flex-end; justify-content: center; padding: 0 24px 14px; pointer-events: none; animation: media-filename-fade 1800ms ease-out forwards; }
+.media-filename { max-width: min(720px, calc(100% - 32px)); overflow: hidden; color: rgb(245 247 249 / 88%); font-size: 13px; font-weight: 600; line-height: 1.2; text-align: center; text-overflow: ellipsis; text-shadow: 0 1px 2px rgb(0 0 0 / 100%), 0 2px 8px rgb(0 0 0 / 92%); white-space: nowrap; }
+@keyframes media-filename-fade { 0% { opacity: 0; } 8%, 48% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .media-filename-overlay { animation-duration: 1ms; } }

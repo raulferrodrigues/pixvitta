@@ -1,0 +1,28 @@
+.app-shell {
+  display: grid;
+  width: 100vw;
+  height: 100vh;
+  min-width: 0;
+  grid-template-columns: var(--filmstrip-width, 0px) minmax(0, 1fr);
+  grid-template-rows: 0 minmax(0, 1fr);
+  overflow: hidden;
+  background: var(--pix-bg);
+  color: var(--pix-text);
+}
+
+.app-shell.has-media { grid-template-rows: var(--pix-topbar-height) minmax(0, 1fr); }
+.app-shell .topbar { grid-column: 1 / -1; grid-row: 1; }
+.app-shell .viewer-controls { grid-column: 2; grid-row: 1; }
+.app-shell .filmstrip { grid-column: 1; grid-row: 2; }
+.app-shell .media-viewer { grid-column: 2; grid-row: 2; }
+
+.app-shell.has-unobtrusive-controls .filmstrip,
+.app-shell.has-unobtrusive-controls .media-viewer { grid-row: 1 / -1; }
+
+.app-shell.has-unobtrusive-controls .topbar,
+.app-shell.has-unobtrusive-controls .viewer-controls { opacity: 0; }
+
+.app-shell.has-unobtrusive-controls.is-controls-revealed .topbar,
+.app-shell.has-unobtrusive-controls.is-controls-revealed .viewer-controls,
+.app-shell.has-unobtrusive-controls:has(.viewer-file-order-trigger[data-state="open"]) .topbar,
+.app-shell.has-unobtrusive-controls:has(.viewer-file-order-trigger[data-state="open"]) .viewer-controls { opacity: 0.34; }

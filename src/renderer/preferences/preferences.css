@@ -1,0 +1,4 @@
+.preferences-scrollbar::-webkit-scrollbar { width: 10px; }
+.preferences-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.preferences-scrollbar::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: var(--pix-scrollbar-thumb); background-clip: padding-box; }
+.preferences-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--pix-scrollbar-thumb-hover); background-clip: padding-box; }

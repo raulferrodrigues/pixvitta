@@ -1,0 +1,12 @@
+.filmstrip { position: relative; z-index: 2; width: 100%; min-width: 0; min-height: 0; border-right: 1px solid var(--pix-filmstrip-border); background: var(--pix-filmstrip); backdrop-filter: blur(10px); --filmstrip-resizer-hitbox: 16px; }
+.filmstrip-content { position: absolute; inset: 0; display: flex; min-height: 0; flex-direction: column; gap: 10px; overflow-x: hidden; overflow-y: auto; scrollbar-gutter: stable; }
+.filmstrip-virtual-scroll { display: block; padding: 0; }
+.filmstrip-virtual-spacer { position: relative; width: 100%; }
+.filmstrip-virtual-item { position: absolute; top: 0; right: 10px; left: 10px; }
+.filmstrip-resizer { position: absolute; top: 0; right: calc(var(--filmstrip-resizer-hitbox) / -2); bottom: 0; z-index: 4; width: var(--filmstrip-resizer-hitbox); cursor: col-resize; }
+.filmstrip-scrollbar { direction: rtl; }
+.filmstrip-scrollbar > * { direction: ltr; }
+.filmstrip-scrollbar::-webkit-scrollbar { width: 10px; }
+.filmstrip-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.filmstrip-scrollbar::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: var(--pix-scrollbar-thumb); background-clip: padding-box; }
+.filmstrip-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--pix-scrollbar-thumb-hover); background-clip: padding-box; }
