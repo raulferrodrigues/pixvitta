@@ -18,14 +18,14 @@
   "scripts": {
     "icon:generate": "node scripts/generate-icon.mjs",
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
-    "build:electron": "esbuild src/main/main.ts src/preload/preload.ts --bundle --platform=node --external:electron --format=cjs --outdir=dist-electron",
+    "build:electron": "esbuild src/main/main.ts src/preload/preload.ts --bundle --platform=node --external:electron --external:electron-updater --format=cjs --outdir=dist-electron",
     "electron:dev": "pnpm build:electron && concurrently -k \"pnpm dev\" \"wait-on tcp:5173 && env -u ELECTRON_RUN_AS_NODE VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "build": "vite build && pnpm build:electron",
     "validate": "pnpm typecheck && pnpm build",
     "dist": "pnpm dist:mac",
     "dist:mac": "pnpm icon:generate && pnpm build && electron-builder --mac dmg zip --publish never",
-    "dist:linux": "pnpm icon:generate && pnpm build && electron-builder --linux AppImage deb --publish never",
+    "dist:linux": "pnpm icon:generate && pnpm build && electron-builder --linux AppImage --publish never",
     "dist:dir": "pnpm icon:generate && pnpm build && electron-builder --mac dir",
     "gt:generate": "gt generate",
     "release:check": "node scripts/verify-release-env.mjs",
@@ -130,8 +130,7 @@
       ],
       "maintainer": "Raul Rodrigues <48070394+raulferrodrigues@users.noreply.github.com>",
       "target": [
-        "AppImage",
-        "deb"
+        "AppImage"
       ],
       "mimeTypes": [
         "image/jpeg",
@@ -147,8 +146,10 @@
         "video/quicktime",
         "video/webm",
         "video/ogg"
-      ],
-      "artifactName": "Pixvitta-${version}-${arch}.${ext}"
+      ]
+    },
+    "appImage": {
+      "artifactName": "Pixvitta.AppImage"
     },
     "dmg": {
       "artifactName": "Pixvitta-${version}-${arch}.${ext}",
@@ -169,8 +170,10 @@
       {
         "provider": "github",
         "owner": "raulferrodrigues",
-        "repo": "pixvitta"
+        "repo": "pixvitta",
+        "channel": "dev"
       }
-    ]
+    ],
+    "electronUpdaterCompatibility": ">= 2.16"
   }
 }

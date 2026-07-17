@@ -1,16 +1,33 @@
-/*
- * Update handling is intentionally conservative right now. The menu has a
- * visible "Check for Updates" item, but unsigned local builds cannot provide a
- * reliable automatic-update experience on macOS, so the app explains that state
- * instead of pretending updates are configured.
- */
+export type UpdateSupport = {
+  isPackaged: boolean;
+  platform: NodeJS.Platform;
+  appImagePath?: string;
+};
 
-export function getUpdatesDisabledMessage(version: string): string {
-  return [
-    `Pixvitta ${version}`,
-    "",
-    "Automatic updates are not enabled for this build.",
-    "Reliable macOS updates require Developer ID signing and Apple notarization.",
-    "Install new unsigned builds manually until signed GitHub Releases are configured."
-  ].join("\n");
+export function getUpdatesUnavailableMessage(version: string, support: UpdateSupport): string {
+  const heading = `Pixvitta ${version}`;
+
+  if (!support.isPackaged) {
+    return [heading, "", "Automatic updates are only available in packaged builds."].join("\n");
+  }
+
+  if (support.platform !== "linux") {
+    return [
+      heading,
+      "",
+      "Automatic updates are currently available only for the Linux AppImage build.",
+      "macOS updates will remain disabled until releases are signed and notarized."
+    ].join("\n");
+  }
+
+  if (!support.appImagePath) {
+    return [
+      heading,
+      "",
+      "This Linux build is not running from an AppImage.",
+      "Install and launch Pixvitta.AppImage to receive automatic updates."
+    ].join("\n");
+  }
+
+  return "";
 }

@@ -15,7 +15,7 @@ Run type checking and a production build:
 pnpm validate
 ```
 
-## Build An Installable App
+## Build an Installable App
 
 Generate the app icon, build the app, and create macOS DMG/ZIP artifacts:
 
@@ -25,15 +25,14 @@ pnpm dist
 
 Artifacts are written to `release/`.
 
-On Linux, generate AppImage and Debian package artifacts with:
+On Linux, generate the AppImage with:
 
 ```bash
 pnpm dist:linux
 ```
 
-Run the AppImage directly after making it executable, or install the generated
-`.deb` with your distribution's package installer. Linux builds should be made
-on Linux so Electron Builder can use the host's packaging tools reliably.
+Run the AppImage directly after making it executable. Linux builds should be
+made on Linux so Electron Builder can use the host's packaging tools reliably.
 
 macOS install flow:
 
@@ -59,9 +58,21 @@ xattr -dr com.apple.quarantine /Applications/Pixvitta.app
 
 ## Updates
 
-The app includes `Pixvitta > Check for Updates...`, but automatic updates are intentionally disabled for unsigned builds.
+Packaged Linux AppImages automatically check the public GitHub Releases `dev`
+channel shortly after launch and every four hours while running. Updates download
+in the background. Pixvitta then offers to restart immediately or installs the
+downloaded update when the app is next quit.
 
-Reliable macOS auto-updates require:
+The release asset is always named `Pixvitta.AppImage`, so AppImageLauncher desktop
+entries continue to point at the integrated file after an update. The first install
+is manual; subsequent development builds update in place.
+
+Every push to `main` creates a prerelease through
+`.github/workflows/linux-development-release.yml`. The workflow derives a version
+newer than the stable version in `package.json`, validates the app, builds the
+AppImage, and publishes it with `dev-linux.yml` update metadata.
+
+macOS auto-updates remain disabled. Reliable macOS auto-updates require:
 
 - Apple Developer Program membership.
 - Developer ID Application signing.
@@ -88,14 +99,14 @@ pnpm release:check
 pnpm dist
 ```
 
-Future GitHub release:
+Tagged macOS release build:
 
 ```bash
 git tag v0.1.0
 git push origin main --tags
 ```
 
-The GitHub Actions workflow builds DMG/ZIP artifacts for tag pushes. Public-ready auto-updating releases should enable signing and notarization first.
+The tag workflow builds DMG/ZIP artifacts. Public-ready macOS releases should enable signing and notarization first.
 
 ## License
 

@@ -2,6 +2,7 @@ import { app, BrowserWindow } from "electron";
 import { createAppMenu } from "./menus";
 import { registerIpcHandlers } from "./ipc";
 import { openFileAsFolder } from "./library";
+import { startAutomaticUpdates } from "./updates";
 import { createMainWindow, createPreferencesWindow } from "./windows";
 
 function fileArguments(argv: string[]): string[] {
@@ -81,6 +82,7 @@ void app.whenReady().then(async () => {
   createAppMenu();
 
   if (!(await openFileArgument(process.argv))) createMainWindow();
+  startAutomaticUpdates();
 
   // macOS keeps apps open after their windows close. When the dock icon is
   // clicked again, activate should recreate the viewer window.

@@ -1,0 +1,71 @@
+name: Linux Development Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pixvitta-linux-development-release
+  cancel-in-progress: true
+
+jobs:
+  appimage:
+    name: Build and publish AppImage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set development version
+        id: version
+        run: |
+          version="$(node scripts/development-version.mjs "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_ATTEMPT")"
+          pnpm version "$version" --no-git-tag-version
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Validate
+        run: pnpm validate
+
+      - name: Build AppImage
+        run: pnpm dist:linux
+
+      - name: Verify update assets
+        run: |
+          test -f release/Pixvitta.AppImage
+          test -f release/dev-linux.yml
+          grep -F "version: ${{ steps.version.outputs.version }}" release/dev-linux.yml
+          grep -F "url: Pixvitta.AppImage" release/dev-linux.yml
+
+      - name: Publish development release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "v${VERSION}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Pixvitta ${VERSION}" \
+            --notes "Automated Linux development build from ${GITHUB_SHA}." \
+            --prerelease \
+            release/Pixvitta.AppImage \
+            release/dev-linux.yml

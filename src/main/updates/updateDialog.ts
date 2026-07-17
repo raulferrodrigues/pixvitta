@@ -1,30 +1,161 @@
 import { app } from "electron";
+import { autoUpdater, type UpdateCheckResult, type UpdateInfo } from "electron-updater";
 import { showAppMessageBox } from "../windows";
-import { getUpdatesDisabledMessage } from "./updateStatus";
+import { getUpdatesUnavailableMessage } from "./updateStatus";
 
-/*
- * The app exposes a "Check for Updates" menu item now, but local builds are not
- * signed/notarized yet. Until real update infrastructure is configured, the
- * native menu action shows a clear explanation rather than silently doing
- * nothing.
- */
+const UPDATE_CHANNEL = "dev";
+const STARTUP_CHECK_DELAY_MS = 15_000;
+const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1_000;
 
-export async function showUpdatesDisabledDialog(): Promise<void> {
-  const detail = getUpdatesDisabledMessage(app.getVersion());
-  if (process.env.PIXVITTA_TEST_UPDATE_DIALOG === "record") {
-    (globalThis as typeof globalThis & { __pixvittaLastUpdateDialog?: string }).__pixvittaLastUpdateDialog = detail;
+let initialized = false;
+let activeCheck: Promise<UpdateCheckResult | null> | null = null;
+let downloadedUpdate: UpdateInfo | null = null;
+let lastPromptedVersion: string | null = null;
+let restartPrompt: Promise<void> | null = null;
+
+function updatesUnavailableMessage(): string {
+  return getUpdatesUnavailableMessage(app.getVersion(), {
+    isPackaged: app.isPackaged,
+    platform: process.platform,
+    appImagePath: process.env.APPIMAGE
+  });
+}
+
+function canUpdate(): boolean {
+  return updatesUnavailableMessage().length === 0;
+}
+
+async function showUpdateError(error: unknown): Promise<void> {
+  const detail = error instanceof Error ? error.message : String(error);
+  await showAppMessageBox({
+    type: "error",
+    title: "Updates",
+    message: "Pixvitta could not check for updates",
+    detail,
+    buttons: ["OK"]
+  });
+}
+
+async function promptToRestart(update: UpdateInfo, force = false): Promise<void> {
+  if (restartPrompt) return restartPrompt;
+  if (!force && lastPromptedVersion === update.version) return;
+  lastPromptedVersion = update.version;
+
+  restartPrompt = (async () => {
+    const result = await showAppMessageBox({
+      type: "info",
+      title: "Update Ready",
+      message: `Pixvitta ${update.version} is ready to install`,
+      detail: "Restart now to apply the update. If you choose Later, Pixvitta will install it when you quit the app.",
+      buttons: ["Restart Now", "Later"],
+      defaultId: 0,
+      cancelId: 1
+    });
+
+    if (result.response === 0) autoUpdater.quitAndInstall();
+  })();
+
+  try {
+    await restartPrompt;
+  } finally {
+    restartPrompt = null;
+  }
+}
+
+function initializeUpdater(): void {
+  if (initialized || !canUpdate()) return;
+  initialized = true;
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.allowPrerelease = true;
+  autoUpdater.channel = UPDATE_CHANNEL;
+  // Setting a channel enables downgrades in electron-updater. Development
+  // builds should still move forward only, so restore the safer policy.
+  autoUpdater.allowDowngrade = false;
+
+  autoUpdater.on("update-downloaded", (update) => {
+    downloadedUpdate = update;
+    void promptToRestart(update);
+  });
+  autoUpdater.on("appimage-filename-updated", (updatedPath) => {
+    console.info(`Pixvitta AppImage updated at ${updatedPath}`);
+  });
+  autoUpdater.on("error", (error) => {
+    console.error("Pixvitta automatic update error", error);
+  });
+}
+
+async function performCheck(): Promise<UpdateCheckResult | null> {
+  initializeUpdater();
+  if (activeCheck) return activeCheck;
+
+  activeCheck = autoUpdater.checkForUpdates();
+  try {
+    return await activeCheck;
+  } finally {
+    activeCheck = null;
+  }
+}
+
+export function startAutomaticUpdates(): void {
+  if (!canUpdate()) return;
+  initializeUpdater();
+
+  const startupTimer = setTimeout(() => {
+    void performCheck().catch((error: unknown) => console.error("Pixvitta startup update check failed", error));
+  }, STARTUP_CHECK_DELAY_MS);
+  startupTimer.unref();
+
+  const interval = setInterval(() => {
+    void performCheck().catch((error: unknown) => console.error("Pixvitta scheduled update check failed", error));
+  }, UPDATE_CHECK_INTERVAL_MS);
+  interval.unref();
+}
+
+export async function checkForUpdates(): Promise<void> {
+  const unavailableMessage = updatesUnavailableMessage();
+  if (unavailableMessage) {
+    await showAppMessageBox({
+      type: "info",
+      title: "Updates",
+      message: "Automatic updates are unavailable",
+      detail: unavailableMessage,
+      buttons: ["OK"]
+    });
     return;
   }
 
-  const options: Electron.MessageBoxOptions = {
-    type: "info",
-    title: "Updates",
-    message: "Automatic updates require signed releases",
-    detail,
-    buttons: ["OK"],
-    defaultId: 0,
-    cancelId: 0
-  };
+  if (downloadedUpdate) {
+    await promptToRestart(downloadedUpdate, true);
+    return;
+  }
 
-  await showAppMessageBox(options);
+  try {
+    const result = await performCheck();
+    if (downloadedUpdate) {
+      await promptToRestart(downloadedUpdate);
+      return;
+    }
+    if (!result?.isUpdateAvailable) {
+      await showAppMessageBox({
+        type: "info",
+        title: "Updates",
+        message: "Pixvitta is up to date",
+        detail: `You are running Pixvitta ${app.getVersion()} on the ${UPDATE_CHANNEL} channel.`,
+        buttons: ["OK"]
+      });
+      return;
+    }
+
+    await showAppMessageBox({
+      type: "info",
+      title: "Updates",
+      message: `Pixvitta ${result.updateInfo.version} is downloading`,
+      detail: "You can keep using Pixvitta. The app will ask to restart when the update is ready.",
+      buttons: ["OK"]
+    });
+  } catch (error: unknown) {
+    await showUpdateError(error);
+  }
 }

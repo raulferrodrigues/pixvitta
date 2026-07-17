@@ -1,6 +1,6 @@
 import { app, BrowserWindow, Menu } from "electron";
 import { MAIN_HOTKEYS } from "../app";
-import { showUpdatesDisabledDialog } from "../updates";
+import { checkForUpdates } from "../updates";
 import {
   closeAppWindow,
   createPreferencesWindow,
@@ -49,7 +49,7 @@ export function createAppMenu(): void {
           id: "check-for-updates",
           label: "Check for Updates...",
           click: () => {
-            void showUpdatesDisabledDialog();
+            void checkForUpdates();
           }
         },
         { type: "separator" },
