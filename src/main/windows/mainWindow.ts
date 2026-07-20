@@ -56,10 +56,25 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
   window.on("enter-full-screen", () => notifyWindowChromeChanged(window));
   window.on("leave-full-screen", () => notifyWindowChromeChanged(window));
 
-  // Some shortcuts need main-process handling because they control native window
-  // state instead of renderer state. The rest of the viewer's keyboard behavior
-  // can remain in React where normal web event handling is easier.
+  // Shortcuts that must win over Chromium's native controls are handled before
+  // input reaches the page. The renderer still owns the resulting app actions.
   window.webContents.on("before-input-event", (event, input) => {
+    if (input.type === "keyDown" && (input.key === "ArrowLeft" || input.key === "ArrowRight")) {
+      // Handle navigation before Chromium dispatches the key to focused native
+      // video controls, which otherwise reinterpret arrows as timeline seeking.
+      event.preventDefault();
+      window.webContents.send("menu:command", input.key === "ArrowRight" ? "next-media" : "previous-media");
+      return;
+    }
+    const key = input.key.toLowerCase();
+    if (input.type === "keyDown" && !input.meta && !input.control && !input.alt && (key === "j" || key === "k" || key === "l")) {
+      event.preventDefault();
+      window.webContents.send(
+        "menu:command",
+        key === "j" ? "seek-video-backward" : key === "l" ? "seek-video-forward" : "toggle-video-playback"
+      );
+      return;
+    }
     if (isCommandShortcut(input, HOTKEYS.closeWindow)) {
       event.preventDefault();
       options.onCloseShortcut(window);

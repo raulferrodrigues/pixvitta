@@ -2,10 +2,16 @@ import { useEffect } from "react";
 import type { PixvittaApi } from "../../shared/pixvittaApi";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 
+const VIDEO_SEEK_SECONDS = 5;
+
 export function useAppLifecycle(api: PixvittaApi) {
   const initialize = useViewerStore((state) => state.initialize);
   const openFolder = useViewerStore((state) => state.openFolder);
   const rescanFolder = useViewerStore((state) => state.rescanFolder);
+  const goNext = useViewerStore((state) => state.goNext);
+  const goPrevious = useViewerStore((state) => state.goPrevious);
+  const seekVideoBy = useViewerStore((state) => state.seekVideoBy);
+  const toggleVideoPlayback = useViewerStore((state) => state.toggleVideoPlayback);
   const openScannedFolder = useViewerStore((state) => state.openScannedFolder);
   const applySettings = useViewerStore((state) => state.applySettings);
 
@@ -16,10 +22,15 @@ export function useAppLifecycle(api: PixvittaApi) {
       if (command === "open-folder") void openFolder();
       if (command === "rescan-folder") void rescanFolder();
       if (command === "open-preferences") void api.openPreferences();
+      if (command === "previous-media") goPrevious();
+      if (command === "next-media") goNext();
+      if (command === "seek-video-backward") seekVideoBy(-VIDEO_SEEK_SECONDS);
+      if (command === "seek-video-forward") seekVideoBy(VIDEO_SEEK_SECONDS);
+      if (command === "toggle-video-playback") void toggleVideoPlayback();
     });
     const unsubscribeOpenedFile = api.onOpenedFile(openScannedFolder);
     const unsubscribeSettings = api.onSettingsChanged(applySettings);
     void api.markViewerReady();
     return () => { unsubscribeCommand(); unsubscribeOpenedFile(); unsubscribeSettings(); };
-  }, [api, applySettings, openFolder, openScannedFolder, rescanFolder]);
+  }, [api, applySettings, goNext, goPrevious, openFolder, openScannedFolder, rescanFolder, seekVideoBy, toggleVideoPlayback]);
 }

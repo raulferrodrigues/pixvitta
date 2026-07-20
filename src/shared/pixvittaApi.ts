@@ -2,7 +2,15 @@ import type { Folder } from "./media";
 import type { RecentFolder } from "./recentFolders";
 import type { AppSettings } from "./settings";
 
-export type PixvittaCommand = "open-folder" | "rescan-folder" | "open-preferences";
+export type PixvittaCommand =
+  | "open-folder"
+  | "rescan-folder"
+  | "open-preferences"
+  | "previous-media"
+  | "next-media"
+  | "seek-video-backward"
+  | "seek-video-forward"
+  | "toggle-video-playback";
 
 export type WindowChromeState = {
   zoomFactor: number;
