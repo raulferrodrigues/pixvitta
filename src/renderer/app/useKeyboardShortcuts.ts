@@ -20,14 +20,23 @@ export function useKeyboardShortcuts(api: PixvittaApi) {
   const exitFullscreen = useViewerStore((state) => state.exitFullscreen);
 
   useEffect(() => {
+    const onNavigationKeyDownCapture = (event: KeyboardEvent) => {
+      if (event.key !== "ArrowRight" && event.key !== "ArrowLeft") return;
+
+      // Native video controls consume arrow keys after their timeline receives
+      // focus. Handle navigation first so arrows keep their viewer-wide meaning.
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.key === "ArrowRight") goNext();
+      else goPrevious();
+    };
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey && event.key.toLowerCase() === "o") { event.preventDefault(); void openFolder(); return; }
       if (event.metaKey && event.key.toLowerCase() === "r") { event.preventDefault(); void rescanFolder(); return; }
       if (event.metaKey && event.key === ",") { event.preventDefault(); void api.openPreferences(); return; }
       if (matchesRendererHotkey(event, RENDERER_HOTKEYS.imageZoomIn)) { event.preventDefault(); if (currentItemKind === "image") zoomCurrentImage(IMAGE_ZOOM_STEP); return; }
       if (matchesRendererHotkey(event, RENDERER_HOTKEYS.imageZoomOut)) { event.preventDefault(); if (currentItemKind === "image") zoomCurrentImage(1 / IMAGE_ZOOM_STEP); return; }
-      if (event.key === "ArrowRight") { event.preventDefault(); goNext(); return; }
-      if (event.key === "ArrowLeft") { event.preventDefault(); goPrevious(); return; }
       if (event.key === " ") { event.preventDefault(); void toggleVideoPlayback(); return; }
       const key = event.key.toLowerCase();
       if (!event.metaKey && !event.ctrlKey && !event.altKey && key === "k") { if (currentItemKind === "video") { event.preventDefault(); void toggleVideoPlayback(); } return; }
@@ -35,7 +44,11 @@ export function useKeyboardShortcuts(api: PixvittaApi) {
       if (key === "f") { event.preventDefault(); void toggleFullscreen(); return; }
       if (event.key === "Escape") { event.preventDefault(); void exitFullscreen(); }
     };
+    window.addEventListener("keydown", onNavigationKeyDownCapture, { capture: true });
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onNavigationKeyDownCapture, { capture: true });
+      window.removeEventListener("keydown", onKeyDown);
+    };
   }, [api, currentItemKind, exitFullscreen, goNext, goPrevious, openFolder, rescanFolder, seekVideoBy, toggleFullscreen, toggleVideoPlayback, zoomCurrentImage]);
 }
