@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { classNames } from "./classNames";
+import "./icon-button.css";
 
 type IconButtonVariant = "primary" | "secondary" | "prominent";
 
@@ -30,15 +31,15 @@ export function IconButton({
   return (
     <button
       className={classNames(
-        "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border [font:inherit] disabled:cursor-default disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pix-accent",
+        "relative inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border [font:inherit] disabled:cursor-default disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pix-accent",
         variantClassNames[variant],
         className
       )}
       aria-label={label}
-      title={tooltip}
       {...props}
     >
       {children}
+      {tooltip ? <span className="icon-button-tooltip" aria-hidden>{tooltip}</span> : null}
     </button>
   );
 }
