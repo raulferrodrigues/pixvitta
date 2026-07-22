@@ -3,6 +3,7 @@
   "productName": "Pixvitta",
   "version": "0.1.0",
   "description": "A lightweight desktop image and video viewer.",
+  "desktopName": "pixvitta.desktop",
   "private": true,
   "author": "Raul Rodrigues",
   "license": "GPL-3.0-only",
@@ -20,12 +21,14 @@
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "build:electron": "esbuild src/main/main.ts src/preload/preload.ts --bundle --platform=node --external:electron --external:electron-updater --format=cjs --outdir=dist-electron",
     "electron:dev": "pnpm build:electron && concurrently -k \"pnpm dev\" \"wait-on tcp:5173 && env -u ELECTRON_RUN_AS_NODE VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "test": "esbuild src/main/updates/updateStatus.test.ts --bundle --platform=node --format=cjs --outfile=.tmp/updateStatus.test.cjs && node --test .tmp/updateStatus.test.cjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "build": "vite build && pnpm build:electron",
-    "validate": "pnpm typecheck && pnpm build",
+    "validate": "pnpm test && pnpm typecheck && pnpm build",
     "dist": "pnpm dist:mac",
     "dist:mac": "pnpm icon:generate && pnpm build && electron-builder --mac dmg zip --publish never",
-    "dist:linux": "pnpm icon:generate && pnpm build && electron-builder --linux AppImage --publish never",
+    "dist:linux": "pnpm icon:generate && pnpm build && electron-builder --linux AppImage deb --publish never",
+    "dist:deb": "pnpm icon:generate && pnpm build && electron-builder --linux deb --publish never",
     "dist:dir": "pnpm icon:generate && pnpm build && electron-builder --mac dir",
     "gt:generate": "gt generate",
     "release:check": "node scripts/verify-release-env.mjs",
@@ -121,10 +124,15 @@
     },
     "linux": {
       "category": "Graphics",
-      "icon": "build/icon.png",
+      "icon": "build/icons",
+      "desktop": {
+        "entry": {
+          "StartupWMClass": "pixvitta"
+        }
+      },
       "extraResources": [
         {
-          "from": "build/icon.png",
+          "from": "build/icons/128x128.png",
           "to": "icon.png"
         }
       ],
@@ -150,6 +158,9 @@
     },
     "appImage": {
       "artifactName": "Pixvitta.AppImage"
+    },
+    "deb": {
+      "artifactName": "Pixvitta-${version}-${arch}.${ext}"
     },
     "dmg": {
       "artifactName": "Pixvitta-${version}-${arch}.${ext}",

@@ -25,14 +25,18 @@ pnpm dist
 
 Artifacts are written to `release/`.
 
-On Linux, generate the AppImage with:
+On Linux, generate the AppImage and Debian package with:
 
 ```bash
 pnpm dist:linux
 ```
 
-Run the AppImage directly after making it executable. Linux builds should be
-made on Linux so Electron Builder can use the host's packaging tools reliably.
+Linux icon generation requires ImageMagick (`magick` or `convert`).
+
+Run the AppImage directly after making it executable, or install the Debian
+package with `sudo apt install ./release/Pixvitta-<version>-amd64.deb`. Linux
+builds should be made on Linux so Electron Builder can use the host's packaging
+tools reliably.
 
 macOS install flow:
 
@@ -58,10 +62,11 @@ xattr -dr com.apple.quarantine /Applications/Pixvitta.app
 
 ## Updates
 
-Packaged Linux AppImages automatically check the public GitHub Releases `dev`
-channel shortly after launch and every four hours while running. Updates download
-in the background. Pixvitta then offers to restart immediately or installs the
-downloaded update when the app is next quit.
+Packaged Linux AppImage and Debian builds automatically check the public GitHub
+Releases `dev` channel shortly after launch and every four hours while running.
+Updates download in the background. Pixvitta then offers to restart immediately
+or installs the downloaded update when the app is next quit. Debian updates
+request administrator authentication before installing the new package.
 
 The release asset is always named `Pixvitta.AppImage`, so AppImageLauncher desktop
 entries continue to point at the integrated file after an update. The first install
@@ -70,7 +75,8 @@ is manual; subsequent development builds update in place.
 Every push to `main` creates a prerelease through
 `.github/workflows/linux-development-release.yml`. The workflow derives a version
 newer than the stable version in `package.json`, validates the app, builds the
-AppImage, and publishes it with `dev-linux.yml` update metadata.
+AppImage and Debian package, and publishes both with shared `dev-linux.yml`
+update metadata.
 
 macOS auto-updates remain disabled. Reliable macOS auto-updates require:
 

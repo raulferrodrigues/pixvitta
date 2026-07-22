@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  appimage:
-    name: Build and publish AppImage
+  linux:
+    name: Build and publish Linux packages
     runs-on: ubuntu-latest
 
     steps:
@@ -46,15 +46,17 @@ jobs:
       - name: Validate
         run: pnpm validate
 
-      - name: Build AppImage
+      - name: Build Linux packages
         run: pnpm dist:linux
 
       - name: Verify update assets
         run: |
           test -f release/Pixvitta.AppImage
+          test -f "release/Pixvitta-${{ steps.version.outputs.version }}-amd64.deb"
           test -f release/dev-linux.yml
           grep -F "version: ${{ steps.version.outputs.version }}" release/dev-linux.yml
           grep -F "url: Pixvitta.AppImage" release/dev-linux.yml
+          grep -F "url: Pixvitta-${{ steps.version.outputs.version }}-amd64.deb" release/dev-linux.yml
 
       - name: Publish development release
         env:
@@ -68,4 +70,5 @@ jobs:
             --notes "Automated Linux development build from ${GITHUB_SHA}." \
             --prerelease \
             release/Pixvitta.AppImage \
+            "release/Pixvitta-${VERSION}-amd64.deb" \
             release/dev-linux.yml

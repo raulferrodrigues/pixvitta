@@ -1,8 +1,18 @@
+export type LinuxUpdatePackageType = "appimage" | "deb";
+
 export type UpdateSupport = {
   isPackaged: boolean;
   platform: NodeJS.Platform;
   appImagePath?: string;
+  packageTypeMarker?: string;
 };
+
+export function getLinuxUpdatePackageType(support: UpdateSupport): LinuxUpdatePackageType | undefined {
+  if (support.platform !== "linux") return undefined;
+  if (support.appImagePath) return "appimage";
+  if (support.packageTypeMarker?.trim().toLowerCase() === "deb") return "deb";
+  return undefined;
+}
 
 export function getUpdatesUnavailableMessage(version: string, support: UpdateSupport): string {
   const heading = `Pixvitta ${version}`;
@@ -15,17 +25,17 @@ export function getUpdatesUnavailableMessage(version: string, support: UpdateSup
     return [
       heading,
       "",
-      "Automatic updates are currently available only for the Linux AppImage build.",
+      "Automatic updates are currently available only for Linux AppImage and Debian package builds.",
       "macOS updates will remain disabled until releases are signed and notarized."
     ].join("\n");
   }
 
-  if (!support.appImagePath) {
+  if (!getLinuxUpdatePackageType(support)) {
     return [
       heading,
       "",
-      "This Linux build is not running from an AppImage.",
-      "Install and launch Pixvitta.AppImage to receive automatic updates."
+      "This Linux package format does not support automatic updates.",
+      "Install the Pixvitta AppImage or Debian package to receive automatic updates."
     ].join("\n");
   }
 

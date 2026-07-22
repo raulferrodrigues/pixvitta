@@ -10,3 +10,4 @@ playwright-report/
 *.log
 build/.icon-work/
 build/icon.iconset/
+build/icons/

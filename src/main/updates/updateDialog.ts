@@ -1,5 +1,7 @@
 import { app } from "electron";
 import { autoUpdater, type UpdateCheckResult, type UpdateInfo } from "electron-updater";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { showAppMessageBox } from "../windows";
 import { getUpdatesUnavailableMessage } from "./updateStatus";
 
@@ -13,11 +15,22 @@ let downloadedUpdate: UpdateInfo | null = null;
 let lastPromptedVersion: string | null = null;
 let restartPrompt: Promise<void> | null = null;
 
+function readPackageTypeMarker(): string | undefined {
+  if (!app.isPackaged || process.platform !== "linux") return undefined;
+
+  try {
+    return readFileSync(path.join(process.resourcesPath, "package-type"), "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
 function updatesUnavailableMessage(): string {
   return getUpdatesUnavailableMessage(app.getVersion(), {
     isPackaged: app.isPackaged,
     platform: process.platform,
-    appImagePath: process.env.APPIMAGE
+    appImagePath: process.env.APPIMAGE,
+    packageTypeMarker: readPackageTypeMarker()
   });
 }
 
