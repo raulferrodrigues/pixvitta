@@ -4,8 +4,8 @@ Pixvitta is a desktop image and video viewer for Linux and macOS. Open a folder,
 browse its supported media in a filmstrip, and move between files without
 importing them into a library. Viewing and thumbnail generation happen locally.
 
-Pixvitta is under active development. Linux builds are currently published as
-prereleases; macOS builds are unsigned development artifacts.
+Pixvitta is under active development. Linux builds are published as stable and
+development releases; macOS builds are unsigned development artifacts.
 
 ## Features
 
@@ -34,7 +34,7 @@ playback also depends on the codecs used inside a file.
 
 ## Install
 
-Development builds are available from [GitHub Releases](https://github.com/raulferrodrigues/pixvitta/releases).
+Linux builds are available from [GitHub Releases](https://github.com/raulferrodrigues/pixvitta/releases).
 
 ### Debian, Ubuntu, Mint, and derivatives
 
@@ -103,7 +103,8 @@ Useful commands:
 | `pnpm typecheck` | Type-check renderer and Electron code |
 | `pnpm build` | Create production renderer and Electron bundles |
 | `pnpm validate` | Run tests, type checking, and a production build |
-| `pnpm dist:linux` | Build AppImage and Debian packages |
+| `pnpm dist:linux` | Build stable-channel AppImage and Debian packages |
+| `pnpm dist:linux:dev` | Build dev-channel AppImage and Debian packages |
 | `pnpm dist:deb` | Build only the Debian package |
 | `pnpm dist:mac` | Build macOS DMG and ZIP artifacts |
 
@@ -113,16 +114,18 @@ their target operating system.
 
 ## Automatic Updates
 
-Packaged Linux AppImage and Debian builds use the GitHub Releases `dev` channel.
-Pixvitta checks shortly after launch, every four hours while running, and when
-**Check for Updates** is selected from the application menu.
+Stable Linux builds follow normal GitHub Releases, while development builds
+follow prereleases on the `dev` channel. Pixvitta chooses the channel from its
+version, then checks shortly after launch, every four hours while running, and
+when **Check for Updates** is selected from the application menu.
 
 Updates download in the background. AppImage updates replace the running
 AppImage in place. Debian updates install a new package and require administrator
 authentication. Automatic updates are disabled for current unsigned macOS builds.
 
-Pushes to `main` create a Linux prerelease containing both package formats and
-their shared update metadata.
+Pushes to `main` publish a normal Linux release using the version in
+`package.json`. Pushes to `dev` publish a newer development prerelease. Both
+release types contain the AppImage, Debian package, and matching update metadata.
 
 ## Project Structure
 

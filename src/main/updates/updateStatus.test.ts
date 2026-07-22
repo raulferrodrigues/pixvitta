@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getLinuxUpdatePackageType, getUpdatesUnavailableMessage } from "./updateStatus";
+import { getLinuxUpdatePackageType, getUpdateChannel, getUpdatesUnavailableMessage } from "./updateStatus";
 
 const packagedLinux = {
   isPackaged: true,
@@ -25,4 +25,9 @@ test("rejects unsupported Linux package formats", () => {
     getUpdatesUnavailableMessage("1.0.0", { ...packagedLinux, packageTypeMarker: "rpm" }),
     /does not support automatic updates/
   );
+});
+
+test("uses stable updates for release versions and dev updates for prereleases", () => {
+  assert.equal(getUpdateChannel("1.2.3"), "latest");
+  assert.equal(getUpdateChannel("1.2.4-dev.12.1"), "dev");
 });

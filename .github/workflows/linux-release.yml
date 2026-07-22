@@ -1,16 +1,16 @@
-name: Linux Development Release
+name: Linux Release
 
 on:
   push:
     branches:
-      - dev
+      - main
 
 permissions:
   contents: write
 
 concurrency:
-  group: pixvitta-linux-development-release
-  cancel-in-progress: true
+  group: pixvitta-linux-release
+  cancel-in-progress: false
 
 jobs:
   linux:
@@ -40,29 +40,39 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes imagemagick
 
-      - name: Set development version
+      - name: Read release version
         id: version
         run: |
-          version="$(node scripts/development-version.mjs "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_ATTEMPT")"
-          pnpm version "$version" --no-git-tag-version
+          version="$(node -p "require('./package.json').version")"
+          node -e 'if (!/^\d+\.\d+\.\d+$/.test(process.argv[1])) throw new Error(`main requires a stable semantic version, received ${process.argv[1]}`)' "$version"
           echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release does not exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "v${VERSION}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release v${VERSION} already exists. Bump package.json before pushing to main."
+            exit 1
+          fi
 
       - name: Validate
         run: pnpm validate
 
       - name: Build Linux packages
-        run: pnpm dist:linux:dev
+        run: pnpm dist:linux
 
-      - name: Verify update assets
+      - name: Verify release assets
         run: |
           test -f release/Pixvitta.AppImage
           test -f "release/Pixvitta-${{ steps.version.outputs.version }}-amd64.deb"
-          test -f release/dev-linux.yml
-          grep -F "version: ${{ steps.version.outputs.version }}" release/dev-linux.yml
-          grep -F "url: Pixvitta.AppImage" release/dev-linux.yml
-          grep -F "url: Pixvitta-${{ steps.version.outputs.version }}-amd64.deb" release/dev-linux.yml
+          test -f release/latest-linux.yml
+          grep -F "version: ${{ steps.version.outputs.version }}" release/latest-linux.yml
+          grep -F "url: Pixvitta.AppImage" release/latest-linux.yml
+          grep -F "url: Pixvitta-${{ steps.version.outputs.version }}-amd64.deb" release/latest-linux.yml
 
-      - name: Publish development release
+      - name: Publish stable release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
@@ -71,8 +81,8 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "Pixvitta ${VERSION}" \
-            --notes "Automated Linux development build from ${GITHUB_SHA}." \
-            --prerelease \
+            --generate-notes \
+            --latest \
             release/Pixvitta.AppImage \
             "release/Pixvitta-${VERSION}-amd64.deb" \
-            release/dev-linux.yml
+            release/latest-linux.yml

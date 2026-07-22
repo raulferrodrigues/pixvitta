@@ -3,9 +3,9 @@ import { autoUpdater, type UpdateCheckResult, type UpdateInfo } from "electron-u
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { showAppMessageBox } from "../windows";
-import { getUpdatesUnavailableMessage } from "./updateStatus";
+import { getUpdateChannel, getUpdatesUnavailableMessage } from "./updateStatus";
 
-const UPDATE_CHANNEL = "dev";
+const UPDATE_CHANNEL = getUpdateChannel(app.getVersion());
 const STARTUP_CHECK_DELAY_MS = 15_000;
 const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1_000;
 
@@ -81,10 +81,10 @@ function initializeUpdater(): void {
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.allowPrerelease = true;
+  autoUpdater.allowPrerelease = UPDATE_CHANNEL === "dev";
   autoUpdater.channel = UPDATE_CHANNEL;
-  // Setting a channel enables downgrades in electron-updater. Development
-  // builds should still move forward only, so restore the safer policy.
+  // Setting a channel enables downgrades in electron-updater, so restore the
+  // safer policy for both stable and development builds.
   autoUpdater.allowDowngrade = false;
 
   autoUpdater.on("update-downloaded", (update) => {

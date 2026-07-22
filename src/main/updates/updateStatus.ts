@@ -1,4 +1,5 @@
 export type LinuxUpdatePackageType = "appimage" | "deb";
+export type UpdateChannel = "latest" | "dev";
 
 export type UpdateSupport = {
   isPackaged: boolean;
@@ -12,6 +13,10 @@ export function getLinuxUpdatePackageType(support: UpdateSupport): LinuxUpdatePa
   if (support.appImagePath) return "appimage";
   if (support.packageTypeMarker?.trim().toLowerCase() === "deb") return "deb";
   return undefined;
+}
+
+export function getUpdateChannel(version: string): UpdateChannel {
+  return version.includes("-") ? "dev" : "latest";
 }
 
 export function getUpdatesUnavailableMessage(version: string, support: UpdateSupport): string {
