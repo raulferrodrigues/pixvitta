@@ -7,7 +7,7 @@ import type {
 import type { PixvittaApi } from "../../shared/pixvittaApi";
 import { createViewerStore } from "./viewerStore";
 
-function collection(): MediaCollection {
+function collection(itemIds = ["a", "b"]): MediaCollection {
   const item = (id: string) => ({
     id,
     name: `${id}.jpg`,
@@ -32,8 +32,8 @@ function collection(): MediaCollection {
         canOpenOrigin: false
       }
     },
-    items: [item("a"), item("b")],
-    selectedId: "a"
+    items: itemIds.map(item),
+    selectedId: itemIds[0] ?? null
   };
 }
 
@@ -85,4 +85,31 @@ test("an older download cannot complete a newer attempt for the same item", asyn
   await secondDownload;
   assert.equal(store.getState().downloadState, "downloaded");
   assert.equal(store.getState().downloadedFileName, "new-a.jpg");
+});
+
+test("no-op navigation does not allow a duplicate download", async () => {
+  const pendingDownloads: Array<
+    (result: DownloadMediaResult) => void
+  > = [];
+  const store = createViewerStore(createApi({
+    downloadMedia: async () =>
+      new Promise<DownloadMediaResult>((resolve) => {
+        pendingDownloads.push(resolve);
+      })
+  }));
+  store.getState().openCollection(collection(["a"]));
+
+  const download = store.getState().downloadCurrentMedia();
+  store.getState().goNext();
+  store.getState().goPrevious();
+  store.getState().selectMedia(0);
+  await store.getState().downloadCurrentMedia();
+
+  assert.equal(pendingDownloads.length, 1);
+  assert.equal(store.getState().downloadState, "downloading");
+
+  pendingDownloads[0]({ ok: true, fileName: "a.jpg" });
+  await download;
+  assert.equal(store.getState().downloadState, "downloaded");
+  assert.equal(store.getState().downloadedFileName, "a.jpg");
 });

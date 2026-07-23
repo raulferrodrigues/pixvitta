@@ -337,48 +337,53 @@ export function createViewerStore(
       },
 
       goNext() {
-        downloadRequestId += 1;
         set((state) => {
           const index = nextIndex(state.index, state.items.length, state.settings.wrapNavigation);
+          if (index === state.index) return state;
+          downloadRequestId += 1;
           return {
             index,
             isVideoPlaying: false,
             downloadState: "idle",
             downloadedFileName: null,
-            imageZoom: index === state.index ? state.imageZoom : MIN_IMAGE_ZOOM,
-            imagePanX: index === state.index ? state.imagePanX : 0,
-            imagePanY: index === state.index ? state.imagePanY : 0
+            imageZoom: MIN_IMAGE_ZOOM,
+            imagePanX: 0,
+            imagePanY: 0
           };
         });
       },
 
       goPrevious() {
-        downloadRequestId += 1;
         set((state) => {
           const index = previousIndex(state.index, state.items.length, state.settings.wrapNavigation);
+          if (index === state.index) return state;
+          downloadRequestId += 1;
           return {
             index,
             isVideoPlaying: false,
             downloadState: "idle",
             downloadedFileName: null,
-            imageZoom: index === state.index ? state.imageZoom : MIN_IMAGE_ZOOM,
-            imagePanX: index === state.index ? state.imagePanX : 0,
-            imagePanY: index === state.index ? state.imagePanY : 0
+            imageZoom: MIN_IMAGE_ZOOM,
+            imagePanX: 0,
+            imagePanY: 0
           };
         });
       },
 
       selectMedia(index: number) {
-        downloadRequestId += 1;
-        set((state) => ({
-          index,
-          isVideoPlaying: false,
-          downloadState: "idle",
-          downloadedFileName: null,
-          imageZoom: index === state.index ? state.imageZoom : MIN_IMAGE_ZOOM,
-          imagePanX: index === state.index ? state.imagePanX : 0,
-          imagePanY: index === state.index ? state.imagePanY : 0
-        }));
+        set((state) => {
+          if (index === state.index) return state;
+          downloadRequestId += 1;
+          return {
+            index,
+            isVideoPlaying: false,
+            downloadState: "idle",
+            downloadedFileName: null,
+            imageZoom: MIN_IMAGE_ZOOM,
+            imagePanX: 0,
+            imagePanY: 0
+          };
+        });
       },
 
       markMediaBroken(id: string) {
