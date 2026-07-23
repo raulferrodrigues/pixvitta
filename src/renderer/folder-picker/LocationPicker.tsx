@@ -5,7 +5,11 @@ import { useViewerStore } from "../state/ViewerStoreProvider";
 import { PrimaryButton } from "../ui/PrimaryButton";
 import { SourceOpenError } from "./SourceOpenError";
 
-export function LocationPicker() {
+export function LocationPicker({
+  showHeading = true
+}: {
+  showHeading?: boolean;
+}) {
   const gt = useGT();
   const [location, setLocation] = useState("");
   const openLocation = useViewerStore((state) => state.openLocation);
@@ -18,7 +22,10 @@ export function LocationPicker() {
 
   return (
     <form className="grid gap-2.5" onSubmit={submit}>
-      <label className="text-xs font-bold uppercase text-pix-section" htmlFor="source-location">
+      <label
+        className={showHeading ? "text-xs font-bold uppercase text-pix-section" : "sr-only"}
+        htmlFor="source-location"
+      >
         {gt("Open from the web")}
       </label>
       <div className="flex gap-2.5 max-[560px]:flex-col">

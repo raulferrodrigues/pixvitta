@@ -105,6 +105,7 @@ export function createViewerStore(
   videoController: VideoController = createVideoController()
 ): ViewerStoreApi {
   let sourceRequestId = 0;
+  let downloadRequestId = 0;
   let settingsSaveRevision = 0;
   const nextSourceRequestId = () => {
     sourceRequestId += 1;
@@ -129,6 +130,7 @@ export function createViewerStore(
     };
 
     const applyOpenedCollection = (collection: MediaCollection) => {
+      downloadRequestId += 1;
       set(applyCollection(collection));
       void get().refreshRecentFolders();
     };
@@ -220,21 +222,22 @@ export function createViewerStore(
         if (!source?.capabilities.canRefresh) return;
 
         const requestId = nextSourceRequestId();
+        set({ sourceOpenError: null });
         try {
           const result = await api.refreshSource(source.id);
           if (!isCurrentSourceRequest(requestId)) return;
           if (!result.ok || !result.collection) {
             set({
-              loadState: "error",
               sourceOpenError: result.ok ? "unavailable" : result.error
             });
             return;
           }
+          downloadRequestId += 1;
           set(applyCollection(result.collection));
         } catch (error) {
           if (!isCurrentSourceRequest(requestId)) return;
           console.error(error);
-          set({ loadState: "error" });
+          set({ sourceOpenError: "unavailable" });
         }
       },
 
@@ -249,10 +252,16 @@ export function createViewerStore(
           return;
         }
 
+        const requestId = ++downloadRequestId;
         set({ downloadState: "downloading", downloadedFileName: null });
         try {
           const result = await api.downloadMedia(item.id);
-          if (selectCurrentItem(get())?.id !== item.id) return;
+          if (
+            requestId !== downloadRequestId ||
+            selectCurrentItem(get())?.id !== item.id
+          ) {
+            return;
+          }
           set(
             result.ok
               ? {
@@ -263,7 +272,10 @@ export function createViewerStore(
           );
         } catch (error) {
           console.error(error);
-          if (selectCurrentItem(get())?.id === item.id) {
+          if (
+            requestId === downloadRequestId &&
+            selectCurrentItem(get())?.id === item.id
+          ) {
             set({ downloadState: "error", downloadedFileName: null });
           }
         }
@@ -325,6 +337,7 @@ export function createViewerStore(
       },
 
       goNext() {
+        downloadRequestId += 1;
         set((state) => {
           const index = nextIndex(state.index, state.items.length, state.settings.wrapNavigation);
           return {
@@ -340,6 +353,7 @@ export function createViewerStore(
       },
 
       goPrevious() {
+        downloadRequestId += 1;
         set((state) => {
           const index = previousIndex(state.index, state.items.length, state.settings.wrapNavigation);
           return {
@@ -355,6 +369,7 @@ export function createViewerStore(
       },
 
       selectMedia(index: number) {
+        downloadRequestId += 1;
         set((state) => ({
           index,
           isVideoPlaying: false,

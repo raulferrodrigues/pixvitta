@@ -5,6 +5,7 @@ import { selectCurrentItem, selectHasMedia } from "../state/viewerSelectors";
 import { IconButton } from "../ui/IconButton";
 import { ControlGroup } from "./ControlGroup";
 import { FileOrderMenu } from "./FileOrderMenu";
+import { WebSourceDialog } from "./WebSourceDialog";
 import "./controls.css";
 
 export function Controls() {
@@ -47,6 +48,7 @@ export function Controls() {
         <div className="viewer-controls-leading">
           <ControlGroup label={gt("Library controls")}>
             <IconButton label={gt("Open folder")} onClick={() => void openFolder()}><FolderOpen size={18} aria-hidden /></IconButton>
+            <WebSourceDialog />
             <IconButton
               label={gt("Refresh source")}
               onClick={() => void refreshSource()}
