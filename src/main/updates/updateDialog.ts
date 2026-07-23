@@ -2,10 +2,11 @@ import { app } from "electron";
 import { autoUpdater, type UpdateCheckResult, type UpdateInfo } from "electron-updater";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { appBuildInfo } from "../app/buildInfo";
 import { showAppMessageBox } from "../windows";
 import { getUpdateChannel, getUpdatesUnavailableMessage } from "./updateStatus";
 
-const UPDATE_CHANNEL = getUpdateChannel(app.getVersion());
+const UPDATE_CHANNEL = getUpdateChannel(appBuildInfo.flavor);
 const STARTUP_CHECK_DELAY_MS = 15_000;
 const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1_000;
 
@@ -26,12 +27,16 @@ function readPackageTypeMarker(): string | undefined {
 }
 
 function updatesUnavailableMessage(): string {
-  return getUpdatesUnavailableMessage(app.getVersion(), {
-    isPackaged: app.isPackaged,
-    platform: process.platform,
-    appImagePath: process.env.APPIMAGE,
-    packageTypeMarker: readPackageTypeMarker()
-  });
+  return getUpdatesUnavailableMessage(
+    app.getVersion(),
+    {
+      isPackaged: app.isPackaged,
+      platform: process.platform,
+      appImagePath: process.env.APPIMAGE,
+      packageTypeMarker: readPackageTypeMarker()
+    },
+    appBuildInfo.name
+  );
 }
 
 function canUpdate(): boolean {
@@ -43,7 +48,7 @@ async function showUpdateError(error: unknown): Promise<void> {
   await showAppMessageBox({
     type: "error",
     title: "Updates",
-    message: "Pixvitta could not check for updates",
+    message: `${appBuildInfo.name} could not check for updates`,
     detail,
     buttons: ["OK"]
   });
@@ -58,8 +63,8 @@ async function promptToRestart(update: UpdateInfo, force = false): Promise<void>
     const result = await showAppMessageBox({
       type: "info",
       title: "Update Ready",
-      message: `Pixvitta ${update.version} is ready to install`,
-      detail: "Restart now to apply the update. If you choose Later, Pixvitta will install it when you quit the app.",
+      message: `${appBuildInfo.name} ${update.version} is ready to install`,
+      detail: `Restart now to apply the update. If you choose Later, ${appBuildInfo.name} will install it when you quit the app.`,
       buttons: ["Restart Now", "Later"],
       defaultId: 0,
       cancelId: 1
@@ -92,10 +97,10 @@ function initializeUpdater(): void {
     void promptToRestart(update);
   });
   autoUpdater.on("appimage-filename-updated", (updatedPath) => {
-    console.info(`Pixvitta AppImage updated at ${updatedPath}`);
+    console.info(`${appBuildInfo.name} AppImage updated at ${updatedPath}`);
   });
   autoUpdater.on("error", (error) => {
-    console.error("Pixvitta automatic update error", error);
+    console.error(`${appBuildInfo.name} automatic update error`, error);
   });
 }
 
@@ -116,12 +121,12 @@ export function startAutomaticUpdates(): void {
   initializeUpdater();
 
   const startupTimer = setTimeout(() => {
-    void performCheck().catch((error: unknown) => console.error("Pixvitta startup update check failed", error));
+    void performCheck().catch((error: unknown) => console.error(`${appBuildInfo.name} startup update check failed`, error));
   }, STARTUP_CHECK_DELAY_MS);
   startupTimer.unref();
 
   const interval = setInterval(() => {
-    void performCheck().catch((error: unknown) => console.error("Pixvitta scheduled update check failed", error));
+    void performCheck().catch((error: unknown) => console.error(`${appBuildInfo.name} scheduled update check failed`, error));
   }, UPDATE_CHECK_INTERVAL_MS);
   interval.unref();
 }
@@ -154,8 +159,8 @@ export async function checkForUpdates(): Promise<void> {
       await showAppMessageBox({
         type: "info",
         title: "Updates",
-        message: "Pixvitta is up to date",
-        detail: `You are running Pixvitta ${app.getVersion()} on the ${UPDATE_CHANNEL} channel.`,
+        message: `${appBuildInfo.name} is up to date`,
+        detail: `You are running ${appBuildInfo.name} ${app.getVersion()} on the ${UPDATE_CHANNEL} channel.`,
         buttons: ["OK"]
       });
       return;
@@ -164,8 +169,8 @@ export async function checkForUpdates(): Promise<void> {
     await showAppMessageBox({
       type: "info",
       title: "Updates",
-      message: `Pixvitta ${result.updateInfo.version} is downloading`,
-      detail: "You can keep using Pixvitta. The app will ask to restart when the update is ready.",
+      message: `${appBuildInfo.name} ${result.updateInfo.version} is downloading`,
+      detail: `You can keep using ${appBuildInfo.name}. The app will ask to restart when the update is ready.`,
       buttons: ["OK"]
     });
   } catch (error: unknown) {

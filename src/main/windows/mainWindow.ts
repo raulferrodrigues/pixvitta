@@ -1,6 +1,7 @@
 import { BrowserWindow } from "electron";
 import path from "node:path";
 import { HOTKEYS } from "../../shared/hotkeys";
+import { appBuildInfo } from "../app/buildInfo";
 import { isCommandShortcut, notifyWindowChromeChanged } from "./windowChrome";
 import { getWindowIcon } from "./windowIcon";
 
@@ -25,7 +26,7 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
     height: 760,
     minWidth: 760,
     minHeight: 480,
-    title: "Pixvitta",
+    title: appBuildInfo.name,
     icon: getWindowIcon(),
     backgroundColor: "#101214",
     autoHideMenuBar,

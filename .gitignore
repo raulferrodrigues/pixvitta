@@ -11,3 +11,5 @@ playwright-report/
 build/.icon-work/
 build/icon.iconset/
 build/icons/
+build/icons-dev/
+build/runtime-icon.png

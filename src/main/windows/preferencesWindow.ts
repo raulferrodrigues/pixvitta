@@ -1,6 +1,7 @@
 import { BrowserWindow } from "electron";
 import path from "node:path";
 import { HOTKEYS } from "../../shared/hotkeys";
+import { appBuildInfo } from "../app/buildInfo";
 import { isCommandShortcut } from "./windowChrome";
 import { getWindowIcon } from "./windowIcon";
 
@@ -19,7 +20,7 @@ export function createPreferencesBrowserWindow(options: PreferencesWindowOptions
     height: 620,
     minWidth: 460,
     minHeight: 520,
-    title: "Pixvitta Settings",
+    title: `${appBuildInfo.name} Settings`,
     icon: getWindowIcon(),
     backgroundColor: "#101214",
     resizable: true,

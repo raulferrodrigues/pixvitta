@@ -1,3 +1,4 @@
+import type { AppBuildInfo } from "./appBuild";
 import type { Folder } from "./media";
 import type { RecentFolder } from "./recentFolders";
 import type { AppSettings } from "./settings";
@@ -19,6 +20,7 @@ export type WindowChromeState = {
 };
 
 export type PixvittaApi = {
+  getBuildInfo(): Promise<AppBuildInfo>;
   openFolder(): Promise<Folder | null>;
   openRecentFolder(folderPath: string): Promise<Folder>;
   rescanFolder(folderPath: string): Promise<Folder>;

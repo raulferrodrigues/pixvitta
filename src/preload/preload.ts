@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { AppBuildInfo } from "../shared/appBuild";
 import type { Folder } from "../shared/media";
 import type { PixvittaApi, PixvittaCommand, WindowChromeState } from "../shared/pixvittaApi";
 import type { RecentFolder } from "../shared/recentFolders";
@@ -13,6 +14,8 @@ import type { AppSettings } from "../shared/settings";
  */
 
 const pixvittaApi = {
+  getBuildInfo: (): Promise<AppBuildInfo> => ipcRenderer.invoke("app:get-build-info"),
+
   // Folder actions are request/response IPC calls. From React's point of view
   // these behave like async API calls; from Electron's point of view they cross
   // into ipcMain handlers that can open dialogs and read the filesystem.

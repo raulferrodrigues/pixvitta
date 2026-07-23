@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createAppBuildInfo, resolveBuildFlavor } from "../../shared/appBuild";
 import { getLinuxUpdatePackageType, getUpdateChannel, getUpdatesUnavailableMessage } from "./updateStatus";
 
 const packagedLinux = {
@@ -27,7 +28,20 @@ test("rejects unsupported Linux package formats", () => {
   );
 });
 
-test("uses stable updates for release versions and dev updates for prereleases", () => {
-  assert.equal(getUpdateChannel("1.2.3"), "latest");
-  assert.equal(getUpdateChannel("1.2.4-dev.12.1"), "dev");
+test("resolves stable and development build identities", () => {
+  assert.equal(resolveBuildFlavor({ version: "1.2.3" }), "stable");
+  assert.equal(resolveBuildFlavor({ version: "1.2.4-dev.12.1" }), "dev");
+  assert.equal(resolveBuildFlavor({ version: "1.2.3", productName: "Pixvitta Dev" }), "dev");
+  assert.equal(resolveBuildFlavor({ version: "1.2.3", flavorOverride: "dev" }), "dev");
+  assert.equal(resolveBuildFlavor({ version: "1.2.4-dev.12.1", flavorOverride: "stable" }), "stable");
+  assert.deepEqual(createAppBuildInfo({ version: "1.2.4-dev.12.1" }), {
+    flavor: "dev",
+    name: "Pixvitta Dev",
+    version: "1.2.4-dev.12.1"
+  });
+});
+
+test("maps build flavors to independent update channels", () => {
+  assert.equal(getUpdateChannel("stable"), "latest");
+  assert.equal(getUpdateChannel("dev"), "dev");
 });

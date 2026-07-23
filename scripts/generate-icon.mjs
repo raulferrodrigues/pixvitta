@@ -6,14 +6,21 @@ import { fileURLToPath } from "node:url";
 
 const execFileAsync = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const flavor = process.argv[2] ?? "stable";
+
+if (flavor !== "stable" && flavor !== "dev") {
+  throw new Error(`Icon flavor must be "stable" or "dev", received ${flavor}`);
+}
+
 const buildDir = path.join(root, "build");
 const workDir = path.join(buildDir, ".icon-work");
 const iconsetDir = path.join(buildDir, "icon.iconset");
-const sourcePng = path.join(root, "assets", "pixvitta-icon.png");
+const sourcePng = path.join(root, "assets", flavor === "dev" ? "pixvitta-dev-icon.png" : "pixvitta-icon.png");
 const sourceSvg = path.join(root, "assets", "pixvitta-icon.svg");
 const iconPng = path.join(buildDir, "icon.png");
 const iconIcns = path.join(buildDir, "icon.icns");
-const linuxIconsDir = path.join(buildDir, "icons");
+const runtimeIconPng = path.join(buildDir, "runtime-icon.png");
+const linuxIconsDir = path.join(buildDir, flavor === "dev" ? "icons-dev" : "icons");
 
 const linuxIconSizes = [16, 24, 32, 48, 64, 96, 128, 256, 512, 1024];
 
@@ -49,16 +56,22 @@ await mkdir(workDir, { recursive: true });
 await rm(linuxIconsDir, { recursive: true, force: true });
 await mkdir(linuxIconsDir, { recursive: true });
 
-await copyFile(sourcePng, iconPng);
+await copyFile(sourcePng, runtimeIconPng);
 await copyFile(sourcePng, path.join(workDir, "icon.png"));
 await copyFile(sourcePng, path.join(linuxIconsDir, "1024x1024.png"));
-try {
-  await copyFile(sourceSvg, path.join(workDir, "icon-source.svg"));
-} catch {
-  // The PNG is the authoritative packaging source; the SVG export is optional.
+if (flavor === "stable") {
+  await copyFile(sourcePng, iconPng);
+  try {
+    await copyFile(sourceSvg, path.join(workDir, "icon-source.svg"));
+  } catch {
+    // The PNG is the authoritative packaging source; the SVG export is optional.
+  }
 }
 
 if (process.platform === "darwin") {
+  if (flavor !== "stable") {
+    throw new Error("The development icon is currently supported only by Linux packaging");
+  }
   await ensureTool("sips", "resize application icons");
   await ensureTool("iconutil", "generate the macOS icon");
   await rm(iconsetDir, { recursive: true, force: true });
@@ -70,12 +83,12 @@ if (process.platform === "darwin") {
     await execFileAsync("/usr/bin/sips", ["-z", String(size), String(size), iconPng, "--out", path.join(linuxIconsDir, `${size}x${size}.png`)]);
   }
   await execFileAsync("/usr/bin/iconutil", ["-c", "icns", iconsetDir, "-o", iconIcns]);
-  console.log(`Generated ${path.relative(root, iconPng)}, ${path.relative(root, iconIcns)}, and Linux icon sizes`);
+  console.log(`Generated stable macOS and Linux application icons`);
 } else {
   const resizeCommand = await execFileAsync("/usr/bin/which", ["magick"]).then(() => "magick").catch(() => "convert");
   await ensureTool(resizeCommand, "generate Linux icon sizes");
   for (const size of linuxIconSizes.slice(0, -1)) {
-    await execFileAsync(resizeCommand, [iconPng, "-filter", "Lanczos", "-resize", `${size}x${size}`, path.join(linuxIconsDir, `${size}x${size}.png`)]);
+    await execFileAsync(resizeCommand, [runtimeIconPng, "-filter", "Lanczos", "-resize", `${size}x${size}`, path.join(linuxIconsDir, `${size}x${size}.png`)]);
   }
-  console.log(`Generated ${path.relative(root, iconPng)} and Linux icon sizes`);
+  console.log(`Generated ${flavor} Linux application icons`);
 }

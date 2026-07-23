@@ -10,5 +10,6 @@ When you see the user intends to start working on something that requires actual
 
 Ask the user questions if there's good options for solutions. Things like tech choices, artifact shapes, etc. Do not ask user for implementation details unless the user asks you to ask them for implementation details.
 
-# Pushing to main
-Whenever pushing to main update the version number so the autoupdater works correctly.
+# Pushing to dev and main
+Whenever pushing to dev or main update the version number so the autoupdater works correctly.
+If the user doesn't explicit say that some new change should only be sent to dev, if they say "merge it and push it", assume they mean main. Merge first to dev, then merge dev into main.

@@ -33,6 +33,8 @@
   --color-pix-preferences-heading: var(--pix-preferences-heading);
   --color-pix-preferences-border: var(--pix-preferences-border);
   --color-pix-preferences-input-border: var(--pix-preferences-input-border);
+  --color-pix-dev: var(--pix-dev);
+  --color-pix-dev-text: var(--pix-dev-text);
 }
 
 :root {
@@ -70,5 +72,7 @@
   --pix-preferences-input-border: var(--pix-control-border);
   --pix-scrollbar-thumb: #6a747a;
   --pix-scrollbar-thumb-hover: #8a969d;
+  --pix-dev: #7c3aed;
+  --pix-dev-text: #fff;
   --pix-topbar-height: 44px;
 }

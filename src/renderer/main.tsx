@@ -9,17 +9,22 @@ import { ViewerStoreProvider } from "./state/ViewerStoreProvider";
 import "./styles/theme.css";
 import "./styles/global.css";
 
-const isPreferences = window.location.hash === "#preferences";
-const root = isPreferences ? (
-  <PreferencesApp />
-) : (
-  <ViewerStoreProvider api={window.pixvitta}>
-    <App />
-  </ViewerStoreProvider>
-);
+async function renderApp() {
+  const buildInfo = await window.pixvitta.getBuildInfo();
+  const isPreferences = window.location.hash === "#preferences";
+  const root = isPreferences ? (
+    <PreferencesApp buildInfo={buildInfo} />
+  ) : (
+    <ViewerStoreProvider api={window.pixvitta}>
+      <App buildInfo={buildInfo} />
+    </ViewerStoreProvider>
+  );
 
-createRoot(document.getElementById("root")!).render(
-  <React.StrictMode>
-    <GTProvider config={gtConfig} loadTranslations={loadTranslations}>{root}</GTProvider>
-  </React.StrictMode>
-);
+  createRoot(document.getElementById("root")!).render(
+    <React.StrictMode>
+      <GTProvider config={gtConfig} loadTranslations={loadTranslations}>{root}</GTProvider>
+    </React.StrictMode>
+  );
+}
+
+void renderApp();

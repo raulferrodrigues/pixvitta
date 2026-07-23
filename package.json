@@ -1,7 +1,7 @@
 {
   "name": "pixvitta",
   "productName": "Pixvitta",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A lightweight desktop image and video viewer.",
   "desktopName": "pixvitta.desktop",
   "private": true,
@@ -17,19 +17,21 @@
   "homepage": "https://github.com/raulferrodrigues/pixvitta#readme",
   "main": "dist-electron/main/main.js",
   "scripts": {
-    "icon:generate": "node scripts/generate-icon.mjs",
+    "icon:generate": "node scripts/generate-icon.mjs stable",
+    "icon:generate:dev": "node scripts/generate-icon.mjs dev",
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "build:electron": "esbuild src/main/main.ts src/preload/preload.ts --bundle --platform=node --external:electron --external:electron-updater --format=cjs --outdir=dist-electron",
-    "electron:dev": "pnpm build:electron && concurrently -k \"pnpm dev\" \"wait-on tcp:5173 && env -u ELECTRON_RUN_AS_NODE VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "electron:dev": "pnpm build:electron && concurrently -k \"pnpm dev\" \"wait-on tcp:5173 && env -u ELECTRON_RUN_AS_NODE PIXVITTA_BUILD_FLAVOR=dev VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
     "test": "esbuild src/main/updates/updateStatus.test.ts --bundle --platform=node --format=cjs --outfile=.tmp/updateStatus.test.cjs && node --test .tmp/updateStatus.test.cjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "build": "vite build && pnpm build:electron",
     "validate": "pnpm test && pnpm typecheck && pnpm build",
     "dist": "pnpm dist:mac",
     "dist:mac": "pnpm icon:generate && pnpm build && electron-builder --mac dmg zip --publish never",
-    "dist:linux": "pnpm icon:generate && pnpm build && electron-builder --linux AppImage deb --publish never",
-    "dist:linux:dev": "pnpm dist:linux --config.publish.channel=dev",
-    "dist:deb": "pnpm icon:generate && pnpm build && electron-builder --linux deb --publish never",
+    "dist:linux": "pnpm icon:generate && pnpm build && node scripts/build-linux.mjs stable",
+    "dist:linux:dev": "pnpm icon:generate:dev && pnpm build && node scripts/build-linux.mjs dev",
+    "dist:deb": "pnpm icon:generate && pnpm build && node scripts/build-linux.mjs stable deb",
+    "dist:deb:dev": "pnpm icon:generate:dev && pnpm build && node scripts/build-linux.mjs dev deb",
     "dist:dir": "pnpm icon:generate && pnpm build && electron-builder --mac dir",
     "gt:generate": "gt generate",
     "release:check": "node scripts/verify-release-env.mjs",
@@ -133,7 +135,7 @@
       },
       "extraResources": [
         {
-          "from": "build/icons/128x128.png",
+          "from": "build/runtime-icon.png",
           "to": "icon.png"
         }
       ],

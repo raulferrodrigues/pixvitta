@@ -1,3 +1,5 @@
+import type { BuildFlavor } from "../../shared/appBuild";
+
 export type LinuxUpdatePackageType = "appimage" | "deb";
 export type UpdateChannel = "latest" | "dev";
 
@@ -15,12 +17,16 @@ export function getLinuxUpdatePackageType(support: UpdateSupport): LinuxUpdatePa
   return undefined;
 }
 
-export function getUpdateChannel(version: string): UpdateChannel {
-  return version.includes("-") ? "dev" : "latest";
+export function getUpdateChannel(flavor: BuildFlavor): UpdateChannel {
+  return flavor === "dev" ? "dev" : "latest";
 }
 
-export function getUpdatesUnavailableMessage(version: string, support: UpdateSupport): string {
-  const heading = `Pixvitta ${version}`;
+export function getUpdatesUnavailableMessage(
+  version: string,
+  support: UpdateSupport,
+  appName = "Pixvitta"
+): string {
+  const heading = `${appName} ${version}`;
 
   if (!support.isPackaged) {
     return [heading, "", "Automatic updates are only available in packaged builds."].join("\n");

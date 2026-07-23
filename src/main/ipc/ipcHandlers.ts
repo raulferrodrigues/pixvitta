@@ -1,4 +1,5 @@
 import { BrowserWindow, ipcMain } from "electron";
+import { appBuildInfo } from "../app/buildInfo";
 
 /*
  * IPC is the renderer's request/response API into the main process. In a browser
@@ -15,6 +16,8 @@ type IpcHandlerOptions = {
 };
 
 export function registerIpcHandlers(options: IpcHandlerOptions): void {
+  ipcMain.handle("app:get-build-info", () => appBuildInfo);
+
   // Fullscreen is native BrowserWindow state. React asks for the action, but the
   // actual state change belongs here.
   ipcMain.handle("window:toggle-fullscreen", (event) => {

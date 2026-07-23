@@ -1,4 +1,5 @@
 import { app, BrowserWindow } from "electron";
+import { configureAppIdentity } from "./app/buildInfo";
 import { createAppMenu } from "./menus";
 import { registerIpcHandlers } from "./ipc";
 import { openFileAsFolder } from "./library";
@@ -33,12 +34,10 @@ async function openFileArgument(argv: string[]): Promise<boolean> {
  * app URLs that Chromium can load safely.
  */
 
-// Electron's userData directory is the app's per-user storage area. In a real
-// install this is somewhere under Library/Application Support on macOS. Tests
-// override it so settings, recents, and caches never leak between test runs.
-if (process.env.PIXVITTA_TEST_USER_DATA_DIR) {
-  app.setPath("userData", process.env.PIXVITTA_TEST_USER_DATA_DIR);
-}
+// Configure product naming and per-flavor storage before taking Electron's
+// single-instance lock. This lets stable and development builds run together
+// without sharing settings, recent folders, thumbnails, or process locks.
+configureAppIdentity();
 
 // IPC handlers are registered before app readiness because they do not touch
 // BrowserWindow state directly. The handlers receive dependencies as callbacks

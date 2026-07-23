@@ -1,12 +1,14 @@
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useGT } from "gt-react";
+import type { AppBuildInfo } from "../../shared/appBuild";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { selectHasMedia, selectStatusText } from "../state/viewerSelectors";
 import { IconButton } from "../ui/IconButton";
+import { DevBuildBadge } from "../ui/DevBuildBadge";
 import { useWindowChrome } from "./useWindowChrome";
 import "./topbar.css";
 
-export function TopBar() {
+export function TopBar({ buildInfo }: { buildInfo: AppBuildInfo }) {
   const gt = useGT();
   const hasMedia = useViewerStore(selectHasMedia);
   const isFilmstripVisible = useViewerStore((state) => state.isFilmstripVisible);
@@ -22,6 +24,7 @@ export function TopBar() {
       <IconButton label={label} aria-pressed={isFilmstripVisible} className="topbar-filmstrip-toggle" data-testid="filmstrip-toggle" onClick={toggleFilmstrip}>
         {isFilmstripVisible ? <PanelLeftClose size={17} aria-hidden /> : <PanelLeftOpen size={17} aria-hidden />}
       </IconButton>
+      <DevBuildBadge buildInfo={buildInfo} />
       <div className="topbar-fill" aria-hidden />
       <div className="topbar-counter" data-testid="counter">{statusText}</div>
     </header>

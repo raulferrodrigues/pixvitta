@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import type { AppBuildInfo } from "../shared/appBuild";
 import { useAppLifecycle } from "./app/useAppLifecycle";
 import { useAutoHideControls } from "./app/useAutoHideControls";
 import { useKeyboardShortcuts } from "./app/useKeyboardShortcuts";
@@ -12,7 +13,7 @@ import { TopBar } from "./topbar/TopBar";
 import { classNames } from "./ui/classNames";
 import "./App.css";
 
-export function App() {
+export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
   useAppLifecycle(window.pixvitta);
   useKeyboardShortcuts(window.pixvitta);
   const folderPath = useViewerStore((state) => state.folderPath);
@@ -22,7 +23,7 @@ export function App() {
   const usesUnobtrusiveControls = useViewerStore((state) => state.settings.unobtrusiveViewerControls);
   const isControlsRevealed = useAutoHideControls(usesUnobtrusiveControls && hasMedia);
 
-  if (!folderPath) return <FolderPicker />;
+  if (!folderPath) return <FolderPicker buildInfo={buildInfo} />;
 
   const showFilmstrip = hasMedia && isFilmstripVisible;
   const style = { "--filmstrip-width": showFilmstrip ? `${filmstripWidth}px` : "0px" } as CSSProperties;
@@ -38,7 +39,7 @@ export function App() {
       style={style}
       data-testid="app-shell"
     >
-      <TopBar />
+      <TopBar buildInfo={buildInfo} />
       <Controls />
       {showFilmstrip ? <Filmstrip /> : null}
       <MediaViewer />

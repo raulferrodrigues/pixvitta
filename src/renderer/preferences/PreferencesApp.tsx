@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { AppBuildInfo } from "../../shared/appBuild";
 import type { PixvittaApi } from "../../shared/pixvittaApi";
 import { defaultSettings, type AppSettings } from "../../shared/settings";
 import { CheckboxSettingRow } from "./CheckboxSettingRow";
@@ -8,9 +9,12 @@ import { SettingGroup } from "./SettingGroup";
 import { preferenceSections } from "./preferenceOptions";
 import "./preferences.css";
 
-type PreferencesAppProps = { api?: PixvittaApi };
+type PreferencesAppProps = {
+  buildInfo: AppBuildInfo;
+  api?: PixvittaApi;
+};
 
-export function PreferencesApp({ api = window.pixvitta }: PreferencesAppProps) {
+export function PreferencesApp({ buildInfo, api = window.pixvitta }: PreferencesAppProps) {
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [saveState, setSaveState] = useState<PreferencesSaveState>("idle");
   const settingsRef = useRef(defaultSettings);
@@ -56,7 +60,7 @@ export function PreferencesApp({ api = window.pixvitta }: PreferencesAppProps) {
 
   return (
     <main className="preferences-scrollbar h-screen overflow-y-auto bg-pix-preferences-bg px-6 pb-7 pt-6 text-pix-preferences-text [scrollbar-gutter:stable]" data-testid="preferences-shell">
-      <PreferencesHeader saveState={saveState} />
+      <PreferencesHeader saveState={saveState} buildInfo={buildInfo} />
       {preferenceSections.map((section) => (
         <SettingGroup key={section.label} label={section.label}>
           {section.rows.map((row) =>

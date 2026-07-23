@@ -71,6 +71,7 @@ jobs:
           grep -F "version: ${{ steps.version.outputs.version }}" release/latest-linux.yml
           grep -F "url: Pixvitta.AppImage" release/latest-linux.yml
           grep -F "url: Pixvitta-${{ steps.version.outputs.version }}-amd64.deb" release/latest-linux.yml
+          node scripts/verify-linux-package.mjs stable "release/Pixvitta-${{ steps.version.outputs.version }}-amd64.deb"
 
       - name: Publish stable release
         env:

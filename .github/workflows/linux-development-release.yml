@@ -55,12 +55,13 @@ jobs:
 
       - name: Verify update assets
         run: |
-          test -f release/Pixvitta.AppImage
-          test -f "release/Pixvitta-${{ steps.version.outputs.version }}-amd64.deb"
+          test -f release/Pixvitta-Dev.AppImage
+          test -f "release/Pixvitta-Dev-${{ steps.version.outputs.version }}-amd64.deb"
           test -f release/dev-linux.yml
           grep -F "version: ${{ steps.version.outputs.version }}" release/dev-linux.yml
-          grep -F "url: Pixvitta.AppImage" release/dev-linux.yml
-          grep -F "url: Pixvitta-${{ steps.version.outputs.version }}-amd64.deb" release/dev-linux.yml
+          grep -F "url: Pixvitta-Dev.AppImage" release/dev-linux.yml
+          grep -F "url: Pixvitta-Dev-${{ steps.version.outputs.version }}-amd64.deb" release/dev-linux.yml
+          node scripts/verify-linux-package.mjs dev "release/Pixvitta-Dev-${{ steps.version.outputs.version }}-amd64.deb"
 
       - name: Publish development release
         env:
@@ -70,9 +71,9 @@ jobs:
           gh release create "v${VERSION}" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Pixvitta ${VERSION}" \
-            --notes "Automated Linux development build from ${GITHUB_SHA}." \
+            --title "Pixvitta Dev ${VERSION}" \
+            --notes "Automated Pixvitta Dev Linux build from ${GITHUB_SHA}. It installs alongside stable Pixvitta." \
             --prerelease \
-            release/Pixvitta.AppImage \
-            "release/Pixvitta-${VERSION}-amd64.deb" \
+            release/Pixvitta-Dev.AppImage \
+            "release/Pixvitta-Dev-${VERSION}-amd64.deb" \
             release/dev-linux.yml

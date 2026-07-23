@@ -4,8 +4,9 @@ Pixvitta is a desktop image and video viewer for Linux and macOS. Open a folder,
 browse its supported media in a filmstrip, and move between files without
 importing them into a library. Viewing and thumbnail generation happen locally.
 
-Pixvitta is under active development. Linux builds are published as stable and
-development releases; macOS builds are unsigned development artifacts.
+Pixvitta is under active development. Linux builds are published in two
+side-by-side editions: stable **Pixvitta** and prerelease **Pixvitta Dev**.
+macOS builds are unsigned development artifacts.
 
 ## Features
 
@@ -40,16 +41,31 @@ Linux builds are available from [GitHub Releases](https://github.com/raulferrodr
 
 The Debian package provides the most reliable desktop integration on supported
 distributions. Install the downloaded package with APT so required system
-libraries are resolved automatically:
+libraries are resolved automatically.
+
+Install stable Pixvitta:
 
 ```bash
 sudo apt install ./Pixvitta-<version>-amd64.deb
 ```
 
-Uninstall it with:
+Install Pixvitta Dev:
+
+```bash
+sudo apt install ./Pixvitta-Dev-<version>-amd64.deb
+```
+
+The packages can be installed and run at the same time. Pixvitta Dev uses a
+purple icon and an in-app `DEV` badge, and keeps its settings, recent folders,
+thumbnail cache, updater data, and single-instance lock separate from stable.
+Both editions appear in the desktop environment's **Open With** list; installing
+Dev does not intentionally change the default application.
+
+Uninstall either edition independently:
 
 ```bash
 sudo apt remove pixvitta
+sudo apt remove pixvitta-dev
 ```
 
 ### AppImage
@@ -59,10 +75,20 @@ The AppImage is the portable Linux build. Make it executable and run it directly
 ```bash
 chmod +x Pixvitta.AppImage
 ./Pixvitta.AppImage
+
+chmod +x Pixvitta-Dev.AppImage
+./Pixvitta-Dev.AppImage
 ```
 
 Desktop integration for an AppImage is optional and is managed by the desktop
 environment or a separate integration tool.
+
+Development releases published before the introduction of Pixvitta Dev used the
+stable `pixvitta` package identity. To transition, install the current stable
+Debian package into that slot, then install the new `pixvitta-dev` package.
+Previously integrated development AppImages should be removed from the
+integration tool and reintegrated using `Pixvitta-Dev.AppImage`. Pixvitta Dev
+starts with fresh application data and does not copy stable preferences.
 
 ### macOS
 
@@ -95,6 +121,9 @@ pnpm install
 pnpm electron:dev
 ```
 
+Local Electron development runs as Pixvitta Dev by default, including its
+branding and isolated application data.
+
 Useful commands:
 
 | Command | Purpose |
@@ -106,6 +135,7 @@ Useful commands:
 | `pnpm dist:linux` | Build stable-channel AppImage and Debian packages |
 | `pnpm dist:linux:dev` | Build dev-channel AppImage and Debian packages |
 | `pnpm dist:deb` | Build only the Debian package |
+| `pnpm dist:deb:dev` | Build only the Pixvitta Dev Debian package |
 | `pnpm dist:mac` | Build macOS DMG and ZIP artifacts |
 
 Build artifacts are written to `release/`. Linux icon generation requires
@@ -114,18 +144,20 @@ their target operating system.
 
 ## Automatic Updates
 
-Stable Linux builds follow normal GitHub Releases, while development builds
-follow prereleases on the `dev` channel. Pixvitta chooses the channel from its
-version, then checks shortly after launch, every four hours while running, and
-when **Check for Updates** is selected from the application menu.
+Stable Linux builds follow normal GitHub Releases on the `latest` channel.
+Pixvitta Dev follows prereleases on the `dev` channel. Each edition checks
+shortly after launch, every four hours while running, and when **Check for
+Updates** is selected from the application menu. An edition only installs
+updates from its own channel.
 
 Updates download in the background. AppImage updates replace the running
 AppImage in place. Debian updates install a new package and require administrator
 authentication. Automatic updates are disabled for current unsigned macOS builds.
 
-Pushes to `main` publish a normal Linux release using the version in
-`package.json`. Pushes to `dev` publish a newer development prerelease. Both
-release types contain the AppImage, Debian package, and matching update metadata.
+Pushes to `main` publish normal Pixvitta Linux releases using the version in
+`package.json`. Pushes to `dev` publish versioned Pixvitta Dev prereleases. Both
+release types contain the corresponding AppImage, Debian package, and update
+metadata.
 
 ## Project Structure
 
