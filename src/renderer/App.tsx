@@ -5,7 +5,7 @@ import { useAutoHideControls } from "./app/useAutoHideControls";
 import { useKeyboardShortcuts } from "./app/useKeyboardShortcuts";
 import { Controls } from "./controls/Controls";
 import { Filmstrip } from "./filmstrip/Filmstrip";
-import { FolderPicker } from "./folder-picker/FolderPicker";
+import { SourcePicker } from "./folder-picker/SourcePicker";
 import { MediaViewer } from "./media-viewer/MediaViewer";
 import { useViewerStore } from "./state/ViewerStoreProvider";
 import { selectHasMedia } from "./state/viewerSelectors";
@@ -16,14 +16,14 @@ import "./App.css";
 export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
   useAppLifecycle(window.pixvitta);
   useKeyboardShortcuts(window.pixvitta);
-  const folderPath = useViewerStore((state) => state.folderPath);
+  const source = useViewerStore((state) => state.source);
   const hasMedia = useViewerStore(selectHasMedia);
   const filmstripWidth = useViewerStore((state) => state.filmstripWidth);
   const isFilmstripVisible = useViewerStore((state) => state.isFilmstripVisible);
   const usesUnobtrusiveControls = useViewerStore((state) => state.settings.unobtrusiveViewerControls);
   const isControlsRevealed = useAutoHideControls(usesUnobtrusiveControls && hasMedia);
 
-  if (!folderPath) return <FolderPicker buildInfo={buildInfo} />;
+  if (!source) return <SourcePicker buildInfo={buildInfo} />;
 
   const showFilmstrip = hasMedia && isFilmstripVisible;
   const style = { "--filmstrip-width": showFilmstrip ? `${filmstripWidth}px` : "0px" } as CSSProperties;

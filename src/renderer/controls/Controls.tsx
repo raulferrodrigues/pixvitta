@@ -11,12 +11,12 @@ export function Controls() {
   const gt = useGT();
   const currentItem = useViewerStore(selectCurrentItem);
   const hasMedia = useViewerStore(selectHasMedia);
-  const folderPath = useViewerStore((state) => state.folderPath);
+  const source = useViewerStore((state) => state.source);
   const isVideoPlaying = useViewerStore((state) => state.isVideoPlaying);
   const isVideoLooping = useViewerStore((state) => state.isVideoLooping);
   const settings = useViewerStore((state) => state.settings);
   const openFolder = useViewerStore((state) => state.openFolder);
-  const rescanFolder = useViewerStore((state) => state.rescanFolder);
+  const refreshSource = useViewerStore((state) => state.refreshSource);
   const setFileOrder = useViewerStore((state) => state.setFileOrder);
   const goPrevious = useViewerStore((state) => state.goPrevious);
   const goNext = useViewerStore((state) => state.goNext);
@@ -36,9 +36,17 @@ export function Controls() {
         <div className="viewer-controls-leading">
           <ControlGroup label={gt("Library controls")}>
             <IconButton label={gt("Open folder")} onClick={() => void openFolder()}><FolderOpen size={18} aria-hidden /></IconButton>
-            <IconButton label={gt("Rescan folder")} onClick={() => void rescanFolder()} disabled={!folderPath}><RefreshCw size={17} aria-hidden /></IconButton>
+            <IconButton
+              label={gt("Refresh source")}
+              onClick={() => void refreshSource()}
+              disabled={!source?.capabilities.canRefresh}
+            >
+              <RefreshCw size={17} aria-hidden />
+            </IconButton>
           </ControlGroup>
-          <FileOrderMenu value={settings.fileOrder} onChange={(fileOrder) => void setFileOrder(fileOrder)} />
+          {source?.capabilities.canSort ? (
+            <FileOrderMenu value={settings.fileOrder} onChange={(fileOrder) => void setFileOrder(fileOrder)} />
+          ) : null}
         </div>
 
         <ControlGroup label={gt("Media controls")} className="viewer-controls-transport">

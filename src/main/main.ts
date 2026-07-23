@@ -2,7 +2,7 @@ import { app, BrowserWindow } from "electron";
 import { configureAppIdentity } from "./app/buildInfo";
 import { createAppMenu } from "./menus";
 import { registerIpcHandlers } from "./ipc";
-import { openFileAsFolder } from "./library";
+import { openFileAsCollection } from "./library";
 import { startAutomaticUpdates } from "./updates";
 import { createMainWindow, createPreferencesWindow } from "./windows";
 
@@ -13,9 +13,9 @@ function fileArguments(argv: string[]): string[] {
 
 async function openFileArgument(argv: string[]): Promise<boolean> {
   for (const filePath of fileArguments(argv)) {
-    const folder = await openFileAsFolder(filePath);
-    if (folder) {
-      createMainWindow(folder);
+    const collection = await openFileAsCollection(filePath);
+    if (collection) {
+      createMainWindow(collection);
       return true;
     }
   }
@@ -65,9 +65,9 @@ app.on("open-file", (event, filePath) => {
   event.preventDefault();
   void app
     .whenReady()
-    .then(() => openFileAsFolder(filePath))
-    .then((folder) => {
-      if (folder) createMainWindow(folder);
+    .then(() => openFileAsCollection(filePath))
+    .then((collection) => {
+      if (collection) createMainWindow(collection);
     })
     .catch((error: unknown) => console.error(error));
 });

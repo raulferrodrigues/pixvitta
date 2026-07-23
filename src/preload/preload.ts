@@ -1,6 +1,10 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { AppBuildInfo } from "../shared/appBuild";
-import type { Folder } from "../shared/media";
+import type {
+  MediaCollection,
+  OpenSourceRequest,
+  OpenSourceResult
+} from "../shared/media";
 import type { PixvittaApi, PixvittaCommand, WindowChromeState } from "../shared/pixvittaApi";
 import type { RecentFolder } from "../shared/recentFolders";
 import type { AppSettings } from "../shared/settings";
@@ -15,15 +19,12 @@ import type { AppSettings } from "../shared/settings";
 
 const pixvittaApi = {
   getBuildInfo: (): Promise<AppBuildInfo> => ipcRenderer.invoke("app:get-build-info"),
-
-  // Folder actions are request/response IPC calls. From React's point of view
-  // these behave like async API calls; from Electron's point of view they cross
-  // into ipcMain handlers that can open dialogs and read the filesystem.
-  openFolder: (): Promise<Folder | null> => ipcRenderer.invoke("folder:open"),
-  openRecentFolder: (folderPath: string): Promise<Folder> =>
-    ipcRenderer.invoke("folder:open-recent", folderPath),
-  rescanFolder: (folderPath: string): Promise<Folder> =>
-    ipcRenderer.invoke("folder:rescan", folderPath),
+  openSource: (request: OpenSourceRequest): Promise<OpenSourceResult> =>
+    ipcRenderer.invoke("source:open", request),
+  refreshSource: (sourceId: string): Promise<OpenSourceResult> =>
+    ipcRenderer.invoke("source:refresh", sourceId),
+  openSourceOrigin: (sourceId: string): Promise<boolean> =>
+    ipcRenderer.invoke("source:open-origin", sourceId),
 
   // Persistent app data also goes through main. The renderer gets plain objects,
   // not direct access to JSON files under Electron's userData directory.
@@ -36,8 +37,8 @@ const pixvittaApi = {
   // Media actions pass IDs or validated data across the bridge. The main process
   // resolves IDs to paths and decides whether anything should touch disk.
   showMediaContextMenu: (mediaId: string): Promise<boolean> => ipcRenderer.invoke("media:show-context-menu", mediaId),
-  saveMediaThumbnail: (mediaId: string, dataUrl: string): Promise<boolean> =>
-    ipcRenderer.invoke("thumbnail:save-media", mediaId, dataUrl),
+  saveMediaThumbnail: (thumbnailReference: string, dataUrl: string): Promise<boolean> =>
+    ipcRenderer.invoke("thumbnail:save-media", thumbnailReference, dataUrl),
 
   // Native window state belongs to BrowserWindow in the main process. These
   // methods give React controls without granting direct BrowserWindow access.
@@ -63,8 +64,8 @@ const pixvittaApi = {
     ipcRenderer.on("menu:command", listener);
     return () => ipcRenderer.removeListener("menu:command", listener);
   },
-  onOpenedFile: (callback: (folder: Folder) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, folder: Folder) => callback(folder);
+  onOpenedFile: (callback: (collection: MediaCollection) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, collection: MediaCollection) => callback(collection);
     ipcRenderer.on("file:opened", listener);
     return () => ipcRenderer.removeListener("file:opened", listener);
   },

@@ -77,9 +77,9 @@ export function createAppMenu(): void {
           click: () => sendViewerCommand("open-folder")
         },
         {
-          label: "Rescan Folder",
-          accelerator: MAIN_HOTKEYS.rescanFolder,
-          click: () => sendViewerCommand("rescan-folder")
+          label: "Refresh Source",
+          accelerator: MAIN_HOTKEYS.refreshSource,
+          click: () => sendViewerCommand("refresh-source")
         }
       ]
     },

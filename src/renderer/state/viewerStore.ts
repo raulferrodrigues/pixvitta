@@ -1,5 +1,11 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { Folder, MediaItem } from "../../shared/media";
+import type {
+  MediaCollection,
+  MediaItem,
+  MediaSource,
+  OpenSourceError,
+  OpenSourceRequest
+} from "../../shared/media";
 import type { PixvittaApi } from "../../shared/pixvittaApi";
 import type { RecentFolder } from "../../shared/recentFolders";
 import { defaultSettings, type AppSettings, type FileOrder } from "../../shared/settings";
@@ -15,7 +21,7 @@ export const MIN_FILMSTRIP_WIDTH = 128;
 export const MAX_FILMSTRIP_WIDTH = 320;
 
 export type ViewerState = {
-  folderPath: string | null;
+  source: MediaSource | null;
   items: MediaItem[];
   index: number;
   loadState: ViewerLoadState;
@@ -29,15 +35,17 @@ export type ViewerState = {
   recentFolders: RecentFolder[];
   filmstripWidth: number;
   isFilmstripVisible: boolean;
+  sourceOpenError: OpenSourceError | null;
 };
 
 export type ViewerActions = {
   initialize(): Promise<void>;
   openFolder(): Promise<void>;
+  openLocation(location: string): Promise<void>;
   openRecentFolder(folderPath: string): Promise<void>;
   removeRecentFolder(folderPath: string): Promise<void>;
-  openScannedFolder(folder: Folder): void;
-  rescanFolder(): Promise<void>;
+  openCollection(collection: MediaCollection): void;
+  refreshSource(): Promise<void>;
   refreshRecentFolders(): Promise<void>;
   loadSettings(): Promise<void>;
   applySettings(settings: AppSettings): void;
@@ -63,23 +71,26 @@ export type ViewerActions = {
 export type ViewerStore = ViewerState & ViewerActions;
 export type ViewerStoreApi = StoreApi<ViewerStore>;
 
-function applyFolder(folder: Folder): Partial<ViewerState> {
-  const selectedIndex = folder.selectedId === null ? -1 : folder.items.findIndex((item) => item.id === folder.selectedId);
+function applyCollection(collection: MediaCollection): Partial<ViewerState> {
+  const selectedIndex = collection.selectedId === null
+    ? -1
+    : collection.items.findIndex((item) => item.id === collection.selectedId);
 
   return {
-    folderPath: folder.folderPath,
-    items: folder.items,
+    source: collection.source,
+    items: collection.items,
     index: selectedIndex >= 0 ? selectedIndex : 0,
     mediaErrors: new Set(),
     isVideoPlaying: false,
     imageZoom: MIN_IMAGE_ZOOM,
     imagePanX: 0,
     imagePanY: 0,
-    loadState: folder.items.length > 0 ? "ready" : "empty"
+    sourceOpenError: null,
+    loadState: collection.items.length > 0 ? "ready" : "empty"
   };
 }
 
-function settingsRequireFolderRescan(previousSettings: AppSettings, nextSettings: AppSettings): boolean {
+function settingsRequireSourceRefresh(previousSettings: AppSettings, nextSettings: AppSettings): boolean {
   return previousSettings.fileOrder !== nextSettings.fileOrder || previousSettings.includeHidden !== nextSettings.includeHidden;
 }
 
@@ -87,18 +98,18 @@ export function createViewerStore(
   api: PixvittaApi,
   videoController: VideoController = createVideoController()
 ): ViewerStoreApi {
-  let folderRequestId = 0;
+  let sourceRequestId = 0;
   let settingsSaveRevision = 0;
-  const nextFolderRequestId = () => {
-    folderRequestId += 1;
-    return folderRequestId;
+  const nextSourceRequestId = () => {
+    sourceRequestId += 1;
+    return sourceRequestId;
   };
-  const isCurrentFolderRequest = (requestId: number) => requestId === folderRequestId;
+  const isCurrentSourceRequest = (requestId: number) => requestId === sourceRequestId;
 
   return createStore<ViewerStore>((set, get) => {
     const applySettingsState = (settings: AppSettings) => {
       const previousSettings = get().settings;
-      const shouldRescanFolder = settingsRequireFolderRescan(previousSettings, settings);
+      const shouldRefreshSource = settingsRequireSourceRefresh(previousSettings, settings);
       const shouldResetVideoLoop = previousSettings.videoLoopByDefault !== settings.videoLoopByDefault;
 
       set({
@@ -106,16 +117,50 @@ export function createViewerStore(
         ...(shouldResetVideoLoop ? { isVideoLooping: settings.videoLoopByDefault } : {})
       });
 
-      if (shouldRescanFolder && get().folderPath) void get().rescanFolder();
+      if (shouldRefreshSource && get().source?.capabilities.canSort) {
+        void get().refreshSource();
+      }
     };
 
-    const applyScannedFolder = (folder: Folder) => {
-      set(applyFolder(folder));
+    const applyOpenedCollection = (collection: MediaCollection) => {
+      set(applyCollection(collection));
       void get().refreshRecentFolders();
     };
 
+    const openSourceRequest = async (request: OpenSourceRequest) => {
+      const requestId = nextSourceRequestId();
+      const isOpeningInitialSource = get().source === null;
+      if (isOpeningInitialSource) {
+        set({ loadState: "loading", sourceOpenError: null });
+      }
+
+      try {
+        const result = await api.openSource(request);
+        if (!isCurrentSourceRequest(requestId)) return;
+        if (!result.ok) {
+          set({
+            loadState: isOpeningInitialSource ? "idle" : get().loadState,
+            sourceOpenError: result.error
+          });
+          return;
+        }
+        if (!result.collection) {
+          if (isOpeningInitialSource) set({ loadState: "idle" });
+          return;
+        }
+        applyOpenedCollection(result.collection);
+      } catch (error) {
+        if (!isCurrentSourceRequest(requestId)) return;
+        console.error(error);
+        set({
+          loadState: isOpeningInitialSource ? "idle" : get().loadState,
+          sourceOpenError: "unavailable"
+        });
+      }
+    };
+
     return {
-      folderPath: null,
+      source: null,
       items: [],
       index: 0,
       loadState: "idle",
@@ -129,44 +174,22 @@ export function createViewerStore(
       recentFolders: [],
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
       isFilmstripVisible: true,
+      sourceOpenError: null,
 
       async initialize() {
         await Promise.all([get().loadSettings(), get().refreshRecentFolders()]);
       },
 
       async openFolder() {
-        const requestId = nextFolderRequestId();
-        const isOpeningInitialFolder = get().folderPath === null;
-        if (isOpeningInitialFolder) set({ loadState: "loading" });
+        await openSourceRequest({ kind: "pick-directory" });
+      },
 
-        try {
-          const result = await api.openFolder();
-          if (!isCurrentFolderRequest(requestId)) return;
-          if (!result) {
-            if (isOpeningInitialFolder) set({ loadState: "idle" });
-            return;
-          }
-          applyScannedFolder(result);
-        } catch (error) {
-          if (!isCurrentFolderRequest(requestId)) return;
-          console.error(error);
-          set({ loadState: "error" });
-        }
+      async openLocation(location: string) {
+        await openSourceRequest({ kind: "location", location });
       },
 
       async openRecentFolder(folderPath: string) {
-        const requestId = nextFolderRequestId();
-        const isOpeningInitialFolder = get().folderPath === null;
-        if (isOpeningInitialFolder) set({ loadState: "loading" });
-        try {
-          const result = await api.openRecentFolder(folderPath);
-          if (!isCurrentFolderRequest(requestId)) return;
-          applyScannedFolder(result);
-        } catch (error) {
-          if (!isCurrentFolderRequest(requestId)) return;
-          console.error(error);
-          set({ loadState: "error" });
-        }
+        await openSourceRequest({ kind: "location", location: folderPath });
       },
 
       async removeRecentFolder(folderPath: string) {
@@ -177,22 +200,29 @@ export function createViewerStore(
         }
       },
 
-      openScannedFolder(folder: Folder) {
-        nextFolderRequestId();
-        applyScannedFolder(folder);
+      openCollection(collection: MediaCollection) {
+        nextSourceRequestId();
+        applyOpenedCollection(collection);
       },
 
-      async rescanFolder() {
-        const { folderPath } = get();
-        if (!folderPath) return;
+      async refreshSource() {
+        const { source } = get();
+        if (!source?.capabilities.canRefresh) return;
 
-        const requestId = nextFolderRequestId();
+        const requestId = nextSourceRequestId();
         try {
-          const result = await api.rescanFolder(folderPath);
-          if (!isCurrentFolderRequest(requestId)) return;
-          set(applyFolder(result));
+          const result = await api.refreshSource(source.id);
+          if (!isCurrentSourceRequest(requestId)) return;
+          if (!result.ok || !result.collection) {
+            set({
+              loadState: "error",
+              sourceOpenError: result.ok ? "unavailable" : result.error
+            });
+            return;
+          }
+          set(applyCollection(result.collection));
         } catch (error) {
-          if (!isCurrentFolderRequest(requestId)) return;
+          if (!isCurrentSourceRequest(requestId)) return;
           console.error(error);
           set({ loadState: "error" });
         }

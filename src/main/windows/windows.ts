@@ -1,5 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
-import type { Folder } from "../../shared/media";
+import type { MediaCollection } from "../../shared/media";
 import type { PixvittaCommand } from "../../shared/pixvittaApi";
 import { rendererUrl } from "../app";
 import { createPreferencesBrowserWindow } from "./preferencesWindow";
@@ -64,7 +64,7 @@ let skipNextWindowAllClosedQuit = false;
 // Folders can arrive before the main window exists, while it is loading, or
 // before React has registered its file-open listener. The queue lets callers say
 // "show this folder in the main window" without learning any of that timing.
-const pendingMainWindowFolders: Folder[] = [];
+const pendingMainWindowCollections: MediaCollection[] = [];
 
 function flushMainWindowFolders(): void {
   // The renderer only gets folder deliveries after two conditions are true:
@@ -72,17 +72,17 @@ function flushMainWindowFolders(): void {
   // preload. Sending before either point risks dropping the IPC message.
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindowLoaded || !mainWindowReady) return;
 
-  while (pendingMainWindowFolders.length > 0) {
-    mainWindow.webContents.send("file:opened", pendingMainWindowFolders.shift()!);
+  while (pendingMainWindowCollections.length > 0) {
+    mainWindow.webContents.send("file:opened", pendingMainWindowCollections.shift()!);
   }
   mainWindow.focus();
 }
 
-export function createMainWindow(folder?: Folder): void {
+export function createMainWindow(collection?: MediaCollection): void {
   // The optional folder is the high-level "show this opened folder" command.
   // Delivery timing remains private to this module; callers do not need a
   // separate "wait until viewer ready" API.
-  if (folder) pendingMainWindowFolders.push(folder);
+  if (collection) pendingMainWindowCollections.push(collection);
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     flushMainWindowFolders();
