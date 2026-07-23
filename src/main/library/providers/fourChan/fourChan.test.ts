@@ -122,6 +122,48 @@ test("proxies media with provider referrer and byte ranges", async () => {
   assert.equal(response.headers.get("Access-Control-Allow-Origin"), "*");
 });
 
+test("bounds media requests and propagates cancellation", async () => {
+  const reference = parseFourChanThreadUrl(threadUrl);
+  assert.ok(reference);
+  const upstreamSignals: AbortSignal[] = [];
+  const fetchImpl = (async (
+    _input: string | URL | Request,
+    init?: RequestInit
+  ) => {
+    assert.ok(init?.signal);
+    upstreamSignals.push(init.signal);
+    return new Response("media");
+  }) as typeof fetch;
+  const collection = createFourChanThreadCollection(
+    reference,
+    payload,
+    fetchImpl,
+    10
+  );
+
+  const requestController = new AbortController();
+  await collection.items[0].media.respond(
+    new Request("pixvitta-media://media/example", {
+      signal: requestController.signal
+    })
+  );
+  requestController.abort();
+  assert.equal(upstreamSignals[0].aborted, true);
+
+  await collection.items[0].media.respond(
+    new Request("pixvitta-media://media/example")
+  );
+  const timeoutSignal = upstreamSignals[1];
+  if (!timeoutSignal.aborted) {
+    await new Promise<void>((resolve) => {
+      timeoutSignal.addEventListener("abort", () => resolve(), {
+        once: true
+      });
+    });
+  }
+  assert.equal(timeoutSignal.reason?.name, "TimeoutError");
+});
+
 test("caches thread responses, revalidates them, and serializes API requests", async () => {
   let now = 0;
   const waits: number[] = [];

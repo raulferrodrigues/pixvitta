@@ -13,6 +13,7 @@ const FOURCHAN_THREAD_HOSTS = new Set(["boards.4chan.org", "boards.4channel.org"
 const DEFAULT_REQUEST_INTERVAL_MS = 1_100;
 const DEFAULT_THREAD_REFRESH_MS = 10_000;
 const DEFAULT_TIMEOUT_MS = 15_000;
+const DEFAULT_MEDIA_TIMEOUT_MS = 60_000;
 
 const supportedAttachmentKinds = new Map<string, MediaKind>([
   [".jpg", "image"],
@@ -54,6 +55,7 @@ type FourChanProviderOptions = {
   requestIntervalMs?: number;
   threadRefreshMs?: number;
   timeoutMs?: number;
+  mediaTimeoutMs?: number;
 };
 
 export function parseFourChanThreadUrl(input: string): FourChanThreadReference | null {
@@ -110,7 +112,8 @@ async function createRemoteMediaResponse(
   url: string,
   pageUrl: string,
   request: Request,
-  fetchImpl: typeof fetch
+  fetchImpl: typeof fetch,
+  timeoutMs: number
 ): Promise<Response> {
   const headers = new Headers({
     Accept: request.headers.get("Accept") ?? "*/*",
@@ -122,7 +125,11 @@ async function createRemoteMediaResponse(
   const upstream = await fetchImpl(url, {
     method: "GET",
     headers,
-    redirect: "error"
+    redirect: "error",
+    signal: AbortSignal.any([
+      request.signal,
+      AbortSignal.timeout(timeoutMs)
+    ])
   });
   const responseHeaders = new Headers();
   for (const name of [
@@ -149,7 +156,8 @@ async function createRemoteMediaResponse(
 function attachmentToMediaItem(
   reference: FourChanThreadReference,
   post: FourChanPost,
-  fetchImpl: typeof fetch
+  fetchImpl: typeof fetch,
+  mediaTimeoutMs: number
 ): ProviderMediaItem | null {
   if (post.filedeleted === 1) return null;
   if (
@@ -188,14 +196,26 @@ function attachmentToMediaItem(
     createdMs: timestampMs,
     media: {
       respond: (request) =>
-        createRemoteMediaResponse(mediaUrl, reference.pageUrl, request, fetchImpl)
+        createRemoteMediaResponse(
+          mediaUrl,
+          reference.pageUrl,
+          request,
+          fetchImpl,
+          mediaTimeoutMs
+        )
     },
     externalUrl: mediaUrl,
     thumbnail: {
       kind: "resource",
       resource: {
         respond: (request) =>
-          createRemoteMediaResponse(thumbnailUrl, reference.pageUrl, request, fetchImpl)
+          createRemoteMediaResponse(
+            thumbnailUrl,
+            reference.pageUrl,
+            request,
+            fetchImpl,
+            mediaTimeoutMs
+          )
       }
     }
   };
@@ -204,7 +224,8 @@ function attachmentToMediaItem(
 export function createFourChanThreadCollection(
   reference: FourChanThreadReference,
   payload: unknown,
-  fetchImpl: typeof fetch = fetch
+  fetchImpl: typeof fetch = fetch,
+  mediaTimeoutMs = DEFAULT_MEDIA_TIMEOUT_MS
 ): ProviderCollection {
   if (!payload || typeof payload !== "object") {
     throw new ProviderError("invalid-response", "The thread response was not an object.");
@@ -217,7 +238,12 @@ export function createFourChanThreadCollection(
 
   const items = posts.flatMap((post) => {
     if (!post || typeof post !== "object") return [];
-    const item = attachmentToMediaItem(reference, post as FourChanPost, fetchImpl);
+    const item = attachmentToMediaItem(
+      reference,
+      post as FourChanPost,
+      fetchImpl,
+      mediaTimeoutMs
+    );
     return item ? [item] : [];
   });
 
@@ -253,6 +279,7 @@ export class FourChanProvider implements MediaProvider {
   private readonly requestIntervalMs: number;
   private readonly threadRefreshMs: number;
   private readonly timeoutMs: number;
+  private readonly mediaTimeoutMs: number;
   private readonly cache = new Map<string, CachedThread>();
   private requestQueue: Promise<void> = Promise.resolve();
   private lastRequestStartedAtMs: number | null = null;
@@ -266,6 +293,7 @@ export class FourChanProvider implements MediaProvider {
     this.requestIntervalMs = options.requestIntervalMs ?? DEFAULT_REQUEST_INTERVAL_MS;
     this.threadRefreshMs = options.threadRefreshMs ?? DEFAULT_THREAD_REFRESH_MS;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    this.mediaTimeoutMs = options.mediaTimeoutMs ?? DEFAULT_MEDIA_TIMEOUT_MS;
   }
 
   matches(location: string): boolean {
@@ -340,7 +368,8 @@ export class FourChanProvider implements MediaProvider {
       const collection = createFourChanThreadCollection(
         reference,
         payload,
-        this.fetchImpl
+        this.fetchImpl,
+        this.mediaTimeoutMs
       );
       this.cache.set(reference.apiUrl, {
         collection,
