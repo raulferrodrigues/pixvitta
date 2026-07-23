@@ -11,9 +11,12 @@ function fileArguments(argv: string[]): string[] {
   return argv.slice(start).filter((argument) => argument.length > 0 && !argument.startsWith("-"));
 }
 
-async function openFileArgument(argv: string[]): Promise<boolean> {
+async function openFileArgument(
+  argv: string[],
+  baseDirectory = process.cwd()
+): Promise<boolean> {
   for (const filePath of fileArguments(argv)) {
-    const collection = await openFileAsCollection(filePath);
+    const collection = await openFileAsCollection(filePath, baseDirectory);
     if (collection) {
       createMainWindow(collection);
       return true;
@@ -51,10 +54,15 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
 } else {
-  app.on("second-instance", (_event, argv) => {
-    void app.whenReady().then(() => openFileArgument(argv)).then((opened) => {
-      if (!opened && BrowserWindow.getAllWindows().length === 0) createMainWindow();
-    });
+  app.on("second-instance", (_event, argv, workingDirectory) => {
+    void app
+      .whenReady()
+      .then(() => openFileArgument(argv, workingDirectory))
+      .then((opened) => {
+        if (!opened && BrowserWindow.getAllWindows().length === 0) {
+          createMainWindow();
+        }
+      });
   });
 }
 

@@ -136,9 +136,11 @@ export function createViewerStore(
     const openSourceRequest = async (request: OpenSourceRequest) => {
       const requestId = nextSourceRequestId();
       const isOpeningInitialSource = get().source === null;
-      if (isOpeningInitialSource) {
-        set({ loadState: "loading", sourceOpenError: null });
-      }
+      set(
+        isOpeningInitialSource
+          ? { loadState: "loading", sourceOpenError: null }
+          : { sourceOpenError: null }
+      );
 
       try {
         const result = await api.openSource(request);

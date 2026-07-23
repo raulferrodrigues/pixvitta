@@ -1,4 +1,5 @@
 import { BrowserWindow, dialog, ipcMain, shell } from "electron";
+import path from "node:path";
 import type {
   MediaCollection,
   OpenSourceRequest,
@@ -107,11 +108,14 @@ export async function openSourceOrigin(sourceId: string): Promise<boolean> {
 }
 
 export async function openFileAsCollection(
-  filePath: string
+  filePath: string,
+  baseDirectory = process.cwd()
 ): Promise<MediaCollection | null> {
   const libraryRequest = mediaLibrary.beginRequest();
   try {
-    return await libraryRequest.openLocation(filePath);
+    return await libraryRequest.openLocation(
+      path.resolve(baseDirectory, filePath)
+    );
   } catch (error) {
     if (
       error instanceof ProviderError &&

@@ -1,28 +1,14 @@
 import { Globe2 } from "lucide-react";
 import { useGT } from "gt-react";
 import { useState, type FormEvent } from "react";
-import type { OpenSourceError } from "../../shared/media";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { PrimaryButton } from "../ui/PrimaryButton";
-
-function errorMessage(
-  error: OpenSourceError,
-  gt: ReturnType<typeof useGT>
-): string {
-  if (error === "invalid-location") return gt("Enter a complete supported location.");
-  if (error === "unsupported-location") return gt("No installed provider supports that location.");
-  if (error === "not-found") return gt("That source could not be found.");
-  if (error === "rate-limited") return gt("The provider asked Pixvitta to slow down. Try again shortly.");
-  if (error === "invalid-response") return gt("The provider returned an unexpected response.");
-  if (error === "no-supported-media") return gt("That source has no supported images or videos.");
-  return gt("Could not reach the provider. Check your connection and try again.");
-}
+import { SourceOpenError } from "./SourceOpenError";
 
 export function LocationPicker() {
   const gt = useGT();
   const [location, setLocation] = useState("");
   const openLocation = useViewerStore((state) => state.openLocation);
-  const sourceOpenError = useViewerStore((state) => state.sourceOpenError);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -55,11 +41,7 @@ export function LocationPicker() {
       <p className="m-0 min-h-5 text-xs text-pix-recent-path">
         {gt("Experimental providers currently support 4chan thread URLs.")}
       </p>
-      {sourceOpenError ? (
-        <p className="m-0 text-sm text-red-300" role="alert">
-          {errorMessage(sourceOpenError, gt)}
-        </p>
-      ) : null}
+      <SourceOpenError />
     </form>
   );
 }

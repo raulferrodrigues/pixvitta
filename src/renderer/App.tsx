@@ -5,6 +5,7 @@ import { useAutoHideControls } from "./app/useAutoHideControls";
 import { useKeyboardShortcuts } from "./app/useKeyboardShortcuts";
 import { Controls } from "./controls/Controls";
 import { Filmstrip } from "./filmstrip/Filmstrip";
+import { SourceOpenError } from "./folder-picker/SourceOpenError";
 import { SourcePicker } from "./folder-picker/SourcePicker";
 import { MediaViewer } from "./media-viewer/MediaViewer";
 import { useViewerStore } from "./state/ViewerStoreProvider";
@@ -43,6 +44,7 @@ export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
       <Controls />
       {showFilmstrip ? <Filmstrip /> : null}
       <MediaViewer />
+      <SourceOpenError presentation="toast" />
     </main>
   );
 }
