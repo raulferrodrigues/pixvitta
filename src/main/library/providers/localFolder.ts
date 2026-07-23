@@ -67,6 +67,7 @@ export class LocalFolderProvider implements MediaProvider {
       canonicalLocation: result.folderPath,
       title: path.basename(result.folderPath) || result.folderPath,
       capabilities: {
+        canDownload: false,
         canRefresh: true,
         canSort: true
       },

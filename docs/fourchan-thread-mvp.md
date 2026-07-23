@@ -2,7 +2,7 @@
 
 > Historical experiment notes. The implementation now lives as the 4chan
 > provider inside the provider-neutral media library described in
-> [Media Providers MVP 2.0](media-providers-mvp2.md).
+> [Media Provider Architecture](media-provider-architecture.md).
 
 This document tracks the Dev-only experiment for treating a 4chan thread as a
 Pixvitta media folder. It is intentionally narrower than board browsing.

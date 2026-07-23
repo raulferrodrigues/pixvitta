@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { AppBuildInfo } from "../shared/appBuild";
 import type {
+  DownloadMediaResult,
   MediaCollection,
   OpenSourceRequest,
   OpenSourceResult
@@ -36,6 +37,8 @@ const pixvittaApi = {
 
   // Media actions pass IDs or validated data across the bridge. The main process
   // resolves IDs to paths and decides whether anything should touch disk.
+  downloadMedia: (mediaId: string): Promise<DownloadMediaResult> =>
+    ipcRenderer.invoke("media:download", mediaId),
   showMediaContextMenu: (mediaId: string): Promise<boolean> => ipcRenderer.invoke("media:show-context-menu", mediaId),
   saveMediaThumbnail: (thumbnailReference: string, dataUrl: string): Promise<boolean> =>
     ipcRenderer.invoke("thumbnail:save-media", thumbnailReference, dataUrl),

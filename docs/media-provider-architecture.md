@@ -1,4 +1,4 @@
-# Media Providers MVP 2.0
+# Media Provider Architecture
 
 This document tracks the refactor from a filesystem viewer with a special
 4chan path into a provider-based media library.
@@ -37,6 +37,11 @@ only these source operations:
 Provider matching, canonical locations, rate limits, remote request headers,
 resource delivery, local path authorization, recents policy, and error mapping
 remain behind this interface.
+
+Download-capable providers expose that behavior as a source capability. The
+renderer passes only the opaque media ID back to the media library; the provider
+resource is streamed into the operating system’s Downloads directory with a
+safe, collision-free filename.
 
 ## Provider seam
 
@@ -89,7 +94,6 @@ window layer.
 - Only local sources remain in recents for this iteration.
 - A 4chan board catalog is not implemented yet. A future browsing result may
   add child sources without changing how media collections are viewed.
-- Downloading remote media is deferred.
 
 ## Verification
 
@@ -100,4 +104,3 @@ window layer.
 - A focused Electron smoke test opens a local directory.
 - A focused Electron smoke test opens the known live 4chan thread and confirms
   that full media, not only thumbnails, reaches a playable/loadable state.
-

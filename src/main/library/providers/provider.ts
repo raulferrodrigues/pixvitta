@@ -24,6 +24,7 @@ export type ProviderCollection = {
     url: string;
   };
   capabilities: {
+    canDownload: boolean;
     canRefresh: boolean;
     canSort: boolean;
   };

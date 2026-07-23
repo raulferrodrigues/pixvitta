@@ -1,8 +1,14 @@
 import { app, BrowserWindow, ipcMain, protocol } from "electron";
 import { createHash } from "node:crypto";
-import type { MediaCollection, MediaItem } from "../../shared/media";
+import path from "node:path";
+import type {
+  DownloadMediaResult,
+  MediaCollection,
+  MediaItem
+} from "../../shared/media";
 import type { ProviderCollection } from "../library/providers/provider";
 import { showNativeMediaContextMenu } from "./mediaContextMenu";
+import { downloadMediaResource } from "./mediaDownload";
 import { MediaRegistry, type RegisteredMediaItem } from "./mediaRegistry";
 
 const registry = new MediaRegistry();
@@ -41,6 +47,27 @@ function showMediaContextMenu(window: BrowserWindow, mediaId: unknown): boolean 
   return true;
 }
 
+async function downloadMedia(mediaId: unknown): Promise<DownloadMediaResult> {
+  if (typeof mediaId !== "string") return { ok: false };
+
+  const item = registry.resolveId(mediaId);
+  if (!item?.downloadable) return { ok: false };
+
+  try {
+    const downloadsDirectory =
+      process.env.PIXVITTA_TEST_DOWNLOADS_PATH ?? app.getPath("downloads");
+    const downloadPath = await downloadMediaResource(
+      downloadsDirectory,
+      item.name,
+      item.media
+    );
+    return { ok: true, fileName: path.basename(downloadPath) };
+  } catch (error) {
+    console.error(error);
+    return { ok: false };
+  }
+}
+
 function registerMediaProtocolScheme(): void {
   protocol.registerSchemesAsPrivileged([
     {
@@ -61,6 +88,9 @@ function registerMediaIpcHandler(): void {
     const window = BrowserWindow.fromWebContents(event.sender);
     return window ? showMediaContextMenu(window, mediaId) : false;
   });
+  ipcMain.handle("media:download", (_event, mediaId: unknown) => {
+    return downloadMedia(mediaId);
+  });
 }
 
 function registerMediaProtocolHandler(): void {
@@ -80,6 +110,8 @@ export function activateProviderCollection(
     const id = createPublicMediaId(collectionId, item.key);
     registeredItems.push({
       id,
+      name: item.name,
+      downloadable: collection.capabilities.canDownload,
       media: item.media,
       thumbnail: item.thumbnail.kind === "resource" ? item.thumbnail.resource : undefined,
       localPath: item.localPath
@@ -113,6 +145,7 @@ export function activateProviderCollection(
       title: collection.title,
       originLabel: collection.origin?.label,
       capabilities: {
+        canDownload: collection.capabilities.canDownload,
         canRefresh: collection.capabilities.canRefresh,
         canSort: collection.capabilities.canSort,
         canOpenOrigin: !!collection.origin

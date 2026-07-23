@@ -235,6 +235,7 @@ export function createFourChanThreadCollection(
       url: reference.pageUrl
     },
     capabilities: {
+      canDownload: true,
       canRefresh: true,
       canSort: false
     },

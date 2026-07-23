@@ -15,6 +15,7 @@ import { createVideoController, type VideoController } from "./videoController";
 import { selectCurrentItem } from "./viewerSelectors";
 
 export type ViewerLoadState = "idle" | "loading" | "ready" | "empty" | "error";
+export type MediaDownloadState = "idle" | "downloading" | "downloaded" | "error";
 
 export const DEFAULT_FILMSTRIP_WIDTH = 168;
 export const MIN_FILMSTRIP_WIDTH = 128;
@@ -36,6 +37,8 @@ export type ViewerState = {
   filmstripWidth: number;
   isFilmstripVisible: boolean;
   sourceOpenError: OpenSourceError | null;
+  downloadState: MediaDownloadState;
+  downloadedFileName: string | null;
 };
 
 export type ViewerActions = {
@@ -46,6 +49,7 @@ export type ViewerActions = {
   removeRecentFolder(folderPath: string): Promise<void>;
   openCollection(collection: MediaCollection): void;
   refreshSource(): Promise<void>;
+  downloadCurrentMedia(): Promise<void>;
   refreshRecentFolders(): Promise<void>;
   loadSettings(): Promise<void>;
   applySettings(settings: AppSettings): void;
@@ -86,6 +90,8 @@ function applyCollection(collection: MediaCollection): Partial<ViewerState> {
     imagePanX: 0,
     imagePanY: 0,
     sourceOpenError: null,
+    downloadState: "idle",
+    downloadedFileName: null,
     loadState: collection.items.length > 0 ? "ready" : "empty"
   };
 }
@@ -175,6 +181,8 @@ export function createViewerStore(
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
       isFilmstripVisible: true,
       sourceOpenError: null,
+      downloadState: "idle",
+      downloadedFileName: null,
 
       async initialize() {
         await Promise.all([get().loadSettings(), get().refreshRecentFolders()]);
@@ -225,6 +233,37 @@ export function createViewerStore(
           if (!isCurrentSourceRequest(requestId)) return;
           console.error(error);
           set({ loadState: "error" });
+        }
+      },
+
+      async downloadCurrentMedia() {
+        const state = get();
+        const item = selectCurrentItem(state);
+        if (
+          !item ||
+          !state.source?.capabilities.canDownload ||
+          state.downloadState === "downloading"
+        ) {
+          return;
+        }
+
+        set({ downloadState: "downloading", downloadedFileName: null });
+        try {
+          const result = await api.downloadMedia(item.id);
+          if (selectCurrentItem(get())?.id !== item.id) return;
+          set(
+            result.ok
+              ? {
+                  downloadState: "downloaded",
+                  downloadedFileName: result.fileName
+                }
+              : { downloadState: "error", downloadedFileName: null }
+          );
+        } catch (error) {
+          console.error(error);
+          if (selectCurrentItem(get())?.id === item.id) {
+            set({ downloadState: "error", downloadedFileName: null });
+          }
         }
       },
 
@@ -289,6 +328,8 @@ export function createViewerStore(
           return {
             index,
             isVideoPlaying: false,
+            downloadState: "idle",
+            downloadedFileName: null,
             imageZoom: index === state.index ? state.imageZoom : MIN_IMAGE_ZOOM,
             imagePanX: index === state.index ? state.imagePanX : 0,
             imagePanY: index === state.index ? state.imagePanY : 0
@@ -302,6 +343,8 @@ export function createViewerStore(
           return {
             index,
             isVideoPlaying: false,
+            downloadState: "idle",
+            downloadedFileName: null,
             imageZoom: index === state.index ? state.imageZoom : MIN_IMAGE_ZOOM,
             imagePanX: index === state.index ? state.imagePanX : 0,
             imagePanY: index === state.index ? state.imagePanY : 0
@@ -313,6 +356,8 @@ export function createViewerStore(
         set((state) => ({
           index,
           isVideoPlaying: false,
+          downloadState: "idle",
+          downloadedFileName: null,
           imageZoom: index === state.index ? state.imageZoom : MIN_IMAGE_ZOOM,
           imagePanX: index === state.index ? state.imagePanX : 0,
           imagePanY: index === state.index ? state.imagePanY : 0

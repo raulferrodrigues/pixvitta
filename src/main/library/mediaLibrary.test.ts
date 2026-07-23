@@ -15,6 +15,7 @@ function providerCollection(location: string): ProviderCollection {
     canonicalLocation: location,
     title: "Example source",
     capabilities: {
+      canDownload: false,
       canRefresh: true,
       canSort: false
     },
@@ -33,6 +34,7 @@ function publicCollection(
       id: collectionId,
       title: collection.title,
       capabilities: {
+        canDownload: collection.capabilities.canDownload,
         canRefresh: collection.capabilities.canRefresh,
         canSort: collection.capabilities.canSort,
         canOpenOrigin: !!collection.origin

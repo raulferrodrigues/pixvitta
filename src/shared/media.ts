@@ -1,6 +1,7 @@
 export type MediaKind = "image" | "video";
 
 export type MediaSourceCapabilities = {
+  canDownload: boolean;
   canRefresh: boolean;
   canSort: boolean;
   canOpenOrigin: boolean;
@@ -48,3 +49,7 @@ export type OpenSourceError =
 export type OpenSourceResult =
   | { ok: true; collection: MediaCollection | null }
   | { ok: false; error: OpenSourceError };
+
+export type DownloadMediaResult =
+  | { ok: true; fileName: string }
+  | { ok: false };

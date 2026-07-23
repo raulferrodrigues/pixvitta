@@ -22,7 +22,7 @@
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "build:electron": "esbuild src/main/main.ts src/preload/preload.ts --bundle --platform=node --external:electron --external:electron-updater --format=cjs --outdir=dist-electron",
     "electron:dev": "pnpm build:electron && concurrently -k \"pnpm dev\" \"wait-on tcp:5173 && env -u ELECTRON_RUN_AS_NODE PIXVITTA_BUILD_FLAVOR=dev VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
-    "test": "esbuild src/main/updates/updateStatus.test.ts src/main/library/providers/fourChan.test.ts src/main/library/mediaLibrary.test.ts --bundle --platform=node --format=cjs --outdir=.tmp/tests --entry-names=[name] && node --test .tmp/tests/updateStatus.test.js .tmp/tests/fourChan.test.js .tmp/tests/mediaLibrary.test.js",
+    "test": "esbuild src/main/updates/updateStatus.test.ts src/main/library/providers/fourChan.test.ts src/main/library/mediaLibrary.test.ts src/main/media/mediaDownload.test.ts --bundle --platform=node --format=cjs --outdir=.tmp/tests --entry-names=[name] && node --test .tmp/tests/updateStatus.test.js .tmp/tests/fourChan.test.js .tmp/tests/mediaLibrary.test.js .tmp/tests/mediaDownload.test.js",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "build": "vite build && pnpm build:electron",
     "validate": "pnpm test && pnpm typecheck && pnpm build",
