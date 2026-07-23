@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defaultSettings } from "../../../shared/settings";
+import { defaultSettings } from "../../../../shared/settings";
 import {
   createFourChanThreadCollection,
   FourChanProvider,
   parseFourChanThreadUrl
-} from "./fourChan";
+} from ".";
 
 const threadUrl = "https://boards.4chan.org/gif/thread/123456/example-thread";
 const payload = {

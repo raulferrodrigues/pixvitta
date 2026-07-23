@@ -1,15 +1,15 @@
 import { randomBytes } from "node:crypto";
 import { stat } from "node:fs/promises";
 import path from "node:path";
-import { createMediaFileResponse } from "../../media/mediaResponses";
-import { scanFolder } from "../../media/mediaScanner";
-import { isSupportedMediaPath } from "../../utils/mediaTypes";
+import { createMediaFileResponse } from "../../../media/mediaResponses";
+import { scanFolder } from "../../../media/mediaScanner";
+import { isSupportedMediaPath } from "../../../utils/mediaTypes";
 import {
   ProviderError,
   type MediaProvider,
   type ProviderCollection,
   type ProviderLoadRequest
-} from "./provider";
+} from "../provider";
 
 export class LocalFolderProvider implements MediaProvider {
   private randomOrderSession: { folderPath: string; seed: string } | null = null;

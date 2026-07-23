@@ -1,11 +1,11 @@
-import type { MediaKind } from "../../../shared/media";
+import type { MediaKind } from "../../../../shared/media";
 import type {
   MediaProvider,
   ProviderCollection,
   ProviderLoadRequest,
   ProviderMediaItem
-} from "./provider";
-import { ProviderError } from "./provider";
+} from "../provider";
+import { ProviderError } from "../provider";
 
 const FOURCHAN_API_HOST = "a.4cdn.org";
 const FOURCHAN_MEDIA_HOST = "i.4cdn.org";
