@@ -7,7 +7,10 @@ import type {
   MediaItem
 } from "../../shared/media";
 import type { ProviderCollection } from "../library/providers/provider";
-import { showNativeMediaContextMenu } from "./mediaContextMenu";
+import {
+  showLocalMediaContextMenu,
+  showRemoteMediaContextMenu
+} from "./mediaContextMenu";
 import { downloadMediaResource } from "./mediaDownload";
 import { MediaRegistry, type RegisteredMediaItem } from "./mediaRegistry";
 
@@ -42,9 +45,19 @@ function showMediaContextMenu(window: BrowserWindow, mediaId: unknown): boolean 
   if (typeof mediaId !== "string") return false;
 
   const item = registry.resolveId(mediaId);
-  if (!item?.localPath) return false;
-  showNativeMediaContextMenu(window, item.localPath);
-  return true;
+  if (!item) return false;
+  if (item.localPath) {
+    showLocalMediaContextMenu(window, item.localPath);
+    return true;
+  }
+  if (item.downloadable && item.externalUrl) {
+    showRemoteMediaContextMenu(window, item.externalUrl, async () => {
+      const result = await downloadMedia(mediaId);
+      if (!result.ok) throw new Error("Pixvitta could not download this file.");
+    });
+    return true;
+  }
+  return false;
 }
 
 async function downloadMedia(mediaId: unknown): Promise<DownloadMediaResult> {
@@ -114,6 +127,7 @@ export function activateProviderCollection(
       downloadable: collection.capabilities.canDownload,
       media: item.media,
       thumbnail: item.thumbnail.kind === "resource" ? item.thumbnail.resource : undefined,
+      externalUrl: item.externalUrl,
       localPath: item.localPath
     });
 

@@ -22,19 +22,39 @@ type MediaLibraryDependencies = {
   createCollectionId?: () => string;
 };
 
+export type MediaLibraryRequest = {
+  openLocation(location: string): Promise<MediaCollection | null>;
+  refresh(collectionId: string): Promise<MediaCollection | null>;
+};
+
 export class MediaLibrary {
   private readonly activeSources = new Map<string, ActiveSource>();
   private readonly createCollectionId: () => string;
+  private latestRequestId = 0;
 
   constructor(private readonly dependencies: MediaLibraryDependencies) {
     this.createCollectionId =
       dependencies.createCollectionId ?? (() => randomBytes(16).toString("hex"));
   }
 
-  async openLocation(location: string): Promise<MediaCollection> {
+  beginRequest(): MediaLibraryRequest {
+    const requestId = ++this.latestRequestId;
+    return Object.freeze({
+      openLocation: (location: string) =>
+        this.openLocation(requestId, location),
+      refresh: (collectionId: string) =>
+        this.refresh(requestId, collectionId)
+    });
+  }
+
+  private async openLocation(
+    requestId: number,
+    location: string
+  ): Promise<MediaCollection | null> {
     if (!location.trim()) {
       throw new ProviderError("invalid-location", "Enter a media location.");
     }
+    if (!this.isCurrentRequest(requestId)) return null;
 
     const exactProvider = this.dependencies.providers.find(location);
     const normalizedLocation = exactProvider ? location : location.trim();
@@ -47,35 +67,49 @@ export class MediaLibrary {
       );
     }
 
+    const settings = await this.dependencies.getSettings();
+    if (!this.isCurrentRequest(requestId)) return null;
+
     const providerCollection = await provider.load({
       location: normalizedLocation,
       refresh: false,
-      settings: await this.dependencies.getSettings()
+      settings
     });
-    const collectionId = this.createCollectionId();
-    const collection = this.activate(
-      collectionId,
-      provider,
-      providerCollection
-    );
+    if (!this.isCurrentRequest(requestId)) return null;
 
     if (providerCollection.remember) {
       await this.dependencies.remember(providerCollection.canonicalLocation);
     }
-    return collection;
+    if (!this.isCurrentRequest(requestId)) return null;
+
+    return this.activate(
+      this.createCollectionId(),
+      provider,
+      providerCollection
+    );
   }
 
-  async refresh(collectionId: string): Promise<MediaCollection> {
+  private async refresh(
+    requestId: number,
+    collectionId: string
+  ): Promise<MediaCollection | null> {
+    if (!this.isCurrentRequest(requestId)) return null;
+
     const activeSource = this.activeSources.get(collectionId);
     if (!activeSource) {
       throw new ProviderError("not-found", "The media source is no longer active.");
     }
 
+    const settings = await this.dependencies.getSettings();
+    if (!this.isCurrentRequest(requestId)) return null;
+
     const providerCollection = await activeSource.provider.load({
       location: activeSource.canonicalLocation,
       refresh: true,
-      settings: await this.dependencies.getSettings()
+      settings
     });
+    if (!this.isCurrentRequest(requestId)) return null;
+
     return this.activate(
       collectionId,
       activeSource.provider,
@@ -85,6 +119,10 @@ export class MediaLibrary {
 
   originUrl(collectionId: string): string | null {
     return this.activeSources.get(collectionId)?.originUrl ?? null;
+  }
+
+  private isCurrentRequest(requestId: number): boolean {
+    return requestId === this.latestRequestId;
   }
 
   private activate(

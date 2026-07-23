@@ -190,6 +190,7 @@ function attachmentToMediaItem(
       respond: (request) =>
         createRemoteMediaResponse(mediaUrl, reference.pageUrl, request, fetchImpl)
     },
+    externalUrl: mediaUrl,
     thumbnail: {
       kind: "resource",
       resource: {

@@ -13,6 +13,7 @@ export type ProviderMediaItem = Omit<MediaItem, "id" | "url" | "thumbnailUrl"> &
   key: string;
   media: MediaResource;
   thumbnail: ProviderThumbnail;
+  externalUrl?: string;
   localPath?: string;
 };
 

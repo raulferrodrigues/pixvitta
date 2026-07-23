@@ -76,6 +76,10 @@ test("maps supported attachments in post order", () => {
   assert.equal(collection.origin?.label, "/gif/ · 4chan");
   assert.deepEqual(collection.items.map((item) => item.kind), ["image", "video"]);
   assert.deepEqual(collection.items.map((item) => item.name), ["first image.jpg", "animation.webm"]);
+  assert.equal(
+    collection.items[0].externalUrl,
+    "https://i.4cdn.org/gif/1700000000001.jpg"
+  );
   assert.equal(collection.selectedKey, collection.items[0].key);
 });
 

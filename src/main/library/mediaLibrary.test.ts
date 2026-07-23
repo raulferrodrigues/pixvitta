@@ -65,11 +65,13 @@ test("opens and refreshes locations through the matching provider", async () => 
     createCollectionId: () => "collection-1"
   });
 
-  const opened = await library.openLocation("example:SOURCE");
+  const opened = await library.beginRequest().openLocation("example:SOURCE");
+  assert.ok(opened);
   assert.equal(opened.source.id, "collection-1");
   assert.deepEqual(remembered, ["example:source"]);
 
-  const refreshed = await library.refresh(opened.source.id);
+  const refreshed = await library.beginRequest().refresh(opened.source.id);
+  assert.ok(refreshed);
   assert.equal(refreshed.source.id, opened.source.id);
   assert.deepEqual(loads, [
     { location: "example:SOURCE", refresh: false },
@@ -86,8 +88,105 @@ test("rejects locations unsupported by installed providers", async () => {
   });
 
   await assert.rejects(
-    library.openLocation("https://unsupported.example/media"),
+    library.beginRequest().openLocation("https://unsupported.example/media"),
     (error) =>
       error instanceof ProviderError && error.code === "unsupported-location"
   );
+});
+
+test("a stale provider load cannot replace the active collection", async () => {
+  let finishSlowLoad: ((collection: ProviderCollection) => void) | undefined;
+  let markSlowLoadStarted: (() => void) | undefined;
+  const slowLoadStarted = new Promise<void>((resolve) => {
+    markSlowLoadStarted = resolve;
+  });
+  const activations: string[] = [];
+  const provider: MediaProvider = {
+    matches: (location) => location.startsWith("example:"),
+    async load(request) {
+      if (request.location === "example:slow") {
+        return new Promise<ProviderCollection>((resolve) => {
+          finishSlowLoad = resolve;
+          markSlowLoadStarted?.();
+        });
+      }
+      return providerCollection(request.location);
+    }
+  };
+  let collectionNumber = 0;
+  const library = new MediaLibrary({
+    providers: new ProviderRegistry([provider]),
+    getSettings: async () => defaultSettings,
+    activate: (collectionId, collection) => {
+      activations.push(collection.canonicalLocation);
+      return publicCollection(collectionId, collection);
+    },
+    remember: async () => undefined,
+    createCollectionId: () => `collection-${++collectionNumber}`
+  });
+
+  const staleOpen = library.beginRequest().openLocation("example:slow");
+  await slowLoadStarted;
+  const activeCollection = await library
+    .beginRequest()
+    .openLocation("example:active");
+  assert.ok(activeCollection);
+
+  assert.ok(finishSlowLoad);
+  finishSlowLoad(providerCollection("example:slow"));
+  assert.equal(await staleOpen, null);
+  assert.deepEqual(activations, ["example:active"]);
+  assert.equal(activeCollection.source.id, "collection-1");
+});
+
+test("a stale refresh cannot replace a newer collection", async () => {
+  let finishRefresh: ((collection: ProviderCollection) => void) | undefined;
+  let markRefreshStarted: (() => void) | undefined;
+  const refreshStarted = new Promise<void>((resolve) => {
+    markRefreshStarted = resolve;
+  });
+  const activations: string[] = [];
+  const provider: MediaProvider = {
+    matches: (location) => location.startsWith("example:"),
+    async load(request) {
+      if (request.refresh) {
+        return new Promise<ProviderCollection>((resolve) => {
+          finishRefresh = resolve;
+          markRefreshStarted?.();
+        });
+      }
+      return providerCollection(request.location);
+    }
+  };
+  let collectionNumber = 0;
+  const library = new MediaLibrary({
+    providers: new ProviderRegistry([provider]),
+    getSettings: async () => defaultSettings,
+    activate: (collectionId, collection) => {
+      activations.push(collection.canonicalLocation);
+      return publicCollection(collectionId, collection);
+    },
+    remember: async () => undefined,
+    createCollectionId: () => `collection-${++collectionNumber}`
+  });
+
+  const originalCollection = await library
+    .beginRequest()
+    .openLocation("example:original");
+  assert.ok(originalCollection);
+
+  const staleRefresh = library
+    .beginRequest()
+    .refresh(originalCollection.source.id);
+  await refreshStarted;
+  const activeCollection = await library
+    .beginRequest()
+    .openLocation("example:active");
+  assert.ok(activeCollection);
+
+  assert.ok(finishRefresh);
+  finishRefresh(providerCollection("example:original-refreshed"));
+  assert.equal(await staleRefresh, null);
+  assert.deepEqual(activations, ["example:original", "example:active"]);
+  assert.equal(activeCollection.source.id, "collection-2");
 });

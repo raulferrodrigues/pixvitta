@@ -64,6 +64,7 @@ async function openSourceForWindow(
   request: OpenSourceRequest,
   window?: BrowserWindow | null
 ): Promise<OpenSourceResult> {
+  const libraryRequest = mediaLibrary.beginRequest();
   try {
     const location =
       request.kind === "pick-directory"
@@ -73,7 +74,7 @@ async function openSourceForWindow(
 
     return {
       ok: true,
-      collection: await mediaLibrary.openLocation(location)
+      collection: await libraryRequest.openLocation(location)
     };
   } catch (error) {
     return sourceErrorResult(error);
@@ -87,10 +88,11 @@ export async function openSource(
 }
 
 export async function refreshSource(sourceId: string): Promise<OpenSourceResult> {
+  const libraryRequest = mediaLibrary.beginRequest();
   try {
     return {
       ok: true,
-      collection: await mediaLibrary.refresh(sourceId)
+      collection: await libraryRequest.refresh(sourceId)
     };
   } catch (error) {
     return sourceErrorResult(error);
@@ -107,8 +109,9 @@ export async function openSourceOrigin(sourceId: string): Promise<boolean> {
 export async function openFileAsCollection(
   filePath: string
 ): Promise<MediaCollection | null> {
+  const libraryRequest = mediaLibrary.beginRequest();
   try {
-    return await mediaLibrary.openLocation(filePath);
+    return await libraryRequest.openLocation(filePath);
   } catch (error) {
     if (
       error instanceof ProviderError &&

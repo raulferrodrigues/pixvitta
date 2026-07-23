@@ -6,6 +6,7 @@ export type RegisteredMediaItem = {
   downloadable: boolean;
   media: MediaResource;
   thumbnail?: MediaResource;
+  externalUrl?: string;
   localPath?: string;
 };
 
