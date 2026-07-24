@@ -48,7 +48,11 @@ function createApi(
 
 test("a failed refresh preserves the current collection", async () => {
   const store = createViewerStore(createApi({
-    refreshSource: async () => ({ ok: false, error: "unavailable" })
+    refreshSource: () => {
+      store.getState().setSourceLoading(true);
+      store.getState().setSourceLoading(false);
+      store.getState().showSourceError("unavailable");
+    }
   }));
   store.getState().openCollection(collection());
 

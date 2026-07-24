@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { flushSync } from "react-dom";
 import type { PixvittaApi } from "../../shared/pixvittaApi";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 
@@ -13,6 +14,8 @@ export function useAppLifecycle(api: PixvittaApi) {
   const seekVideoBy = useViewerStore((state) => state.seekVideoBy);
   const toggleVideoPlayback = useViewerStore((state) => state.toggleVideoPlayback);
   const openCollection = useViewerStore((state) => state.openCollection);
+  const setSourceLoading = useViewerStore((state) => state.setSourceLoading);
+  const showSourceError = useViewerStore((state) => state.showSourceError);
   const applySettings = useViewerStore((state) => state.applySettings);
 
   useEffect(() => { void initialize(); }, [initialize]);
@@ -28,9 +31,20 @@ export function useAppLifecycle(api: PixvittaApi) {
       if (command === "seek-video-forward") seekVideoBy(VIDEO_SEEK_SECONDS);
       if (command === "toggle-video-playback") void toggleVideoPlayback();
     });
-    const unsubscribeOpenedFile = api.onOpenedFile(openCollection);
+    const unsubscribeCollection = api.onCollectionChanged((collection) => {
+      flushSync(() => openCollection(collection));
+      api.acknowledgeCollection();
+    });
+    const unsubscribeLoading = api.onSourceLoadingChanged(setSourceLoading);
+    const unsubscribeSourceError = api.onSourceError(showSourceError);
     const unsubscribeSettings = api.onSettingsChanged(applySettings);
     void api.markViewerReady();
-    return () => { unsubscribeCommand(); unsubscribeOpenedFile(); unsubscribeSettings(); };
-  }, [api, applySettings, goNext, goPrevious, openCollection, openFolder, refreshSource, seekVideoBy, toggleVideoPlayback]);
+    return () => {
+      unsubscribeCommand();
+      unsubscribeCollection();
+      unsubscribeLoading();
+      unsubscribeSourceError();
+      unsubscribeSettings();
+    };
+  }, [api, applySettings, goNext, goPrevious, openCollection, openFolder, refreshSource, seekVideoBy, setSourceLoading, showSourceError, toggleVideoPlayback]);
 }

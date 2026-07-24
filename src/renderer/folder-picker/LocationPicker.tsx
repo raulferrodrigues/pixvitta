@@ -13,6 +13,7 @@ export function LocationPicker({
   const gt = useGT();
   const [location, setLocation] = useState("");
   const openLocation = useViewerStore((state) => state.openLocation);
+  const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,9 +39,10 @@ export function LocationPicker({
           autoComplete="off"
           spellCheck={false}
           required
+          disabled={isSourceLoading}
           onChange={(event) => setLocation(event.target.value)}
         />
-        <PrimaryButton type="submit" className="shrink-0">
+        <PrimaryButton type="submit" className="shrink-0" disabled={isSourceLoading}>
           <Globe2 size={18} aria-hidden />
           <span>{gt("Open source")}</span>
         </PrimaryButton>

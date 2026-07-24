@@ -3,8 +3,8 @@ import type { AppBuildInfo } from "../shared/appBuild";
 import type {
   DownloadMediaResult,
   MediaCollection,
-  OpenSourceRequest,
-  OpenSourceResult
+  OpenSourceError,
+  OpenSourceRequest
 } from "../shared/media";
 import type { PixvittaApi, PixvittaCommand, WindowChromeState } from "../shared/pixvittaApi";
 import type { RecentFolder } from "../shared/recentFolders";
@@ -20,10 +20,10 @@ import type { AppSettings } from "../shared/settings";
 
 const pixvittaApi = {
   getBuildInfo: (): Promise<AppBuildInfo> => ipcRenderer.invoke("app:get-build-info"),
-  openSource: (request: OpenSourceRequest): Promise<OpenSourceResult> =>
-    ipcRenderer.invoke("source:open", request),
-  refreshSource: (sourceId: string): Promise<OpenSourceResult> =>
-    ipcRenderer.invoke("source:refresh", sourceId),
+  openSource: (request: OpenSourceRequest): void =>
+    ipcRenderer.send("source:open", request),
+  refreshSource: (): void =>
+    ipcRenderer.send("source:refresh"),
   openSourceOrigin: (sourceId: string): Promise<boolean> =>
     ipcRenderer.invoke("source:open-origin", sourceId),
 
@@ -54,6 +54,8 @@ const pixvittaApi = {
   // event subscriptions below. It prevents early file-open events from being
   // sent into the void during startup.
   markViewerReady: (): Promise<void> => ipcRenderer.invoke("viewer:ready"),
+  acknowledgeCollection: (): void =>
+    ipcRenderer.send("library:renderer-stable"),
 
   // Event subscriptions are push-style messages from main to renderer. Each one
   // returns an unsubscribe function so React effects can clean up listeners.
@@ -67,10 +69,20 @@ const pixvittaApi = {
     ipcRenderer.on("menu:command", listener);
     return () => ipcRenderer.removeListener("menu:command", listener);
   },
-  onOpenedFile: (callback: (collection: MediaCollection) => void): (() => void) => {
+  onCollectionChanged: (callback: (collection: MediaCollection) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, collection: MediaCollection) => callback(collection);
-    ipcRenderer.on("file:opened", listener);
-    return () => ipcRenderer.removeListener("file:opened", listener);
+    ipcRenderer.on("library:collection-changed", listener);
+    return () => ipcRenderer.removeListener("library:collection-changed", listener);
+  },
+  onSourceLoadingChanged: (callback: (isLoading: boolean) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, isLoading: boolean) => callback(isLoading);
+    ipcRenderer.on("library:loading-changed", listener);
+    return () => ipcRenderer.removeListener("library:loading-changed", listener);
+  },
+  onSourceError: (callback: (error: OpenSourceError) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, error: OpenSourceError) => callback(error);
+    ipcRenderer.on("library:source-error", listener);
+    return () => ipcRenderer.removeListener("library:source-error", listener);
   },
   onSettingsChanged: (callback: (settings: AppSettings) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, settings: AppSettings) => callback(settings);

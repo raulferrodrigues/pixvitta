@@ -1,4 +1,4 @@
-import type { MediaResource } from "../library/providers/provider";
+import type { MediaResource } from "./providers";
 
 export type RegisteredMediaItem = {
   id: string;
@@ -20,9 +20,17 @@ function safelyDecode(rawValue: string): string | null {
   }
 }
 
-function parseResourceUrl(rawUrl: string): { kind: ResourceKind; id: string } | null {
+function parseResourceUrl(
+  rawUrl: string
+): { kind: ResourceKind; id: string } | null {
   const decodedRawUrl = safelyDecode(rawUrl);
-  if (!decodedRawUrl || decodedRawUrl.includes("..") || decodedRawUrl.includes("\\")) return null;
+  if (
+    !decodedRawUrl ||
+    decodedRawUrl.includes("..") ||
+    decodedRawUrl.includes("\\")
+  ) {
+    return null;
+  }
 
   let url: URL;
   try {
@@ -36,7 +44,9 @@ function parseResourceUrl(rawUrl: string): { kind: ResourceKind; id: string } | 
   if (kind !== "media" && kind !== "thumbnail") return null;
 
   const id = url.pathname.replace(/^\/+/, "");
-  if (!id || id.includes("/") || id.includes("\\") || id.includes("..")) return null;
+  if (!id || id.includes("/") || id.includes("\\") || id.includes("..")) {
+    return null;
+  }
   return { kind, id };
 }
 
@@ -49,7 +59,9 @@ export class MediaRegistry {
   }
 
   resolveId(id: string): RegisteredMediaItem | null {
-    if (!id || id.includes("/") || id.includes("\\") || id.includes("..")) return null;
+    if (!id || id.includes("/") || id.includes("\\") || id.includes("..")) {
+      return null;
+    }
     return this.byId.get(id) ?? null;
   }
 

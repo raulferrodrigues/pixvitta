@@ -26,6 +26,7 @@ export type ViewerState = {
   items: MediaItem[];
   index: number;
   loadState: ViewerLoadState;
+  isSourceLoading: boolean;
   mediaErrors: Set<string>;
   isVideoPlaying: boolean;
   isVideoLooping: boolean;
@@ -48,6 +49,8 @@ export type ViewerActions = {
   openRecentFolder(folderPath: string): Promise<void>;
   removeRecentFolder(folderPath: string): Promise<void>;
   openCollection(collection: MediaCollection): void;
+  setSourceLoading(isLoading: boolean): void;
+  showSourceError(error: OpenSourceError): void;
   refreshSource(): Promise<void>;
   downloadCurrentMedia(): Promise<void>;
   refreshRecentFolders(): Promise<void>;
@@ -104,14 +107,8 @@ export function createViewerStore(
   api: PixvittaApi,
   videoController: VideoController = createVideoController()
 ): ViewerStoreApi {
-  let sourceRequestId = 0;
   let downloadRequestId = 0;
   let settingsSaveRevision = 0;
-  const nextSourceRequestId = () => {
-    sourceRequestId += 1;
-    return sourceRequestId;
-  };
-  const isCurrentSourceRequest = (requestId: number) => requestId === sourceRequestId;
 
   return createStore<ViewerStore>((set, get) => {
     const applySettingsState = (settings: AppSettings) => {
@@ -136,34 +133,13 @@ export function createViewerStore(
     };
 
     const openSourceRequest = async (request: OpenSourceRequest) => {
-      const requestId = nextSourceRequestId();
-      const isOpeningInitialSource = get().source === null;
-      set(
-        isOpeningInitialSource
-          ? { loadState: "loading", sourceOpenError: null }
-          : { sourceOpenError: null }
-      );
-
       try {
-        const result = await api.openSource(request);
-        if (!isCurrentSourceRequest(requestId)) return;
-        if (!result.ok) {
-          set({
-            loadState: isOpeningInitialSource ? "idle" : get().loadState,
-            sourceOpenError: result.error
-          });
-          return;
-        }
-        if (!result.collection) {
-          if (isOpeningInitialSource) set({ loadState: "idle" });
-          return;
-        }
-        applyOpenedCollection(result.collection);
+        api.openSource(request);
       } catch (error) {
-        if (!isCurrentSourceRequest(requestId)) return;
         console.error(error);
         set({
-          loadState: isOpeningInitialSource ? "idle" : get().loadState,
+          isSourceLoading: false,
+          loadState: get().source ? get().loadState : "idle",
           sourceOpenError: "unavailable"
         });
       }
@@ -174,6 +150,7 @@ export function createViewerStore(
       items: [],
       index: 0,
       loadState: "idle",
+      isSourceLoading: false,
       mediaErrors: new Set(),
       isVideoPlaying: false,
       isVideoLooping: defaultSettings.videoLoopByDefault,
@@ -213,31 +190,40 @@ export function createViewerStore(
       },
 
       openCollection(collection: MediaCollection) {
-        nextSourceRequestId();
         applyOpenedCollection(collection);
+      },
+
+      setSourceLoading(isSourceLoading: boolean) {
+        set((state) => ({
+          isSourceLoading,
+          sourceOpenError: isSourceLoading ? null : state.sourceOpenError,
+          loadState:
+            state.source === null
+              ? isSourceLoading
+                ? "loading"
+                : state.loadState === "loading"
+                  ? "idle"
+                  : state.loadState
+              : state.loadState
+        }));
+      },
+
+      showSourceError(sourceOpenError: OpenSourceError) {
+        set((state) => ({
+          sourceOpenError,
+          loadState: state.source ? state.loadState : "idle"
+        }));
       },
 
       async refreshSource() {
         const { source } = get();
         if (!source?.capabilities.canRefresh) return;
 
-        const requestId = nextSourceRequestId();
-        set({ sourceOpenError: null });
         try {
-          const result = await api.refreshSource(source.id);
-          if (!isCurrentSourceRequest(requestId)) return;
-          if (!result.ok || !result.collection) {
-            set({
-              sourceOpenError: result.ok ? "unavailable" : result.error
-            });
-            return;
-          }
-          downloadRequestId += 1;
-          set(applyCollection(result.collection));
+          api.refreshSource();
         } catch (error) {
-          if (!isCurrentSourceRequest(requestId)) return;
           console.error(error);
-          set({ sourceOpenError: "unavailable" });
+          set({ isSourceLoading: false, sourceOpenError: "unavailable" });
         }
       },
 

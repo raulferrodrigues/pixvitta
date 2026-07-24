@@ -1,31 +1,47 @@
-import { BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import path from "node:path";
-import type {
-  MediaCollection,
-  OpenSourceRequest,
-  OpenSourceResult
-} from "../../shared/media";
+import type { OpenSourceRequest } from "../../shared/media";
 import type { RecentFolder } from "../../shared/recentFolders";
 import { parseDialogResponses } from "../app";
-import { activateProviderCollection } from "../media";
 import { getSettings } from "../settings";
 import {
   getRecentFolders as getStoredRecentFolders,
   removeRecentFolder as removeStoredRecentFolder,
   saveRecentFolder
 } from "../stores";
+import {
+  isMainWindow,
+  publishMainWindowCollection,
+  publishMainWindowLoading,
+  publishMainWindowSourceError
+} from "../windows";
 import { MediaLibrary } from "./mediaLibrary";
-import { createProviderRegistry, ProviderError } from "./providers";
+import type { RegisteredMediaItem } from "./mediaRegistry";
+import {
+  createProviderRegistry,
+  type MediaResource
+} from "./providers";
 
 let dialogResponses = parseDialogResponses();
 
 const mediaLibrary = new MediaLibrary({
   providers: createProviderRegistry(),
   getSettings,
-  activate: activateProviderCollection,
   remember: async (location) => {
     await saveRecentFolder(location);
-  }
+  },
+  publishCollection: publishMainWindowCollection,
+  publishLoading: publishMainWindowLoading,
+  publishError: publishMainWindowSourceError,
+  fatal(message): never {
+    console.error(`[fatal library protocol] ${message}`);
+    app.exit(1);
+    throw new Error(message);
+  },
+  setAcknowledgementTimer: (callback, timeoutMs) =>
+    setTimeout(callback, timeoutMs),
+  clearAcknowledgementTimer: (timer) =>
+    clearTimeout(timer as ReturnType<typeof setTimeout>)
 });
 
 function isOpenSourceRequest(value: unknown): value is OpenSourceRequest {
@@ -35,13 +51,17 @@ function isOpenSourceRequest(value: unknown): value is OpenSourceRequest {
   return request.kind === "location" && typeof request.location === "string";
 }
 
-async function chooseDirectory(parentWindow?: BrowserWindow | null): Promise<string | null> {
+async function chooseDirectory(
+  parentWindow?: BrowserWindow | null
+): Promise<string | null> {
   if (dialogResponses) {
     const nextResponse = dialogResponses.shift();
     return nextResponse === undefined ? null : nextResponse;
   }
 
-  const options: Electron.OpenDialogOptions = { properties: ["openDirectory"] };
+  const options: Electron.OpenDialogOptions = {
+    properties: ["openDirectory"]
+  };
   const window =
     parentWindow && !parentWindow.isDestroyed()
       ? parentWindow
@@ -55,49 +75,23 @@ async function chooseDirectory(parentWindow?: BrowserWindow | null): Promise<str
     : result.filePaths[0];
 }
 
-function sourceErrorResult(error: unknown): OpenSourceResult {
-  if (error instanceof ProviderError) return { ok: false, error: error.code };
-  console.error(error);
-  return { ok: false, error: "unavailable" };
-}
-
 async function openSourceForWindow(
   request: OpenSourceRequest,
   window?: BrowserWindow | null
-): Promise<OpenSourceResult> {
-  const libraryRequest = mediaLibrary.beginRequest();
-  try {
-    const location =
-      request.kind === "pick-directory"
-        ? await chooseDirectory(window)
-        : request.location;
-    if (location === null) return { ok: true, collection: null };
-
-    return {
-      ok: true,
-      collection: await libraryRequest.openLocation(location)
-    };
-  } catch (error) {
-    return sourceErrorResult(error);
-  }
+): Promise<boolean> {
+  return request.kind === "pick-directory"
+    ? mediaLibrary.openPickedLocation(() => chooseDirectory(window))
+    : mediaLibrary.openLocation(request.location);
 }
 
 export async function openSource(
   request: OpenSourceRequest
-): Promise<OpenSourceResult> {
+): Promise<boolean> {
   return openSourceForWindow(request);
 }
 
-export async function refreshSource(sourceId: string): Promise<OpenSourceResult> {
-  const libraryRequest = mediaLibrary.beginRequest();
-  try {
-    return {
-      ok: true,
-      collection: await libraryRequest.refresh(sourceId)
-    };
-  } catch (error) {
-    return sourceErrorResult(error);
-  }
+export async function refreshSource(): Promise<boolean> {
+  return mediaLibrary.refresh();
 }
 
 export async function openSourceOrigin(sourceId: string): Promise<boolean> {
@@ -110,51 +104,49 @@ export async function openSourceOrigin(sourceId: string): Promise<boolean> {
 export async function openFileAsCollection(
   filePath: string,
   baseDirectory = process.cwd()
-): Promise<MediaCollection | null> {
-  const libraryRequest = mediaLibrary.beginRequest();
-  try {
-    return await libraryRequest.openLocation(
-      path.resolve(baseDirectory, filePath)
-    );
-  } catch (error) {
-    if (
-      error instanceof ProviderError &&
-      (error.code === "unsupported-location" || error.code === "not-found")
-    ) {
-      return null;
-    }
-    console.error(error);
-    return null;
-  }
+): Promise<boolean> {
+  return mediaLibrary.openLocation(path.resolve(baseDirectory, filePath));
+}
+
+export function resolveMediaId(
+  mediaId: string
+): RegisteredMediaItem | null {
+  return mediaLibrary.resolveMediaId(mediaId);
+}
+
+export function resolveMediaUrl(url: string): MediaResource | null {
+  return mediaLibrary.resolveMediaUrl(url);
 }
 
 export async function getRecentFolders(): Promise<RecentFolder[]> {
   return getStoredRecentFolders();
 }
 
-export async function removeRecentFolder(folderPath: string): Promise<RecentFolder[]> {
+export async function removeRecentFolder(
+  folderPath: string
+): Promise<RecentFolder[]> {
   return removeStoredRecentFolder(folderPath);
 }
 
-ipcMain.handle("source:open", (event, request: unknown) => {
-  if (!isOpenSourceRequest(request)) {
-    return { ok: false, error: "invalid-location" } satisfies OpenSourceResult;
-  }
-  return openSourceForWindow(
+ipcMain.on("source:open", (event, request: unknown) => {
+  if (!isOpenSourceRequest(request)) return;
+  void openSourceForWindow(
     request,
     BrowserWindow.fromWebContents(event.sender)
   );
 });
 
-ipcMain.handle("source:refresh", (_event, sourceId: unknown) => {
-  if (typeof sourceId !== "string") {
-    return { ok: false, error: "invalid-location" } satisfies OpenSourceResult;
-  }
-  return refreshSource(sourceId);
+ipcMain.on("source:refresh", () => {
+  void refreshSource();
 });
 
 ipcMain.handle("source:open-origin", (_event, sourceId: unknown) => {
   return typeof sourceId === "string" ? openSourceOrigin(sourceId) : false;
+});
+
+ipcMain.on("library:renderer-stable", (event) => {
+  if (!isMainWindow(BrowserWindow.fromWebContents(event.sender))) return;
+  mediaLibrary.acknowledgeRenderer();
 });
 
 ipcMain.handle("recent-folders:get", () => getRecentFolders());

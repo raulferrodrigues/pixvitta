@@ -3,6 +3,7 @@ import { configureAppIdentity } from "./app/buildInfo";
 import { createAppMenu } from "./menus";
 import { registerIpcHandlers } from "./ipc";
 import { openFileAsCollection } from "./library";
+import "./media";
 import { startAutomaticUpdates } from "./updates";
 import { createMainWindow, createPreferencesWindow } from "./windows";
 
@@ -16,9 +17,9 @@ async function openFileArgument(
   baseDirectory = process.cwd()
 ): Promise<boolean> {
   for (const filePath of fileArguments(argv)) {
-    const collection = await openFileAsCollection(filePath, baseDirectory);
-    if (collection) {
-      createMainWindow(collection);
+    const opened = await openFileAsCollection(filePath, baseDirectory);
+    if (opened) {
+      createMainWindow();
       return true;
     }
   }
@@ -74,8 +75,8 @@ app.on("open-file", (event, filePath) => {
   void app
     .whenReady()
     .then(() => openFileAsCollection(filePath))
-    .then((collection) => {
-      if (collection) createMainWindow(collection);
+    .then((opened) => {
+      if (opened) createMainWindow();
     })
     .catch((error: unknown) => console.error(error));
 });

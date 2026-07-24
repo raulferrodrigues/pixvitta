@@ -16,6 +16,7 @@ export function WebSourceDialog({
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const sourceIdWhenOpenedRef = useRef<string | null>(null);
   const sourceId = useViewerStore((state) => state.source?.id ?? null);
+  const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -43,12 +44,13 @@ export function WebSourceDialog({
         <IconButton
           label={gt("Open from the web")}
           data-testid="open-web-source"
+          disabled={isSourceLoading}
           onClick={openDialog}
         >
           <Globe2 size={17} aria-hidden />
         </IconButton>
       ) : (
-        <PrimaryButton onClick={openDialog}>
+        <PrimaryButton disabled={isSourceLoading} onClick={openDialog}>
           <Globe2 size={18} aria-hidden />
           <span>{gt("Open from the web")}</span>
         </PrimaryButton>

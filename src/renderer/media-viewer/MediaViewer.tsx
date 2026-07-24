@@ -12,6 +12,7 @@ import "./media-viewer.css";
 export function MediaViewer() {
   const gt = useGT();
   const loadState = useViewerStore((state) => state.loadState);
+  const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
   const currentItem = useViewerStore(selectCurrentItem);
   const isCurrentItemBroken = useViewerStore(selectIsCurrentItemBroken);
   const openFolder = useViewerStore((state) => state.openFolder);
@@ -24,7 +25,7 @@ export function MediaViewer() {
         <div className="flex flex-col items-center justify-center gap-4 text-center text-pix-state" data-testid="empty-state">
           <p><T>No supported media in this folder.</T></p>
           <div className="flex flex-wrap justify-center gap-3">
-            <PrimaryButton onClick={() => void openFolder()}><FolderOpen size={20} aria-hidden /><span><T>Open Folder</T></span></PrimaryButton>
+            <PrimaryButton disabled={isSourceLoading} onClick={() => void openFolder()}><FolderOpen size={20} aria-hidden /><span><T>Open Folder</T></span></PrimaryButton>
             <WebSourceDialog trigger="button" />
           </div>
         </div>

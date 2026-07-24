@@ -13,6 +13,7 @@ export function Controls() {
   const currentItem = useViewerStore(selectCurrentItem);
   const hasMedia = useViewerStore(selectHasMedia);
   const source = useViewerStore((state) => state.source);
+  const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
   const isVideoPlaying = useViewerStore((state) => state.isVideoPlaying);
   const isVideoLooping = useViewerStore((state) => state.isVideoLooping);
   const downloadState = useViewerStore((state) => state.downloadState);
@@ -47,18 +48,18 @@ export function Controls() {
       <div className="viewer-controls-content min-w-0">
         <div className="viewer-controls-leading">
           <ControlGroup label={gt("Library controls")}>
-            <IconButton label={gt("Open folder")} onClick={() => void openFolder()}><FolderOpen size={18} aria-hidden /></IconButton>
+            <IconButton label={gt("Open folder")} disabled={isSourceLoading} onClick={() => void openFolder()}><FolderOpen size={18} aria-hidden /></IconButton>
             <WebSourceDialog />
             <IconButton
               label={gt("Refresh source")}
               onClick={() => void refreshSource()}
-              disabled={!source?.capabilities.canRefresh}
+              disabled={isSourceLoading || !source?.capabilities.canRefresh}
             >
-              <RefreshCw size={17} aria-hidden />
+              <RefreshCw className={isSourceLoading ? "animate-spin" : undefined} size={17} aria-hidden />
             </IconButton>
           </ControlGroup>
           {source?.capabilities.canSort ? (
-            <FileOrderMenu value={settings.fileOrder} onChange={(fileOrder) => void setFileOrder(fileOrder)} />
+            <FileOrderMenu value={settings.fileOrder} disabled={isSourceLoading} onChange={(fileOrder) => void setFileOrder(fileOrder)} />
           ) : null}
         </div>
 

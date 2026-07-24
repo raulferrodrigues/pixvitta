@@ -1,4 +1,6 @@
 import type { CSSProperties } from "react";
+import { LoaderCircle } from "lucide-react";
+import { T } from "gt-react";
 import type { AppBuildInfo } from "../shared/appBuild";
 import { useAppLifecycle } from "./app/useAppLifecycle";
 import { useAutoHideControls } from "./app/useAutoHideControls";
@@ -21,6 +23,7 @@ export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
   const hasMedia = useViewerStore(selectHasMedia);
   const filmstripWidth = useViewerStore((state) => state.filmstripWidth);
   const isFilmstripVisible = useViewerStore((state) => state.isFilmstripVisible);
+  const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
   const usesUnobtrusiveControls = useViewerStore((state) => state.settings.unobtrusiveViewerControls);
   const isControlsRevealed = useAutoHideControls(usesUnobtrusiveControls && hasMedia);
 
@@ -44,6 +47,16 @@ export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
       <Controls />
       {showFilmstrip ? <Filmstrip /> : null}
       <MediaViewer />
+      {isSourceLoading ? (
+        <div
+          className="fixed left-1/2 top-[calc(var(--pix-topbar-height)+12px)] z-40 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-pix-border bg-pix-panel/95 px-4 py-2.5 text-sm text-pix-text shadow-xl"
+          role="status"
+          data-testid="source-loading"
+        >
+          <LoaderCircle className="animate-spin" size={17} aria-hidden />
+          <span><T>Loading source...</T></span>
+        </div>
+      ) : null}
       <SourceOpenError presentation="toast" />
     </main>
   );

@@ -38,6 +38,10 @@ Provider matching, canonical locations, rate limits, remote request headers,
 resource delivery, local path authorization, recents policy, and error mapping
 remain behind this interface.
 
+The library is also the sole authority for the active collection and its media
+registry. The renderer holds only the latest projection it was given; it never
+decides which asynchronous load wins or activates resources itself.
+
 Download-capable providers expose that behavior as a source capability. The
 renderer passes only the opaque media ID back to the media library; the provider
 resource is streamed into the operating system’s Downloads directory with a
@@ -55,9 +59,9 @@ Providers are compile-time adapters registered under
 
 The initial providers are:
 
-- `localFolder.ts`: directory scanning, sorting, thumbnails, and local file
+- `localFolder/`: directory scanning, sorting, thumbnails, and local file
   resources;
-- `fourChan.ts`: thread URL parsing, API policy, attachment mapping, and CDN
+- `fourChan/`: thread URL parsing, API policy, attachment mapping, and CDN
   resources.
 
 This is intentionally not a runtime plugin system. Authentication flows,
@@ -75,6 +79,34 @@ The renderer receives a provider-neutral collection:
 React must not branch on provider IDs. It renders presentation fields and
 capabilities.
 
+## Authoritative collection handoff
+
+Collection changes use one main-owned state machine:
+
+1. `idle`: the library may accept one open or refresh command.
+2. `loading`: the selected provider builds a candidate collection. This may
+   take as long as the provider needs, and the renderer displays loading state.
+3. `awaiting-renderer`: main atomically activates the candidate and publishes
+   the provider-neutral collection. Other collection-changing commands are
+   ignored.
+
+The renderer applies every published collection unconditionally, completes the
+React commit, and sends one generic `library:renderer-stable` acknowledgement.
+There are no cross-process revisions, result races, cancellation rules, or
+command queues: only one collection transition can exist, so the
+acknowledgement necessarily belongs to it.
+
+After delivery, main allows one second for the acknowledgement. A missing,
+duplicate, or otherwise unexpected acknowledgement is treated as a fatal
+protocol failure and exits the app. This is deliberately strict while the
+handoff is expected to complete effectively instantly.
+
+Provider failures occur before commit and leave the active collection and
+registry untouched. During the committed handoff, main retains the previous
+catalog alongside the new one so media already rendered on screen remains
+resolvable. The previous catalog is discarded only after the renderer reports
+that it is stable.
+
 ## Resource delivery
 
 Both local and remote content are served through Pixvitta’s custom protocols.
@@ -82,7 +114,8 @@ The resource registry maps opaque IDs to internal response functions:
 
 - local resources support MIME types and byte ranges from disk;
 - remote resources proxy approved provider URLs and provider-specific headers;
-- stale resources stop resolving when a new collection becomes active.
+- resources from the previous collection remain available through the atomic
+  renderer handoff and stop resolving after its acknowledgement.
 
 This removes raw CDN URLs and 4chan referrer behavior from the renderer and
 window layer.
@@ -97,8 +130,9 @@ window layer.
 
 ## Verification
 
-- Provider matching and loading are tested through the media-library interface
-  with injected provider/network dependencies.
+- Provider matching, critical-zone exclusion, commit handoff, registry
+  lifetime, and fatal acknowledgement behavior are tested through the
+  media-library interface with injected dependencies.
 - Remote resource delivery verifies referrer and byte-range forwarding.
 - Existing validation must pass.
 - A focused Electron smoke test opens a local directory.

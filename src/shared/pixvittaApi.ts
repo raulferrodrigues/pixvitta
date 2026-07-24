@@ -2,8 +2,8 @@ import type { AppBuildInfo } from "./appBuild";
 import type {
   DownloadMediaResult,
   MediaCollection,
-  OpenSourceRequest,
-  OpenSourceResult
+  OpenSourceError,
+  OpenSourceRequest
 } from "./media";
 import type { RecentFolder } from "./recentFolders";
 import type { AppSettings } from "./settings";
@@ -26,8 +26,8 @@ export type WindowChromeState = {
 
 export type PixvittaApi = {
   getBuildInfo(): Promise<AppBuildInfo>;
-  openSource(request: OpenSourceRequest): Promise<OpenSourceResult>;
-  refreshSource(sourceId: string): Promise<OpenSourceResult>;
+  openSource(request: OpenSourceRequest): void;
+  refreshSource(): void;
   openSourceOrigin(sourceId: string): Promise<boolean>;
   getRecentFolders(): Promise<RecentFolder[]>;
   removeRecentFolder(folderPath: string): Promise<RecentFolder[]>;
@@ -41,8 +41,11 @@ export type PixvittaApi = {
   exitFullscreen(): Promise<void>;
   getWindowChromeState(): Promise<WindowChromeState>;
   markViewerReady(): Promise<void>;
+  acknowledgeCollection(): void;
   onWindowChromeChanged(callback: (state: WindowChromeState) => void): () => void;
   onCommand(callback: (command: PixvittaCommand) => void): () => void;
-  onOpenedFile(callback: (collection: MediaCollection) => void): () => void;
+  onCollectionChanged(callback: (collection: MediaCollection) => void): () => void;
+  onSourceLoadingChanged(callback: (isLoading: boolean) => void): () => void;
+  onSourceError(callback: (error: OpenSourceError) => void): () => void;
   onSettingsChanged(callback: (settings: AppSettings) => void): () => void;
 };

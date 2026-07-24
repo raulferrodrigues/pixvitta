@@ -1,1 +1,1 @@
-export { activateProviderCollection } from "./mediaFeature";
+import "./mediaFeature";

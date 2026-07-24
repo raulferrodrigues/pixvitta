@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { MediaCollection } from "../../shared/media";
 import { defaultSettings } from "../../shared/settings";
 import { MediaLibrary } from "./mediaLibrary";
 import {
@@ -10,44 +9,106 @@ import {
   type ProviderCollection
 } from "./providers";
 
-function providerCollection(location: string): ProviderCollection {
+function providerCollection(
+  location: string,
+  key = location
+): ProviderCollection {
   return {
     canonicalLocation: location,
-    title: "Example source",
+    title: `Source ${location}`,
     capabilities: {
-      canDownload: false,
+      canDownload: true,
       canRefresh: true,
       canSort: false
     },
     remember: true,
-    items: [],
-    selectedKey: null
-  };
-}
-
-function publicCollection(
-  collectionId: string,
-  collection: ProviderCollection
-): MediaCollection {
-  return {
-    source: {
-      id: collectionId,
-      title: collection.title,
-      capabilities: {
-        canDownload: collection.capabilities.canDownload,
-        canRefresh: collection.capabilities.canRefresh,
-        canSort: collection.capabilities.canSort,
-        canOpenOrigin: !!collection.origin
+    items: [
+      {
+        key,
+        name: `${key}.jpg`,
+        kind: "image",
+        sizeBytes: 1,
+        lastOpenedMs: 0,
+        addedMs: 0,
+        modifiedMs: 0,
+        createdMs: 0,
+        media: {
+          async respond() {
+            return new Response(key);
+          }
+        },
+        thumbnail: {
+          kind: "direct",
+          url: `https://example.test/${key}.jpg`
+        }
       }
-    },
-    items: [],
-    selectedId: null
+    ],
+    selectedKey: key
   };
 }
 
-test("opens and refreshes locations through the matching provider", async () => {
+type PublishedCollection = {
+  collection: Parameters<
+    ConstructorParameters<typeof MediaLibrary>[0]["publishCollection"]
+  >[0];
+  onDelivered(): void;
+};
+
+function createLibrary(
+  provider: MediaProvider,
+  options: {
+    ids?: string[];
+    remembered?: string[];
+    loading?: boolean[];
+    errors?: string[];
+  } = {}
+) {
+  const published: PublishedCollection[] = [];
+  const timers: Array<{ callback(): void; timeoutMs: number }> = [];
+  const ids = [...(options.ids ?? ["collection-1"])];
+
+  const library = new MediaLibrary({
+    providers: new ProviderRegistry([provider]),
+    getSettings: async () => defaultSettings,
+    remember: async (location) => {
+      options.remembered?.push(location);
+    },
+    publishCollection(collection, onDelivered) {
+      published.push({ collection, onDelivered });
+    },
+    publishLoading(isLoading) {
+      options.loading?.push(isLoading);
+    },
+    publishError(error) {
+      options.errors?.push(error);
+    },
+    fatal(message): never {
+      throw new Error(`fatal: ${message}`);
+    },
+    setAcknowledgementTimer(callback, timeoutMs) {
+      const timer = { callback, timeoutMs };
+      timers.push(timer);
+      return timer;
+    },
+    clearAcknowledgementTimer() {},
+    createCollectionId: () => ids.shift() ?? "unexpected-collection"
+  });
+
+  return { library, published, timers };
+}
+
+function deliverAndAcknowledge(
+  library: MediaLibrary,
+  published: PublishedCollection[]
+): void {
+  published.at(-1)?.onDelivered();
+  library.acknowledgeRenderer();
+}
+
+test("opens and refreshes through one authoritative commit pipeline", async () => {
   const loads: Array<{ location: string; refresh: boolean }> = [];
   const remembered: string[] = [];
+  const loading: boolean[] = [];
   const provider: MediaProvider = {
     matches: (location) => location.startsWith("example:"),
     async load(request) {
@@ -55,138 +116,136 @@ test("opens and refreshes locations through the matching provider", async () => 
       return providerCollection(request.location.toLowerCase());
     }
   };
-  const library = new MediaLibrary({
-    providers: new ProviderRegistry([provider]),
-    getSettings: async () => defaultSettings,
-    activate: publicCollection,
-    remember: async (location) => {
-      remembered.push(location);
-    },
-    createCollectionId: () => "collection-1"
+  const { library, published, timers } = createLibrary(provider, {
+    ids: ["collection-1"],
+    remembered,
+    loading
   });
 
-  const opened = await library.beginRequest().openLocation("example:SOURCE");
-  assert.ok(opened);
-  assert.equal(opened.source.id, "collection-1");
+  assert.equal(await library.openLocation("example:SOURCE"), true);
+  assert.equal(library.getPhase(), "awaiting-renderer");
+  assert.equal(published[0]?.collection.source.id, "collection-1");
   assert.deepEqual(remembered, ["example:source"]);
 
-  const refreshed = await library.beginRequest().refresh(opened.source.id);
-  assert.ok(refreshed);
-  assert.equal(refreshed.source.id, opened.source.id);
+  published[0]?.onDelivered();
+  assert.equal(timers[0]?.timeoutMs, 1_000);
+  library.acknowledgeRenderer();
+  assert.equal(library.getPhase(), "idle");
+
+  assert.equal(await library.refresh(), true);
+  assert.equal(published[1]?.collection.source.id, "collection-1");
+  deliverAndAcknowledge(library, published);
   assert.deepEqual(loads, [
     { location: "example:SOURCE", refresh: false },
     { location: "example:source", refresh: true }
   ]);
+  assert.deepEqual(loading, [true, false, true, false]);
 });
 
-test("rejects locations unsupported by installed providers", async () => {
-  const library = new MediaLibrary({
-    providers: new ProviderRegistry([]),
-    getSettings: async () => defaultSettings,
-    activate: publicCollection,
-    remember: async () => undefined
+test("collection-changing commands are ignored throughout the critical zone", async () => {
+  let resolveLoad: ((collection: ProviderCollection) => void) | undefined;
+  let markStarted: (() => void) | undefined;
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  let loadCount = 0;
+  const provider: MediaProvider = {
+    matches: () => true,
+    async load(request) {
+      loadCount += 1;
+      markStarted?.();
+      return new Promise<ProviderCollection>((resolve) => {
+        resolveLoad = resolve;
+      });
+    }
+  };
+  const { library, published } = createLibrary(provider);
+
+  const firstOpen = library.openLocation("example:first");
+  await started;
+  assert.equal(library.getPhase(), "loading");
+  assert.equal(await library.openLocation("example:ignored"), false);
+  assert.equal(await library.refresh(), false);
+
+  resolveLoad?.(providerCollection("example:first"));
+  assert.equal(await firstOpen, true);
+  assert.equal(library.getPhase(), "awaiting-renderer");
+  assert.equal(await library.openLocation("example:also-ignored"), false);
+  assert.equal(loadCount, 1);
+
+  deliverAndAcknowledge(library, published);
+});
+
+test("a provider failure preserves the active collection and registry", async () => {
+  const errors: string[] = [];
+  const provider: MediaProvider = {
+    matches: () => true,
+    async load(request) {
+      if (request.location === "example:broken") {
+        throw new ProviderError("unavailable", "offline");
+      }
+      return providerCollection(request.location, "working");
+    }
+  };
+  const { library, published } = createLibrary(provider, {
+    ids: ["collection-1", "collection-2"],
+    errors
   });
 
-  await assert.rejects(
-    library.beginRequest().openLocation("https://unsupported.example/media"),
-    (error) =>
-      error instanceof ProviderError && error.code === "unsupported-location"
+  assert.equal(await library.openLocation("example:working"), true);
+  const oldUrl = published[0]?.collection.items[0]?.url;
+  deliverAndAcknowledge(library, published);
+
+  assert.equal(await library.openLocation("example:broken"), false);
+  assert.equal(library.getPhase(), "idle");
+  assert.equal(errors.at(-1), "unavailable");
+  assert.ok(oldUrl);
+  assert.ok(library.resolveMediaUrl(oldUrl));
+});
+
+test("the previous registry survives only until the renderer acknowledges", async () => {
+  const provider: MediaProvider = {
+    matches: () => true,
+    async load(request) {
+      return providerCollection(request.location);
+    }
+  };
+  const { library, published } = createLibrary(provider, {
+    ids: ["collection-1", "collection-2"]
+  });
+
+  await library.openLocation("example:old");
+  const oldUrl = published[0]!.collection.items[0]!.url;
+  deliverAndAcknowledge(library, published);
+
+  await library.openLocation("example:new");
+  const newUrl = published[1]!.collection.items[0]!.url;
+  assert.ok(library.resolveMediaUrl(oldUrl));
+  assert.ok(library.resolveMediaUrl(newUrl));
+
+  deliverAndAcknowledge(library, published);
+  assert.equal(library.resolveMediaUrl(oldUrl), null);
+  assert.ok(library.resolveMediaUrl(newUrl));
+});
+
+test("missing or unexpected renderer acknowledgements are fatal", async () => {
+  const provider: MediaProvider = {
+    matches: () => true,
+    async load(request) {
+      return providerCollection(request.location);
+    }
+  };
+  const { library, published, timers } = createLibrary(provider);
+
+  assert.throws(
+    () => library.acknowledgeRenderer(),
+    /fatal: Unexpected renderer acknowledgement/
   );
-});
 
-test("a stale provider load cannot replace the active collection", async () => {
-  let finishSlowLoad: ((collection: ProviderCollection) => void) | undefined;
-  let markSlowLoadStarted: (() => void) | undefined;
-  const slowLoadStarted = new Promise<void>((resolve) => {
-    markSlowLoadStarted = resolve;
-  });
-  const activations: string[] = [];
-  const provider: MediaProvider = {
-    matches: (location) => location.startsWith("example:"),
-    async load(request) {
-      if (request.location === "example:slow") {
-        return new Promise<ProviderCollection>((resolve) => {
-          finishSlowLoad = resolve;
-          markSlowLoadStarted?.();
-        });
-      }
-      return providerCollection(request.location);
-    }
-  };
-  let collectionNumber = 0;
-  const library = new MediaLibrary({
-    providers: new ProviderRegistry([provider]),
-    getSettings: async () => defaultSettings,
-    activate: (collectionId, collection) => {
-      activations.push(collection.canonicalLocation);
-      return publicCollection(collectionId, collection);
-    },
-    remember: async () => undefined,
-    createCollectionId: () => `collection-${++collectionNumber}`
-  });
-
-  const staleOpen = library.beginRequest().openLocation("example:slow");
-  await slowLoadStarted;
-  const activeCollection = await library
-    .beginRequest()
-    .openLocation("example:active");
-  assert.ok(activeCollection);
-
-  assert.ok(finishSlowLoad);
-  finishSlowLoad(providerCollection("example:slow"));
-  assert.equal(await staleOpen, null);
-  assert.deepEqual(activations, ["example:active"]);
-  assert.equal(activeCollection.source.id, "collection-1");
-});
-
-test("a stale refresh cannot replace a newer collection", async () => {
-  let finishRefresh: ((collection: ProviderCollection) => void) | undefined;
-  let markRefreshStarted: (() => void) | undefined;
-  const refreshStarted = new Promise<void>((resolve) => {
-    markRefreshStarted = resolve;
-  });
-  const activations: string[] = [];
-  const provider: MediaProvider = {
-    matches: (location) => location.startsWith("example:"),
-    async load(request) {
-      if (request.refresh) {
-        return new Promise<ProviderCollection>((resolve) => {
-          finishRefresh = resolve;
-          markRefreshStarted?.();
-        });
-      }
-      return providerCollection(request.location);
-    }
-  };
-  let collectionNumber = 0;
-  const library = new MediaLibrary({
-    providers: new ProviderRegistry([provider]),
-    getSettings: async () => defaultSettings,
-    activate: (collectionId, collection) => {
-      activations.push(collection.canonicalLocation);
-      return publicCollection(collectionId, collection);
-    },
-    remember: async () => undefined,
-    createCollectionId: () => `collection-${++collectionNumber}`
-  });
-
-  const originalCollection = await library
-    .beginRequest()
-    .openLocation("example:original");
-  assert.ok(originalCollection);
-
-  const staleRefresh = library
-    .beginRequest()
-    .refresh(originalCollection.source.id);
-  await refreshStarted;
-  const activeCollection = await library
-    .beginRequest()
-    .openLocation("example:active");
-  assert.ok(activeCollection);
-
-  assert.ok(finishRefresh);
-  finishRefresh(providerCollection("example:original-refreshed"));
-  assert.equal(await staleRefresh, null);
-  assert.deepEqual(activations, ["example:original", "example:active"]);
-  assert.equal(activeCollection.source.id, "collection-2");
+  await library.openLocation("example:source");
+  published[0]?.onDelivered();
+  assert.throws(
+    () => timers[0]?.callback(),
+    /fatal: Renderer did not acknowledge/
+  );
 });

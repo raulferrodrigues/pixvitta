@@ -46,10 +46,6 @@ export type OpenSourceError =
   | "invalid-response"
   | "no-supported-media";
 
-export type OpenSourceResult =
-  | { ok: true; collection: MediaCollection | null }
-  | { ok: false; error: OpenSourceError };
-
 export type DownloadMediaResult =
   | { ok: true; fileName: string }
   | { ok: false };

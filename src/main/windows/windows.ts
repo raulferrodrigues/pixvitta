@@ -1,5 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
-import type { MediaCollection } from "../../shared/media";
+import type {
+  MediaCollection,
+  OpenSourceError
+} from "../../shared/media";
 import type { PixvittaCommand } from "../../shared/pixvittaApi";
 import { rendererUrl } from "../app";
 import { createPreferencesBrowserWindow } from "./preferencesWindow";
@@ -61,31 +64,49 @@ let preferencesWindow: BrowserWindow | null = null;
 // user does not quit the whole app just by closing settings.
 let skipNextWindowAllClosedQuit = false;
 
-// Folders can arrive before the main window exists, while it is loading, or
-// before React has registered its file-open listener. The queue lets callers say
-// "show this folder in the main window" without learning any of that timing.
-const pendingMainWindowCollections: MediaCollection[] = [];
+type PendingCollectionDelivery = {
+  collection: MediaCollection;
+  onDelivered(): void;
+};
 
-function flushMainWindowFolders(): void {
-  // The renderer only gets folder deliveries after two conditions are true:
+// Authoritative library events can arrive before the main window exists, while
+// it is loading, or before React has registered its listeners. Collection
+// changes remain queued until both renderer readiness gates are open.
+const pendingCollectionDeliveries: PendingCollectionDelivery[] = [];
+let pendingLoadingState: boolean | null = null;
+let pendingSourceError: OpenSourceError | null = null;
+
+function flushMainWindowEvents(): void {
+  // The renderer only gets library events after two conditions are true:
   // BrowserWindow.loadURL has completed and React has called viewer:ready from
   // preload. Sending before either point risks dropping the IPC message.
   if (!mainWindow || mainWindow.isDestroyed() || !mainWindowLoaded || !mainWindowReady) return;
 
-  while (pendingMainWindowCollections.length > 0) {
-    mainWindow.webContents.send("file:opened", pendingMainWindowCollections.shift()!);
+  if (pendingLoadingState !== null) {
+    mainWindow.webContents.send(
+      "library:loading-changed",
+      pendingLoadingState
+    );
+    pendingLoadingState = null;
+  }
+  if (pendingSourceError !== null) {
+    mainWindow.webContents.send("library:source-error", pendingSourceError);
+    pendingSourceError = null;
+  }
+  while (pendingCollectionDeliveries.length > 0) {
+    const delivery = pendingCollectionDeliveries.shift()!;
+    mainWindow.webContents.send(
+      "library:collection-changed",
+      delivery.collection
+    );
+    delivery.onDelivered();
   }
   mainWindow.focus();
 }
 
-export function createMainWindow(collection?: MediaCollection): void {
-  // The optional folder is the high-level "show this opened folder" command.
-  // Delivery timing remains private to this module; callers do not need a
-  // separate "wait until viewer ready" API.
-  if (collection) pendingMainWindowCollections.push(collection);
-
+export function createMainWindow(): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
-    flushMainWindowFolders();
+    flushMainWindowEvents();
     mainWindow.focus();
     return;
   }
@@ -106,13 +127,51 @@ export function createMainWindow(collection?: MediaCollection): void {
     onLoaded(loadedWindow) {
       if (mainWindow !== loadedWindow || loadedWindow.isDestroyed()) return;
       mainWindowLoaded = true;
-      flushMainWindowFolders();
+      flushMainWindowEvents();
     },
     onCloseShortcut: closeAppWindow,
     onOpenPreferences: createPreferencesWindow
   });
 
   mainWindow = window;
+}
+
+export function publishMainWindowCollection(
+  collection: MediaCollection,
+  onDelivered: () => void
+): void {
+  pendingCollectionDeliveries.push({ collection, onDelivered });
+  flushMainWindowEvents();
+}
+
+export function publishMainWindowLoading(isLoading: boolean): void {
+  if (
+    mainWindow &&
+    !mainWindow.isDestroyed() &&
+    mainWindowLoaded &&
+    mainWindowReady
+  ) {
+    mainWindow.webContents.send("library:loading-changed", isLoading);
+    return;
+  }
+  pendingLoadingState = isLoading;
+}
+
+export function publishMainWindowSourceError(error: OpenSourceError): void {
+  if (
+    mainWindow &&
+    !mainWindow.isDestroyed() &&
+    mainWindowLoaded &&
+    mainWindowReady
+  ) {
+    mainWindow.webContents.send("library:source-error", error);
+    return;
+  }
+  pendingSourceError = error;
+}
+
+export function isMainWindow(window: BrowserWindow | null): boolean {
+  return !!window && window === mainWindow && !window.isDestroyed();
 }
 
 export function createPreferencesWindow(): void {
@@ -211,7 +270,7 @@ ipcMain.handle("viewer:ready", (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   if (!window || window !== mainWindow) return;
   mainWindowReady = true;
-  flushMainWindowFolders();
+  flushMainWindowEvents();
 });
 
 // Window-close policy belongs with the windows feature. The rest of the app

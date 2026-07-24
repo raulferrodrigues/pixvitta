@@ -1,36 +1,15 @@
 import { app, BrowserWindow, ipcMain, protocol } from "electron";
-import { createHash } from "node:crypto";
 import path from "node:path";
-import type {
-  DownloadMediaResult,
-  MediaCollection,
-  MediaItem
-} from "../../shared/media";
-import type { ProviderCollection } from "../library/providers/provider";
+import type { DownloadMediaResult } from "../../shared/media";
+import { resolveMediaId, resolveMediaUrl } from "../library";
 import {
   showLocalMediaContextMenu,
   showRemoteMediaContextMenu
 } from "./mediaContextMenu";
 import { downloadMediaResource } from "./mediaDownload";
-import { MediaRegistry, type RegisteredMediaItem } from "./mediaRegistry";
-
-const registry = new MediaRegistry();
-
-function createPublicMediaId(collectionId: string, providerKey: string): string {
-  return createHash("sha256")
-    .update(collectionId)
-    .update("\0")
-    .update(providerKey)
-    .digest("hex")
-    .slice(0, 32);
-}
-
-function createMediaUrl(kind: "media" | "thumbnail", id: string): string {
-  return `pixvitta-media://${kind}/${id}`;
-}
 
 async function createMediaResponse(request: Request): Promise<Response> {
-  const resource = registry.resolveUrl(request.url);
+  const resource = resolveMediaUrl(request.url);
   if (!resource) return new Response(null, { status: 404 });
 
   try {
@@ -44,7 +23,7 @@ async function createMediaResponse(request: Request): Promise<Response> {
 function showMediaContextMenu(window: BrowserWindow, mediaId: unknown): boolean {
   if (typeof mediaId !== "string") return false;
 
-  const item = registry.resolveId(mediaId);
+  const item = resolveMediaId(mediaId);
   if (!item) return false;
   if (item.localPath) {
     showLocalMediaContextMenu(window, item.localPath);
@@ -63,7 +42,7 @@ function showMediaContextMenu(window: BrowserWindow, mediaId: unknown): boolean 
 async function downloadMedia(mediaId: unknown): Promise<DownloadMediaResult> {
   if (typeof mediaId !== "string") return { ok: false };
 
-  const item = registry.resolveId(mediaId);
+  const item = resolveMediaId(mediaId);
   if (!item?.downloadable) return { ok: false };
 
   try {
@@ -113,59 +92,3 @@ function registerMediaProtocolHandler(): void {
 registerMediaProtocolScheme();
 registerMediaIpcHandler();
 void app.whenReady().then(registerMediaProtocolHandler);
-
-export function activateProviderCollection(
-  collectionId: string,
-  collection: ProviderCollection
-): MediaCollection {
-  const registeredItems: RegisteredMediaItem[] = [];
-  const items: MediaItem[] = collection.items.map((item) => {
-    const id = createPublicMediaId(collectionId, item.key);
-    registeredItems.push({
-      id,
-      name: item.name,
-      downloadable: collection.capabilities.canDownload,
-      media: item.media,
-      thumbnail: item.thumbnail.kind === "resource" ? item.thumbnail.resource : undefined,
-      externalUrl: item.externalUrl,
-      localPath: item.localPath
-    });
-
-    return {
-      id,
-      name: item.name,
-      kind: item.kind,
-      sizeBytes: item.sizeBytes,
-      lastOpenedMs: item.lastOpenedMs,
-      addedMs: item.addedMs,
-      modifiedMs: item.modifiedMs,
-      createdMs: item.createdMs,
-      url: createMediaUrl("media", id),
-      thumbnailUrl:
-        item.thumbnail.kind === "direct"
-          ? item.thumbnail.url
-          : createMediaUrl("thumbnail", id)
-    };
-  });
-
-  registry.setItems(registeredItems);
-  const selectedItem = collection.selectedKey
-    ? collection.items.findIndex((item) => item.key === collection.selectedKey)
-    : -1;
-
-  return {
-    source: {
-      id: collectionId,
-      title: collection.title,
-      originLabel: collection.origin?.label,
-      capabilities: {
-        canDownload: collection.capabilities.canDownload,
-        canRefresh: collection.capabilities.canRefresh,
-        canSort: collection.capabilities.canSort,
-        canOpenOrigin: !!collection.origin
-      }
-    },
-    items,
-    selectedId: selectedItem >= 0 ? items[selectedItem]?.id ?? null : items[0]?.id ?? null
-  };
-}
