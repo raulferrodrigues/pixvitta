@@ -9,14 +9,22 @@ function isFileOrder(value: string): value is FileOrder {
   return FILE_ORDER_OPTIONS.some((option) => option.value === value);
 }
 
-export function FileOrderMenu({ value, onChange }: { value: FileOrder; onChange(value: FileOrder): void }) {
+export function FileOrderMenu({
+  value,
+  disabled = false,
+  onChange
+}: {
+  value: FileOrder;
+  disabled?: boolean;
+  onChange(value: FileOrder): void;
+}) {
   const gt = useGT();
   const selectedOption = FILE_ORDER_OPTIONS.find((option) => option.value === value);
   const triggerLabel = gt("File order: {order}", { order: gt(selectedOption?.label ?? "Name") });
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger asChild>
-        <IconButton label={triggerLabel} className="viewer-file-order-trigger" data-testid="viewer-file-order-trigger"><ArrowUpDown size={17} aria-hidden /></IconButton>
+        <IconButton label={triggerLabel} className="viewer-file-order-trigger" data-testid="viewer-file-order-trigger" disabled={disabled}><ArrowUpDown size={17} aria-hidden /></IconButton>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content className="viewer-file-order-menu" align="start" side="bottom" sideOffset={-12} collisionPadding={8}>

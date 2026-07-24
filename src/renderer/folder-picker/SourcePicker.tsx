@@ -5,8 +5,9 @@ import { useViewerStore } from "../state/ViewerStoreProvider";
 import { DevBuildBadge } from "../ui/DevBuildBadge";
 import { PrimaryButton } from "../ui/PrimaryButton";
 import { RecentFolders } from "./RecentFolders";
+import { LocationPicker } from "./LocationPicker";
 
-export function FolderPicker({ buildInfo }: { buildInfo: AppBuildInfo }) {
+export function SourcePicker({ buildInfo }: { buildInfo: AppBuildInfo }) {
   const loadState = useViewerStore((state) => state.loadState);
   const openFolder = useViewerStore((state) => state.openFolder);
 
@@ -35,6 +36,7 @@ export function FolderPicker({ buildInfo }: { buildInfo: AppBuildInfo }) {
             <FolderOpen size={20} aria-hidden /><span><T>Open Folder</T></span>
           </PrimaryButton>
         </div>
+        <LocationPicker />
         <RecentFolders />
       </div>
     </main>

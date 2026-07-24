@@ -1,22 +1,26 @@
-import { Eye, EyeOff, FolderOpen, Maximize, Pause, Play, RefreshCw, Repeat, Repeat1, StepBack, StepForward } from "lucide-react";
+import { Check, CircleAlert, Download, Eye, EyeOff, FolderOpen, LoaderCircle, Maximize, Pause, Play, RefreshCw, Repeat, Repeat1, StepBack, StepForward } from "lucide-react";
 import { useGT } from "gt-react";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { selectCurrentItem, selectHasMedia } from "../state/viewerSelectors";
 import { IconButton } from "../ui/IconButton";
 import { ControlGroup } from "./ControlGroup";
 import { FileOrderMenu } from "./FileOrderMenu";
+import { WebSourceDialog } from "./WebSourceDialog";
 import "./controls.css";
 
 export function Controls() {
   const gt = useGT();
   const currentItem = useViewerStore(selectCurrentItem);
   const hasMedia = useViewerStore(selectHasMedia);
-  const folderPath = useViewerStore((state) => state.folderPath);
+  const source = useViewerStore((state) => state.source);
+  const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
   const isVideoPlaying = useViewerStore((state) => state.isVideoPlaying);
   const isVideoLooping = useViewerStore((state) => state.isVideoLooping);
+  const downloadState = useViewerStore((state) => state.downloadState);
+  const downloadedFileName = useViewerStore((state) => state.downloadedFileName);
   const settings = useViewerStore((state) => state.settings);
   const openFolder = useViewerStore((state) => state.openFolder);
-  const rescanFolder = useViewerStore((state) => state.rescanFolder);
+  const refreshSource = useViewerStore((state) => state.refreshSource);
   const setFileOrder = useViewerStore((state) => state.setFileOrder);
   const goPrevious = useViewerStore((state) => state.goPrevious);
   const goNext = useViewerStore((state) => state.goNext);
@@ -24,21 +28,39 @@ export function Controls() {
   const toggleVideoLoop = useViewerStore((state) => state.toggleVideoLoop);
   const toggleFullscreen = useViewerStore((state) => state.toggleFullscreen);
   const toggleUnobtrusiveControls = useViewerStore((state) => state.toggleUnobtrusiveControls);
+  const downloadCurrentMedia = useViewerStore((state) => state.downloadCurrentMedia);
 
   if (!hasMedia) return null;
   const isVideo = currentItem?.kind === "video";
   const loopLabel = isVideoLooping ? gt("Disable video loop") : gt("Enable video loop");
   const unobtrusiveLabel = settings.unobtrusiveViewerControls ? gt("Disable unobtrusive controls") : gt("Enable unobtrusive controls");
+  const downloadLabel =
+    downloadState === "downloading"
+      ? gt("Downloading media")
+      : downloadState === "downloaded" && downloadedFileName
+        ? gt("Downloaded {name} to Downloads", { name: downloadedFileName })
+        : downloadState === "error"
+          ? gt("Download failed. Try again")
+          : gt("Download media to Downloads");
 
   return (
     <div className="viewer-controls pointer-events-none px-3 max-[420px]:px-2" role="toolbar" aria-label={gt("Viewer controls")}>
       <div className="viewer-controls-content min-w-0">
         <div className="viewer-controls-leading">
           <ControlGroup label={gt("Library controls")}>
-            <IconButton label={gt("Open folder")} onClick={() => void openFolder()}><FolderOpen size={18} aria-hidden /></IconButton>
-            <IconButton label={gt("Rescan folder")} onClick={() => void rescanFolder()} disabled={!folderPath}><RefreshCw size={17} aria-hidden /></IconButton>
+            <IconButton label={gt("Open folder")} disabled={isSourceLoading} onClick={() => void openFolder()}><FolderOpen size={18} aria-hidden /></IconButton>
+            <WebSourceDialog />
+            <IconButton
+              label={gt("Refresh source")}
+              onClick={() => void refreshSource()}
+              disabled={isSourceLoading || !source?.capabilities.canRefresh}
+            >
+              <RefreshCw className={isSourceLoading ? "animate-spin" : undefined} size={17} aria-hidden />
+            </IconButton>
           </ControlGroup>
-          <FileOrderMenu value={settings.fileOrder} onChange={(fileOrder) => void setFileOrder(fileOrder)} />
+          {source?.capabilities.canSort ? (
+            <FileOrderMenu value={settings.fileOrder} disabled={isSourceLoading} onChange={(fileOrder) => void setFileOrder(fileOrder)} />
+          ) : null}
         </div>
 
         <ControlGroup label={gt("Media controls")} className="viewer-controls-transport">
@@ -61,6 +83,24 @@ export function Controls() {
               <IconButton label={gt("Enable video loop")} className="video-control-placeholder" disabled data-testid="video-loop-placeholder"><Repeat1 size={18} aria-hidden /></IconButton>
             )}
           </span>
+          {source?.capabilities.canDownload ? (
+            <IconButton
+              label={downloadLabel}
+              disabled={downloadState === "downloading"}
+              data-testid="download-media"
+              onClick={() => void downloadCurrentMedia()}
+            >
+              {downloadState === "downloading" ? (
+                <LoaderCircle className="animate-spin" size={17} aria-hidden />
+              ) : downloadState === "downloaded" ? (
+                <Check size={17} aria-hidden />
+              ) : downloadState === "error" ? (
+                <CircleAlert size={17} aria-hidden />
+              ) : (
+                <Download size={17} aria-hidden />
+              )}
+            </IconButton>
+          ) : null}
           <IconButton label={gt("Toggle fullscreen")} onClick={() => void toggleFullscreen()}><Maximize size={17} aria-hidden /></IconButton>
           <IconButton label={unobtrusiveLabel} aria-pressed={settings.unobtrusiveViewerControls} data-testid="unobtrusive-controls-toggle" onClick={() => void toggleUnobtrusiveControls()}>
             {settings.unobtrusiveViewerControls ? <Eye size={17} aria-hidden /> : <EyeOff size={17} aria-hidden />}

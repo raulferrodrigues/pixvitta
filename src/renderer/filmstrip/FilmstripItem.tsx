@@ -39,7 +39,7 @@ export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps)
     isCapturingFrameRef.current = true;
     try {
       const thumbnailDataUrl = createMediaThumbnailDataUrl(source, sourceWidth, sourceHeight);
-      if (!thumbnailDataUrl || !(await window.pixvitta.saveMediaThumbnail(item.id, thumbnailDataUrl))) {
+      if (!thumbnailDataUrl || !(await window.pixvitta.saveMediaThumbnail(item.thumbnailUrl, thumbnailDataUrl))) {
         setPreviewMode("fallback");
         return;
       }

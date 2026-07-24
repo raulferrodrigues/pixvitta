@@ -2,7 +2,8 @@ import { app, BrowserWindow } from "electron";
 import { configureAppIdentity } from "./app/buildInfo";
 import { createAppMenu } from "./menus";
 import { registerIpcHandlers } from "./ipc";
-import { openFileAsFolder } from "./library";
+import { openFileAsCollection } from "./library";
+import "./media";
 import { startAutomaticUpdates } from "./updates";
 import { createMainWindow, createPreferencesWindow } from "./windows";
 
@@ -11,11 +12,14 @@ function fileArguments(argv: string[]): string[] {
   return argv.slice(start).filter((argument) => argument.length > 0 && !argument.startsWith("-"));
 }
 
-async function openFileArgument(argv: string[]): Promise<boolean> {
+async function openFileArgument(
+  argv: string[],
+  baseDirectory = process.cwd()
+): Promise<boolean> {
   for (const filePath of fileArguments(argv)) {
-    const folder = await openFileAsFolder(filePath);
-    if (folder) {
-      createMainWindow(folder);
+    const opened = await openFileAsCollection(filePath, baseDirectory);
+    if (opened) {
+      createMainWindow();
       return true;
     }
   }
@@ -51,10 +55,15 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
 } else {
-  app.on("second-instance", (_event, argv) => {
-    void app.whenReady().then(() => openFileArgument(argv)).then((opened) => {
-      if (!opened && BrowserWindow.getAllWindows().length === 0) createMainWindow();
-    });
+  app.on("second-instance", (_event, argv, workingDirectory) => {
+    void app
+      .whenReady()
+      .then(() => openFileArgument(argv, workingDirectory))
+      .then((opened) => {
+        if (!opened && BrowserWindow.getAllWindows().length === 0) {
+          createMainWindow();
+        }
+      });
   });
 }
 
@@ -65,9 +74,9 @@ app.on("open-file", (event, filePath) => {
   event.preventDefault();
   void app
     .whenReady()
-    .then(() => openFileAsFolder(filePath))
-    .then((folder) => {
-      if (folder) createMainWindow(folder);
+    .then(() => openFileAsCollection(filePath))
+    .then((opened) => {
+      if (opened) createMainWindow();
     })
     .catch((error: unknown) => console.error(error));
 });

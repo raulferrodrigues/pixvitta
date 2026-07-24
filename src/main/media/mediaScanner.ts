@@ -1,9 +1,9 @@
 import { createHash, randomBytes } from "node:crypto";
 import { readdir, stat } from "node:fs/promises";
 import path from "node:path";
+import type { MediaKind } from "../../shared/media";
 import type { FileOrder } from "../../shared/settings";
-import { getMediaFileType, type MediaKind } from "../utils/mediaTypes";
-import type { MediaItem as PublicMediaItem } from "../../shared/media";
+import { getMediaFileType } from "../utils/mediaTypes";
 import { getThumbnail } from "../thumbnailer";
 
 /*
@@ -15,8 +15,17 @@ import { getThumbnail } from "../thumbnailer";
 
 export type { MediaKind } from "../utils/mediaTypes";
 
-export type MediaFileRecord = PublicMediaItem & {
+export type MediaFileRecord = {
+  id: string;
+  name: string;
   absolutePath: string;
+  thumbnailUrl: string;
+  kind: MediaKind;
+  sizeBytes: number;
+  lastOpenedMs: number;
+  addedMs: number;
+  modifiedMs: number;
+  createdMs: number;
 };
 
 // Compatibility alias for current internal callers. The public renderer-safe
@@ -46,12 +55,6 @@ const collator = new Intl.Collator(undefined, {
 // folder-sized registry without making URLs enormous.
 export function createMediaId(absolutePath: string): string {
   return createHash("sha256").update(absolutePath).digest("hex").slice(0, 32);
-}
-
-// The full media URL is what the renderer assigns to img.src or video.src. The
-// custom protocol handler later resolves the ID back to a file path.
-export function createMediaUrl(id: string): string {
-  return `pixvitta-media://media/${id}`;
 }
 
 // Sorting happens after every scan so the renderer receives data in display
@@ -120,7 +123,6 @@ export async function scanFolder(folderPath: string, options: ScanOptions = {}):
         id,
         name: entry.name,
         absolutePath,
-        url: createMediaUrl(id),
         thumbnailUrl: thumbnail.url,
         kind: fileType.kind,
         sizeBytes: details.size,

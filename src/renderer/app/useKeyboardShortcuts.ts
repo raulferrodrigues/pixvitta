@@ -8,7 +8,7 @@ import { matchesRendererHotkey, RENDERER_HOTKEYS } from "./hotkeys";
 export function useKeyboardShortcuts(api: PixvittaApi) {
   const currentItemKind = useViewerStore((state) => selectCurrentItem(state)?.kind);
   const openFolder = useViewerStore((state) => state.openFolder);
-  const rescanFolder = useViewerStore((state) => state.rescanFolder);
+  const refreshSource = useViewerStore((state) => state.refreshSource);
   const zoomCurrentImage = useViewerStore((state) => state.zoomCurrentImage);
   const toggleVideoPlayback = useViewerStore((state) => state.toggleVideoPlayback);
   const toggleFullscreen = useViewerStore((state) => state.toggleFullscreen);
@@ -17,7 +17,7 @@ export function useKeyboardShortcuts(api: PixvittaApi) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.metaKey && event.key.toLowerCase() === "o") { event.preventDefault(); void openFolder(); return; }
-      if (event.metaKey && event.key.toLowerCase() === "r") { event.preventDefault(); void rescanFolder(); return; }
+      if (event.metaKey && event.key.toLowerCase() === "r") { event.preventDefault(); void refreshSource(); return; }
       if (event.metaKey && event.key === ",") { event.preventDefault(); void api.openPreferences(); return; }
       if (matchesRendererHotkey(event, RENDERER_HOTKEYS.imageZoomIn)) { event.preventDefault(); if (currentItemKind === "image") zoomCurrentImage(IMAGE_ZOOM_STEP); return; }
       if (matchesRendererHotkey(event, RENDERER_HOTKEYS.imageZoomOut)) { event.preventDefault(); if (currentItemKind === "image") zoomCurrentImage(1 / IMAGE_ZOOM_STEP); return; }
@@ -28,5 +28,5 @@ export function useKeyboardShortcuts(api: PixvittaApi) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [api, currentItemKind, exitFullscreen, openFolder, rescanFolder, toggleFullscreen, toggleVideoPlayback, zoomCurrentImage]);
+  }, [api, currentItemKind, exitFullscreen, openFolder, refreshSource, toggleFullscreen, toggleVideoPlayback, zoomCurrentImage]);
 }

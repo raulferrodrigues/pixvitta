@@ -61,7 +61,7 @@ function showMenuActionError(window: BrowserWindow, title: string, error: unknow
   });
 }
 
-export function showNativeMediaContextMenu(window: BrowserWindow, filePath: string): void {
+export function showLocalMediaContextMenu(window: BrowserWindow, filePath: string): void {
   const canCopyFile = process.platform === "darwin" || process.platform === "linux";
   // Menu.popup anchors the native context menu to the BrowserWindow that invoked
   // it, preserving focus and modality expectations on macOS.
@@ -81,6 +81,28 @@ export function showNativeMediaContextMenu(window: BrowserWindow, filePath: stri
     {
       label: "Copy Path",
       click: () => clipboard.writeText(filePath)
+    }
+  ]);
+  menu.popup({ window });
+}
+
+export function showRemoteMediaContextMenu(
+  window: BrowserWindow,
+  mediaUrl: string,
+  download: () => Promise<void>
+): void {
+  const menu = Menu.buildFromTemplate([
+    {
+      label: "Download File",
+      click: () => {
+        void download().catch((error: unknown) =>
+          showMenuActionError(window, "Download Failed", error)
+        );
+      }
+    },
+    {
+      label: "Copy Media URL",
+      click: () => clipboard.writeText(mediaUrl)
     }
   ]);
   menu.popup({ window });

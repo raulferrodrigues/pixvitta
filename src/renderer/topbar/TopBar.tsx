@@ -1,4 +1,4 @@
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ExternalLink, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useGT } from "gt-react";
 import type { AppBuildInfo } from "../../shared/appBuild";
 import { useViewerStore } from "../state/ViewerStoreProvider";
@@ -12,6 +12,7 @@ export function TopBar({ buildInfo }: { buildInfo: AppBuildInfo }) {
   const gt = useGT();
   const hasMedia = useViewerStore(selectHasMedia);
   const isFilmstripVisible = useViewerStore((state) => state.isFilmstripVisible);
+  const source = useViewerStore((state) => state.source);
   const statusText = useViewerStore(selectStatusText);
   const toggleFilmstrip = useViewerStore((state) => state.toggleFilmstrip);
   useWindowChrome(window.pixvitta);
@@ -25,6 +26,17 @@ export function TopBar({ buildInfo }: { buildInfo: AppBuildInfo }) {
         {isFilmstripVisible ? <PanelLeftClose size={17} aria-hidden /> : <PanelLeftOpen size={17} aria-hidden />}
       </IconButton>
       <DevBuildBadge buildInfo={buildInfo} />
+      {source?.capabilities.canOpenOrigin && source.originLabel ? (
+        <button
+          className="topbar-source-origin"
+          type="button"
+          title={gt("Open source in browser")}
+          onClick={() => void window.pixvitta.openSourceOrigin(source.id)}
+        >
+          <span>{source.originLabel}</span>
+          <ExternalLink size={12} aria-hidden />
+        </button>
+      ) : null}
       <div className="topbar-fill" aria-hidden />
       <div className="topbar-counter" data-testid="counter">{statusText}</div>
     </header>
