@@ -1,5 +1,11 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { Folder, MediaItem } from "../../shared/media";
+import type {
+  MediaCollection,
+  MediaItem,
+  MediaSource,
+  OpenSourceError,
+  OpenSourceRequest
+} from "../../shared/media";
 import type { PixvittaApi } from "../../shared/pixvittaApi";
 import type { RecentFolder } from "../../shared/recentFolders";
 import { defaultSettings, type AppSettings, type FileOrder } from "../../shared/settings";
@@ -9,16 +15,18 @@ import { createVideoController, type VideoController } from "./videoController";
 import { selectCurrentItem } from "./viewerSelectors";
 
 export type ViewerLoadState = "idle" | "loading" | "ready" | "empty" | "error";
+export type MediaDownloadState = "idle" | "downloading" | "downloaded" | "error";
 
 export const DEFAULT_FILMSTRIP_WIDTH = 168;
 export const MIN_FILMSTRIP_WIDTH = 128;
 export const MAX_FILMSTRIP_WIDTH = 320;
 
 export type ViewerState = {
-  folderPath: string | null;
+  source: MediaSource | null;
   items: MediaItem[];
   index: number;
   loadState: ViewerLoadState;
+  isSourceLoading: boolean;
   mediaErrors: Set<string>;
   isVideoPlaying: boolean;
   isVideoLooping: boolean;
@@ -29,15 +37,22 @@ export type ViewerState = {
   recentFolders: RecentFolder[];
   filmstripWidth: number;
   isFilmstripVisible: boolean;
+  sourceOpenError: OpenSourceError | null;
+  downloadState: MediaDownloadState;
+  downloadedFileName: string | null;
 };
 
 export type ViewerActions = {
   initialize(): Promise<void>;
   openFolder(): Promise<void>;
+  openLocation(location: string): Promise<void>;
   openRecentFolder(folderPath: string): Promise<void>;
   removeRecentFolder(folderPath: string): Promise<void>;
-  openScannedFolder(folder: Folder): void;
-  rescanFolder(): Promise<void>;
+  openCollection(collection: MediaCollection): void;
+  setSourceLoading(isLoading: boolean): void;
+  showSourceError(error: OpenSourceError): void;
+  refreshSource(): Promise<void>;
+  downloadCurrentMedia(): Promise<void>;
   refreshRecentFolders(): Promise<void>;
   loadSettings(): Promise<void>;
   applySettings(settings: AppSettings): void;
@@ -63,23 +78,28 @@ export type ViewerActions = {
 export type ViewerStore = ViewerState & ViewerActions;
 export type ViewerStoreApi = StoreApi<ViewerStore>;
 
-function applyFolder(folder: Folder): Partial<ViewerState> {
-  const selectedIndex = folder.selectedId === null ? -1 : folder.items.findIndex((item) => item.id === folder.selectedId);
+function applyCollection(collection: MediaCollection): Partial<ViewerState> {
+  const selectedIndex = collection.selectedId === null
+    ? -1
+    : collection.items.findIndex((item) => item.id === collection.selectedId);
 
   return {
-    folderPath: folder.folderPath,
-    items: folder.items,
+    source: collection.source,
+    items: collection.items,
     index: selectedIndex >= 0 ? selectedIndex : 0,
     mediaErrors: new Set(),
     isVideoPlaying: false,
     imageZoom: MIN_IMAGE_ZOOM,
     imagePanX: 0,
     imagePanY: 0,
-    loadState: folder.items.length > 0 ? "ready" : "empty"
+    sourceOpenError: null,
+    downloadState: "idle",
+    downloadedFileName: null,
+    loadState: collection.items.length > 0 ? "ready" : "empty"
   };
 }
 
-function settingsRequireFolderRescan(previousSettings: AppSettings, nextSettings: AppSettings): boolean {
+function settingsRequireSourceRefresh(previousSettings: AppSettings, nextSettings: AppSettings): boolean {
   return previousSettings.fileOrder !== nextSettings.fileOrder || previousSettings.includeHidden !== nextSettings.includeHidden;
 }
 
@@ -87,18 +107,13 @@ export function createViewerStore(
   api: PixvittaApi,
   videoController: VideoController = createVideoController()
 ): ViewerStoreApi {
-  let folderRequestId = 0;
+  let downloadRequestId = 0;
   let settingsSaveRevision = 0;
-  const nextFolderRequestId = () => {
-    folderRequestId += 1;
-    return folderRequestId;
-  };
-  const isCurrentFolderRequest = (requestId: number) => requestId === folderRequestId;
 
   return createStore<ViewerStore>((set, get) => {
     const applySettingsState = (settings: AppSettings) => {
       const previousSettings = get().settings;
-      const shouldRescanFolder = settingsRequireFolderRescan(previousSettings, settings);
+      const shouldRefreshSource = settingsRequireSourceRefresh(previousSettings, settings);
       const shouldResetVideoLoop = previousSettings.videoLoopByDefault !== settings.videoLoopByDefault;
 
       set({
@@ -106,19 +121,36 @@ export function createViewerStore(
         ...(shouldResetVideoLoop ? { isVideoLooping: settings.videoLoopByDefault } : {})
       });
 
-      if (shouldRescanFolder && get().folderPath) void get().rescanFolder();
+      if (shouldRefreshSource && get().source?.capabilities.canSort) {
+        void get().refreshSource();
+      }
     };
 
-    const applyScannedFolder = (folder: Folder) => {
-      set(applyFolder(folder));
+    const applyOpenedCollection = (collection: MediaCollection) => {
+      downloadRequestId += 1;
+      set(applyCollection(collection));
       void get().refreshRecentFolders();
     };
 
+    const openSourceRequest = async (request: OpenSourceRequest) => {
+      try {
+        api.openSource(request);
+      } catch (error) {
+        console.error(error);
+        set({
+          isSourceLoading: false,
+          loadState: get().source ? get().loadState : "idle",
+          sourceOpenError: "unavailable"
+        });
+      }
+    };
+
     return {
-      folderPath: null,
+      source: null,
       items: [],
       index: 0,
       loadState: "idle",
+      isSourceLoading: false,
       mediaErrors: new Set(),
       isVideoPlaying: false,
       isVideoLooping: defaultSettings.videoLoopByDefault,
@@ -129,44 +161,24 @@ export function createViewerStore(
       recentFolders: [],
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
       isFilmstripVisible: true,
+      sourceOpenError: null,
+      downloadState: "idle",
+      downloadedFileName: null,
 
       async initialize() {
         await Promise.all([get().loadSettings(), get().refreshRecentFolders()]);
       },
 
       async openFolder() {
-        const requestId = nextFolderRequestId();
-        const isOpeningInitialFolder = get().folderPath === null;
-        if (isOpeningInitialFolder) set({ loadState: "loading" });
+        await openSourceRequest({ kind: "pick-directory" });
+      },
 
-        try {
-          const result = await api.openFolder();
-          if (!isCurrentFolderRequest(requestId)) return;
-          if (!result) {
-            if (isOpeningInitialFolder) set({ loadState: "idle" });
-            return;
-          }
-          applyScannedFolder(result);
-        } catch (error) {
-          if (!isCurrentFolderRequest(requestId)) return;
-          console.error(error);
-          set({ loadState: "error" });
-        }
+      async openLocation(location: string) {
+        await openSourceRequest({ kind: "location", location });
       },
 
       async openRecentFolder(folderPath: string) {
-        const requestId = nextFolderRequestId();
-        const isOpeningInitialFolder = get().folderPath === null;
-        if (isOpeningInitialFolder) set({ loadState: "loading" });
-        try {
-          const result = await api.openRecentFolder(folderPath);
-          if (!isCurrentFolderRequest(requestId)) return;
-          applyScannedFolder(result);
-        } catch (error) {
-          if (!isCurrentFolderRequest(requestId)) return;
-          console.error(error);
-          set({ loadState: "error" });
-        }
+        await openSourceRequest({ kind: "location", location: folderPath });
       },
 
       async removeRecentFolder(folderPath: string) {
@@ -177,24 +189,81 @@ export function createViewerStore(
         }
       },
 
-      openScannedFolder(folder: Folder) {
-        nextFolderRequestId();
-        applyScannedFolder(folder);
+      openCollection(collection: MediaCollection) {
+        applyOpenedCollection(collection);
       },
 
-      async rescanFolder() {
-        const { folderPath } = get();
-        if (!folderPath) return;
+      setSourceLoading(isSourceLoading: boolean) {
+        set((state) => ({
+          isSourceLoading,
+          sourceOpenError: isSourceLoading ? null : state.sourceOpenError,
+          loadState:
+            state.source === null
+              ? isSourceLoading
+                ? "loading"
+                : state.loadState === "loading"
+                  ? "idle"
+                  : state.loadState
+              : state.loadState
+        }));
+      },
 
-        const requestId = nextFolderRequestId();
+      showSourceError(sourceOpenError: OpenSourceError) {
+        set((state) => ({
+          sourceOpenError,
+          loadState: state.source ? state.loadState : "idle"
+        }));
+      },
+
+      async refreshSource() {
+        const { source } = get();
+        if (!source?.capabilities.canRefresh) return;
+
         try {
-          const result = await api.rescanFolder(folderPath);
-          if (!isCurrentFolderRequest(requestId)) return;
-          set(applyFolder(result));
+          api.refreshSource();
         } catch (error) {
-          if (!isCurrentFolderRequest(requestId)) return;
           console.error(error);
-          set({ loadState: "error" });
+          set({ isSourceLoading: false, sourceOpenError: "unavailable" });
+        }
+      },
+
+      async downloadCurrentMedia() {
+        const state = get();
+        const item = selectCurrentItem(state);
+        if (
+          !item ||
+          !state.source?.capabilities.canDownload ||
+          state.downloadState === "downloading"
+        ) {
+          return;
+        }
+
+        const requestId = ++downloadRequestId;
+        set({ downloadState: "downloading", downloadedFileName: null });
+        try {
+          const result = await api.downloadMedia(item.id);
+          if (
+            requestId !== downloadRequestId ||
+            selectCurrentItem(get())?.id !== item.id
+          ) {
+            return;
+          }
+          set(
+            result.ok
+              ? {
+                  downloadState: "downloaded",
+                  downloadedFileName: result.fileName
+                }
+              : { downloadState: "error", downloadedFileName: null }
+          );
+        } catch (error) {
+          console.error(error);
+          if (
+            requestId === downloadRequestId &&
+            selectCurrentItem(get())?.id === item.id
+          ) {
+            set({ downloadState: "error", downloadedFileName: null });
+          }
         }
       },
 
@@ -256,12 +325,16 @@ export function createViewerStore(
       goNext() {
         set((state) => {
           const index = nextIndex(state.index, state.items.length, state.settings.wrapNavigation);
+          if (index === state.index) return state;
+          downloadRequestId += 1;
           return {
             index,
             isVideoPlaying: false,
-            imageZoom: index === state.index ? state.imageZoom : MIN_IMAGE_ZOOM,
-            imagePanX: index === state.index ? state.imagePanX : 0,
-            imagePanY: index === state.index ? state.imagePanY : 0
+            downloadState: "idle",
+            downloadedFileName: null,
+            imageZoom: MIN_IMAGE_ZOOM,
+            imagePanX: 0,
+            imagePanY: 0
           };
         });
       },
@@ -269,24 +342,34 @@ export function createViewerStore(
       goPrevious() {
         set((state) => {
           const index = previousIndex(state.index, state.items.length, state.settings.wrapNavigation);
+          if (index === state.index) return state;
+          downloadRequestId += 1;
           return {
             index,
             isVideoPlaying: false,
-            imageZoom: index === state.index ? state.imageZoom : MIN_IMAGE_ZOOM,
-            imagePanX: index === state.index ? state.imagePanX : 0,
-            imagePanY: index === state.index ? state.imagePanY : 0
+            downloadState: "idle",
+            downloadedFileName: null,
+            imageZoom: MIN_IMAGE_ZOOM,
+            imagePanX: 0,
+            imagePanY: 0
           };
         });
       },
 
       selectMedia(index: number) {
-        set((state) => ({
-          index,
-          isVideoPlaying: false,
-          imageZoom: index === state.index ? state.imageZoom : MIN_IMAGE_ZOOM,
-          imagePanX: index === state.index ? state.imagePanX : 0,
-          imagePanY: index === state.index ? state.imagePanY : 0
-        }));
+        set((state) => {
+          if (index === state.index) return state;
+          downloadRequestId += 1;
+          return {
+            index,
+            isVideoPlaying: false,
+            downloadState: "idle",
+            downloadedFileName: null,
+            imageZoom: MIN_IMAGE_ZOOM,
+            imagePanX: 0,
+            imagePanY: 0
+          };
+        });
       },
 
       markMediaBroken(id: string) {

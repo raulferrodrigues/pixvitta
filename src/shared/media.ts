@@ -1,5 +1,19 @@
 export type MediaKind = "image" | "video";
 
+export type MediaSourceCapabilities = {
+  canDownload: boolean;
+  canRefresh: boolean;
+  canSort: boolean;
+  canOpenOrigin: boolean;
+};
+
+export type MediaSource = {
+  id: string;
+  title: string;
+  originLabel?: string;
+  capabilities: MediaSourceCapabilities;
+};
+
 export type MediaItem = {
   id: string;
   name: string;
@@ -13,8 +27,25 @@ export type MediaItem = {
   createdMs: number;
 };
 
-export type Folder = {
-  folderPath: string;
+export type MediaCollection = {
+  source: MediaSource;
   items: MediaItem[];
   selectedId: string | null;
 };
+
+export type OpenSourceRequest =
+  | { kind: "pick-directory" }
+  | { kind: "location"; location: string };
+
+export type OpenSourceError =
+  | "invalid-location"
+  | "unsupported-location"
+  | "not-found"
+  | "rate-limited"
+  | "unavailable"
+  | "invalid-response"
+  | "no-supported-media";
+
+export type DownloadMediaResult =
+  | { ok: true; fileName: string }
+  | { ok: false };

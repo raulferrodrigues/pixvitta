@@ -1,5 +1,6 @@
 import { FolderOpen, StepForward } from "lucide-react";
 import { T, useGT } from "gt-react";
+import { WebSourceDialog } from "../controls/WebSourceDialog";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { selectCurrentItem, selectIsCurrentItemBroken } from "../state/viewerSelectors";
 import { PrimaryButton } from "../ui/PrimaryButton";
@@ -11,6 +12,7 @@ import "./media-viewer.css";
 export function MediaViewer() {
   const gt = useGT();
   const loadState = useViewerStore((state) => state.loadState);
+  const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
   const currentItem = useViewerStore(selectCurrentItem);
   const isCurrentItemBroken = useViewerStore(selectIsCurrentItemBroken);
   const openFolder = useViewerStore((state) => state.openFolder);
@@ -22,7 +24,10 @@ export function MediaViewer() {
       {loadState === "empty" && (
         <div className="flex flex-col items-center justify-center gap-4 text-center text-pix-state" data-testid="empty-state">
           <p><T>No supported media in this folder.</T></p>
-          <PrimaryButton onClick={() => void openFolder()}><FolderOpen size={20} aria-hidden /><span><T>Open Folder</T></span></PrimaryButton>
+          <div className="flex flex-wrap justify-center gap-3">
+            <PrimaryButton disabled={isSourceLoading} onClick={() => void openFolder()}><FolderOpen size={20} aria-hidden /><span><T>Open Folder</T></span></PrimaryButton>
+            <WebSourceDialog trigger="button" />
+          </div>
         </div>
       )}
       {loadState === "error" && (
