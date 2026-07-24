@@ -18,4 +18,6 @@ if (!match) {
 }
 
 const [, major, minor, patch] = match;
-process.stdout.write(`${major}.${minor}.${Number(patch) + 1}-dev.${runNumber}.${runAttempt}`);
+process.stdout.write(
+  `${major}.${minor}.${Number(patch) + 1}-nightly.${runNumber}.${runAttempt}`
+);

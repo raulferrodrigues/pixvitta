@@ -12,6 +12,8 @@ export function getWindowIcon(): string | undefined {
       "..",
       "..",
       "assets",
-      appBuildInfo.flavor === "dev" ? "pixvitta-dev-icon.png" : "pixvitta-icon.png"
+      appBuildInfo.flavor === "stable"
+        ? "pixvitta-icon.png"
+        : "pixvitta-dev-icon.png"
     );
 }

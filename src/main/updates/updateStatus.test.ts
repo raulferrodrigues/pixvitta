@@ -28,20 +28,50 @@ test("rejects unsupported Linux package formats", () => {
   );
 });
 
-test("resolves stable and development build identities", () => {
+test("resolves stable, local development, and Nightly build identities", () => {
   assert.equal(resolveBuildFlavor({ version: "1.2.3" }), "stable");
   assert.equal(resolveBuildFlavor({ version: "1.2.4-dev.12.1" }), "dev");
+  assert.equal(
+    resolveBuildFlavor({ version: "1.2.4-nightly.12.1" }),
+    "nightly"
+  );
   assert.equal(resolveBuildFlavor({ version: "1.2.3", productName: "Pixvitta Dev" }), "dev");
+  assert.equal(
+    resolveBuildFlavor({ version: "1.2.3", productName: "Pixvitta Nightly" }),
+    "nightly"
+  );
   assert.equal(resolveBuildFlavor({ version: "1.2.3", flavorOverride: "dev" }), "dev");
-  assert.equal(resolveBuildFlavor({ version: "1.2.4-dev.12.1", flavorOverride: "stable" }), "stable");
-  assert.deepEqual(createAppBuildInfo({ version: "1.2.4-dev.12.1" }), {
-    flavor: "dev",
-    name: "Pixvitta Dev",
-    version: "1.2.4-dev.12.1"
+  assert.equal(
+    resolveBuildFlavor({ version: "1.2.3", flavorOverride: "nightly" }),
+    "nightly"
+  );
+  assert.equal(
+    resolveBuildFlavor({
+      version: "1.2.4-nightly.12.1",
+      flavorOverride: "stable"
+    }),
+    "stable"
+  );
+  assert.deepEqual(
+    createAppBuildInfo({
+      version: "1.2.3",
+      flavorOverride: "dev"
+    }),
+    {
+      flavor: "dev",
+      name: "Pixvitta Dev",
+      version: "1.2.3"
+    }
+  );
+  assert.deepEqual(createAppBuildInfo({ version: "1.2.4-nightly.12.1" }), {
+    flavor: "nightly",
+    name: "Pixvitta Nightly",
+    version: "1.2.4-nightly.12.1"
   });
 });
 
 test("maps build flavors to independent update channels", () => {
   assert.equal(getUpdateChannel("stable"), "latest");
-  assert.equal(getUpdateChannel("dev"), "dev");
+  assert.equal(getUpdateChannel("dev"), "latest");
+  assert.equal(getUpdateChannel("nightly"), "nightly");
 });
