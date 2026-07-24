@@ -86,10 +86,10 @@ function initializeUpdater(): void {
 
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
-  autoUpdater.allowPrerelease = UPDATE_CHANNEL === "dev";
+  autoUpdater.allowPrerelease = UPDATE_CHANNEL === "nightly";
   autoUpdater.channel = UPDATE_CHANNEL;
   // Setting a channel enables downgrades in electron-updater, so restore the
-  // safer policy for both stable and development builds.
+  // safer policy for both stable and Nightly builds.
   autoUpdater.allowDowngrade = false;
 
   autoUpdater.on("update-downloaded", (update) => {

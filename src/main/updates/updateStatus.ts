@@ -1,7 +1,7 @@
 import type { BuildFlavor } from "../../shared/appBuild";
 
 export type LinuxUpdatePackageType = "appimage" | "deb";
-export type UpdateChannel = "latest" | "dev";
+export type UpdateChannel = "latest" | "nightly";
 
 export type UpdateSupport = {
   isPackaged: boolean;
@@ -18,7 +18,7 @@ export function getLinuxUpdatePackageType(support: UpdateSupport): LinuxUpdatePa
 }
 
 export function getUpdateChannel(flavor: BuildFlavor): UpdateChannel {
-  return flavor === "dev" ? "dev" : "latest";
+  return flavor === "nightly" ? "nightly" : "latest";
 }
 
 export function getUpdatesUnavailableMessage(

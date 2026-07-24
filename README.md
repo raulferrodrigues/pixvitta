@@ -5,7 +5,8 @@ browse its supported media in a filmstrip, and move between files without
 importing them into a library. Viewing and thumbnail generation happen locally.
 
 Pixvitta is under active development. Linux builds are published in two
-side-by-side editions: stable **Pixvitta** and prerelease **Pixvitta Dev**.
+side-by-side editions: stable **Pixvitta** and prerelease
+**Pixvitta Nightly**.
 macOS builds are unsigned development artifacts.
 
 ## Features
@@ -49,23 +50,23 @@ Install stable Pixvitta:
 sudo apt install ./Pixvitta-<version>-amd64.deb
 ```
 
-Install Pixvitta Dev:
+Install Pixvitta Nightly:
 
 ```bash
-sudo apt install ./Pixvitta-Dev-<version>-amd64.deb
+sudo apt install ./Pixvitta-Nightly-<version>-amd64.deb
 ```
 
-The packages can be installed and run at the same time. Pixvitta Dev uses a
-purple icon and an in-app `DEV` badge, and keeps its settings, recent folders,
-thumbnail cache, updater data, and single-instance lock separate from stable.
-Both editions appear in the desktop environment's **Open With** list; installing
-Dev does not intentionally change the default application.
+The packages can be installed and run at the same time. Pixvitta Nightly uses a
+purple icon and an in-app `NIGHTLY` badge, and keeps its settings, recent
+folders, thumbnail cache, updater data, and single-instance lock separate from
+stable. Both editions appear in the desktop environment's **Open With** list;
+installing Nightly does not intentionally change the default application.
 
 Uninstall either edition independently:
 
 ```bash
 sudo apt remove pixvitta
-sudo apt remove pixvitta-dev
+sudo apt remove pixvitta-nightly
 ```
 
 ### AppImage
@@ -76,19 +77,19 @@ The AppImage is the portable Linux build. Make it executable and run it directly
 chmod +x Pixvitta.AppImage
 ./Pixvitta.AppImage
 
-chmod +x Pixvitta-Dev.AppImage
-./Pixvitta-Dev.AppImage
+chmod +x Pixvitta-Nightly.AppImage
+./Pixvitta-Nightly.AppImage
 ```
 
 Desktop integration for an AppImage is optional and is managed by the desktop
 environment or a separate integration tool.
 
-Development releases published before the introduction of Pixvitta Dev used the
-stable `pixvitta` package identity. To transition, install the current stable
-Debian package into that slot, then install the new `pixvitta-dev` package.
-Previously integrated development AppImages should be removed from the
-integration tool and reintegrated using `Pixvitta-Dev.AppImage`. Pixvitta Dev
-starts with fresh application data and does not copy stable preferences.
+Former Pixvitta Dev packages used the `pixvitta-dev` package identity. They are
+not the Nightly edition and can be removed with
+`sudo apt remove pixvitta-dev`. Previously integrated development AppImages
+should be removed from the integration tool and reintegrated using
+`Pixvitta-Nightly.AppImage`. Pixvitta Nightly starts with fresh application data
+and does not copy stable or local-development preferences.
 
 ### macOS
 
@@ -121,8 +122,9 @@ pnpm install
 pnpm electron:dev
 ```
 
-Local Electron development runs as Pixvitta Dev by default, including its
-branding and isolated application data.
+Local Electron development runs as Pixvitta Dev by default, including purple
+branding and isolated application data. Pixvitta Dev is a local development
+identity and is not published. Pushes to `dev` produce Pixvitta Nightly instead.
 
 Useful commands:
 
@@ -133,9 +135,9 @@ Useful commands:
 | `pnpm build` | Create production renderer and Electron bundles |
 | `pnpm validate` | Run tests, type checking, and a production build |
 | `pnpm dist:linux` | Build stable-channel AppImage and Debian packages |
-| `pnpm dist:linux:dev` | Build dev-channel AppImage and Debian packages |
+| `pnpm dist:linux:nightly` | Build Nightly-channel AppImage and Debian packages |
 | `pnpm dist:deb` | Build only the Debian package |
-| `pnpm dist:deb:dev` | Build only the Pixvitta Dev Debian package |
+| `pnpm dist:deb:nightly` | Build only the Pixvitta Nightly Debian package |
 | `pnpm dist:mac` | Build macOS DMG and ZIP artifacts |
 
 Build artifacts are written to `release/`. Linux icon generation requires
@@ -145,19 +147,19 @@ their target operating system.
 ## Automatic Updates
 
 Stable Linux builds follow normal GitHub Releases on the `latest` channel.
-Pixvitta Dev follows prereleases on the `dev` channel. Each edition checks
-shortly after launch, every four hours while running, and when **Check for
-Updates** is selected from the application menu. An edition only installs
-updates from its own channel.
+Pixvitta Nightly follows prereleases on the `nightly` channel. Each edition
+checks shortly after launch, every four hours while running, and when
+**Check for Updates** is selected from the application menu. An edition only
+installs updates from its own channel.
 
 Updates download in the background. AppImage updates replace the running
 AppImage in place. Debian updates install a new package and require administrator
 authentication. Automatic updates are disabled for current unsigned macOS builds.
 
 Pushes to `main` publish normal Pixvitta Linux releases using the version in
-`package.json`. Pushes to `dev` publish versioned Pixvitta Dev prereleases. Both
-release types contain the corresponding AppImage, Debian package, and update
-metadata.
+`package.json`. Pushes to `dev` publish versioned Pixvitta Nightly prereleases.
+Both release types contain the corresponding AppImage, Debian package, and
+update metadata.
 
 ## Project Structure
 

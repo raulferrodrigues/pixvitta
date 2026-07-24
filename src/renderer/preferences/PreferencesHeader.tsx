@@ -1,6 +1,6 @@
 import { useGT } from "gt-react";
 import type { AppBuildInfo } from "../../shared/appBuild";
-import { DevBuildBadge } from "../ui/DevBuildBadge";
+import { BuildFlavorBadge } from "../ui/BuildFlavorBadge";
 
 export type PreferencesSaveState = "idle" | "saving" | "saved" | "error";
 
@@ -18,7 +18,7 @@ export function PreferencesHeader({
     <header className="mb-5 flex items-center justify-between">
       <div className="flex items-center gap-2.5">
         <h1 className="m-0 text-[22px] leading-tight">{gt("Settings")}</h1>
-        <DevBuildBadge buildInfo={buildInfo} />
+        <BuildFlavorBadge buildInfo={buildInfo} />
       </div>
       <span className="text-xs font-semibold uppercase text-pix-preferences-muted" data-testid="settings-save-state">
         {label}

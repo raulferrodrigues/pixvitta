@@ -12,4 +12,5 @@ build/.icon-work/
 build/icon.iconset/
 build/icons/
 build/icons-dev/
+build/icons-nightly/
 build/runtime-icon.png

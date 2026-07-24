@@ -1,4 +1,4 @@
-name: Linux Development Release
+name: Linux Nightly Release
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: pixvitta-linux-development-release
+  group: pixvitta-linux-nightly-release
   cancel-in-progress: true
 
 jobs:
@@ -40,10 +40,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes imagemagick
 
-      - name: Set development version
+      - name: Set Nightly version
         id: version
         run: |
-          version="$(node scripts/development-version.mjs "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_ATTEMPT")"
+          version="$(node scripts/nightly-version.mjs "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_ATTEMPT")"
           pnpm version "$version" --no-git-tag-version
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
@@ -51,19 +51,19 @@ jobs:
         run: pnpm validate
 
       - name: Build Linux packages
-        run: pnpm dist:linux:dev
+        run: pnpm dist:linux:nightly
 
       - name: Verify update assets
         run: |
-          test -f release/Pixvitta-Dev.AppImage
-          test -f "release/Pixvitta-Dev-${{ steps.version.outputs.version }}-amd64.deb"
-          test -f release/dev-linux.yml
-          grep -F "version: ${{ steps.version.outputs.version }}" release/dev-linux.yml
-          grep -F "url: Pixvitta-Dev.AppImage" release/dev-linux.yml
-          grep -F "url: Pixvitta-Dev-${{ steps.version.outputs.version }}-amd64.deb" release/dev-linux.yml
-          node scripts/verify-linux-package.mjs dev "release/Pixvitta-Dev-${{ steps.version.outputs.version }}-amd64.deb"
+          test -f release/Pixvitta-Nightly.AppImage
+          test -f "release/Pixvitta-Nightly-${{ steps.version.outputs.version }}-amd64.deb"
+          test -f release/nightly-linux.yml
+          grep -F "version: ${{ steps.version.outputs.version }}" release/nightly-linux.yml
+          grep -F "url: Pixvitta-Nightly.AppImage" release/nightly-linux.yml
+          grep -F "url: Pixvitta-Nightly-${{ steps.version.outputs.version }}-amd64.deb" release/nightly-linux.yml
+          node scripts/verify-linux-package.mjs nightly "release/Pixvitta-Nightly-${{ steps.version.outputs.version }}-amd64.deb"
 
-      - name: Publish development release
+      - name: Publish Nightly release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
@@ -71,9 +71,9 @@ jobs:
           gh release create "v${VERSION}" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Pixvitta Dev ${VERSION}" \
-            --notes "Automated Pixvitta Dev Linux build from ${GITHUB_SHA}. It installs alongside stable Pixvitta." \
+            --title "Pixvitta Nightly ${VERSION}" \
+            --notes "Automated Pixvitta Nightly Linux build from ${GITHUB_SHA}. It installs alongside stable Pixvitta." \
             --prerelease \
-            release/Pixvitta-Dev.AppImage \
-            "release/Pixvitta-Dev-${VERSION}-amd64.deb" \
-            release/dev-linux.yml
+            release/Pixvitta-Nightly.AppImage \
+            "release/Pixvitta-Nightly-${VERSION}-amd64.deb" \
+            release/nightly-linux.yml
