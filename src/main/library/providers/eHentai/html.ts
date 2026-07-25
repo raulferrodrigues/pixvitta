@@ -31,7 +31,35 @@ export type EHentaiImagePageReference = {
   pageNumber: number;
   pageUrl: string;
   pageToken: string;
+  thumbnailUrl: string | null;
 };
+
+function thumbnailUrlFrom(anchor: HtmlNode): string | null {
+  const thumbnail = findElement(anchor, (node) => {
+    const style = attribute(node, "style");
+    return !!style && /url\(/i.test(style);
+  });
+  const style = thumbnail ? attribute(thumbnail, "style") : null;
+  const match = style?.match(/url\(\s*["']?(https:[^)"'\s]+)["']?\s*\)/i);
+  if (!match) return null;
+
+  try {
+    const url = new URL(match[1]);
+    return (
+      url.protocol === "https:" &&
+      url.hostname === "ehgt.org" &&
+      !url.port &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash
+    )
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 export function parseGalleryImagePages(
   html: string,
@@ -63,7 +91,8 @@ export function parseGalleryImagePages(
               references.set(pageNumber, {
                 pageNumber,
                 pageUrl: url.href.replace(/\/$/, ""),
-                pageToken: match[1].toLowerCase()
+                pageToken: match[1].toLowerCase(),
+                thumbnailUrl: thumbnailUrlFrom(node)
               });
             }
           }

@@ -7,6 +7,7 @@ import { ProviderError } from "../provider";
 import { DiskResourceCache } from "../../../resourceCache/diskResourceCache";
 import { EHentaiGallerySession } from "./gallerySession";
 import { EHentaiImagePipeline } from "./imagePipeline";
+import { EHentaiThumbnailPipeline } from "./thumbnailPipeline";
 
 const API_URL = "https://api.e-hentai.org/api.php";
 const USER_AGENT =
@@ -31,6 +32,7 @@ type EHentaiProviderOptions = {
   now?: () => number;
   wait?: (milliseconds: number) => Promise<void>;
   imageIntervalMs?: number;
+  thumbnailFetchImpl?: typeof fetch;
 };
 
 export function parseEHentaiGalleryUrl(
@@ -129,6 +131,7 @@ function parseMetadata(
 export class EHentaiProvider implements MediaProvider {
   private readonly fetchImpl: typeof fetch;
   private readonly imagePipeline: EHentaiImagePipeline;
+  private readonly thumbnailPipeline: EHentaiThumbnailPipeline;
 
   constructor(options: EHentaiProviderOptions) {
     this.fetchImpl = options.fetchImpl ?? fetch;
@@ -139,6 +142,14 @@ export class EHentaiProvider implements MediaProvider {
         now: options.now,
         wait: options.wait,
         intervalMs: options.imageIntervalMs
+      }
+    );
+    this.thumbnailPipeline = new EHentaiThumbnailPipeline(
+      new DiskResourceCache(options.cacheDirectory, "e-hentai-thumbnails-v1"),
+      {
+        fetchImpl: options.thumbnailFetchImpl ?? this.fetchImpl,
+        now: options.now,
+        wait: options.wait
       }
     );
   }
@@ -161,6 +172,7 @@ export class EHentaiProvider implements MediaProvider {
       reference,
       fileCount: metadata.fileCount,
       pipeline: this.imagePipeline,
+      thumbnailPipeline: this.thumbnailPipeline,
       fetchImpl: this.fetchImpl
     });
     const nameWidth = Math.max(3, String(metadata.fileCount).length);
@@ -179,7 +191,10 @@ export class EHentaiProvider implements MediaProvider {
           respond: () => session.respond(pageNumber)
         },
         thumbnail: {
-          kind: "none" as const
+          kind: "resource" as const,
+          resource: {
+            respond: () => session.respondThumbnail(pageNumber)
+          }
         }
       };
     });

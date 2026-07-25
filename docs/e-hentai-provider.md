@@ -40,7 +40,10 @@ The experiment has these hard boundaries:
 - cache hits do not consume a transfer slot;
 - image bytes remain under Pixvitta's versioned `media-cache` directory for
   the current application session;
-- no thumbnail URL or thumbnail resource is exposed;
+- thumbnails use opaque Pixvitta resources and a separate session cache;
+- thumbnail cache misses use a separate scheduler that admits no more than
+  twenty starts in a one-second sliding window and no more than twenty active
+  transfers;
 - download and authentication are not implemented.
 
 ## Goal
@@ -167,9 +170,13 @@ An array of up to 2,000 lightweight placeholder items is reasonable. Fetching
   not download them again.
 - The provider will be implemented as several focused deep modules within its
   own folder rather than one large provider file.
-- E-Hentai items expose no thumbnails. The renderer displays its normal
-  provider-neutral fallback tile and does not request full media for the
-  filmstrip.
+- E-Hentai items expose provider-owned opaque thumbnail resources. Site URLs,
+  request policy, caching, and failures remain private to main.
+- Thumbnail cache misses use their own twenty-starts-per-second pipeline with
+  at most twenty active transfers. They never enter or delay the two-second
+  full-image pipeline.
+- Missing or failed thumbnails return a successful transparent placeholder so
+  the renderer never falls back to fetching full media for the filmstrip.
 
 The format decision is explicit: the provider requests the site's normal
 displayed rendition and accepts any supported image content type. WebP is an
@@ -213,9 +220,14 @@ Conclusions for the thumbnail discussion:
 - the two-second full-image gate should not be assumed to apply to thumbnails;
 - we should not load-test or probe the service to discover an unpublished
   threshold;
-- any thumbnail design should resemble an ordinary visible gallery page,
-  bound concurrency, cache successful results for the session, and stop or
-  back off on explicit server resistance.
+- Pixvitta will mirror an ordinary visible gallery page by admitting batches
+  of up to twenty new thumbnail transfers per one-second sliding window;
+- active thumbnail transfers are also capped at twenty, so slow responses
+  cannot accumulate unbounded work;
+- successful thumbnails are cached for the session, duplicate in-flight work
+  is coalesced, and cache hits bypass the scheduler;
+- HTTP 429 or 503 pauses new thumbnail starts, honoring a numeric
+  `Retry-After` when present and otherwise backing off for thirty seconds.
 
 Official references:
 
@@ -380,9 +392,25 @@ one-time cleanup promise. This makes it a session cache:
 
 ### `ThumbnailRepository`
 
-Deferred. E-Hentai items currently use the provider-neutral `none` thumbnail
-variant. No site thumbnail is fetched, no generated thumbnail is created, and
-filmstrip activity cannot enter the full-image pipeline.
+Implemented as a provider-private thumbnail pipeline over the generic resource
+cache:
+
+- a page number is lazily mapped to the `ehgt.org` URL from its gallery-index
+  page;
+- the renderer sees only an opaque `pixvitta-media://thumbnail/...` resource;
+- cache hits return immediately and concurrent misses for the same item share
+  one operation;
+- cache misses enter a twenty-starts-per-second sliding window with at most
+  twenty active transfers;
+- Electron's network stack performs the request so gallery-style thumbnail
+  batches can reuse Chromium's normal connection and HTTP/2 behavior;
+- supported image formats are validated before bytes enter the separate
+  thumbnail cache namespace;
+- a missing or failed thumbnail becomes a successful transparent placeholder,
+  preventing renderer fallback from consuming a full-image request.
+
+This module owns only thumbnail traffic. It cannot admit work to the full-image
+pipeline.
 
 ### `MetadataClient` and private parsers
 
@@ -487,17 +515,16 @@ If Option B is accepted:
 2. Request documented `gdata` metadata.
 3. Reject invalid tokens, expunged/unavailable galleries, invalid counts, and
    unsupported responses.
-4. Fetch gallery index page zero to validate the public HTML surface and infer
-   the anonymous items-per-index-page count.
-5. Create one stable page-number item per `filecount`, without fetching full
-   media or the remaining index pages.
-6. Resolve a thumbnail by lazily fetching and caching its gallery-index page.
-7. Resolve full media by obtaining the stable image-page URL from the same
+4. Create one stable page-number item per `filecount`, without fetching full
+   media or gallery-index pages.
+5. Resolve a thumbnail by lazily fetching and caching its gallery-index page,
+   then pass the `ehgt.org` cache miss through the thumbnail scheduler.
+6. Resolve full media by obtaining the stable image-page URL from the same
    index cache, fetching that image page, validating its temporary delivery
    URL, and proxying the image.
-8. Keep temporary delivery URLs uncached or cached for a deliberately short
+7. Keep temporary delivery URLs uncached or cached for a deliberately short
    lifetime well below the documented 15-minute minimum.
-9. Do not automatically force-reload or repeatedly retry a failed image.
+8. Do not automatically force-reload or repeatedly retry a failed image.
 
 ## Security boundary
 
@@ -577,21 +604,16 @@ Options:
 Recommendation: use option 1 for the experiment and treat richer media errors
 as a separate viewer capability.
 
-## Thumbnail failure concern
+## Thumbnail failure behavior
 
 The filmstrip currently falls back from a failed thumbnail to loading full
 media so it can capture a thumbnail. For E-Hentai, that could consume image
 quota without an explicit user selection.
 
-The provider must prevent this behavior. Possible approaches:
-
-1. return a successful provider-generated placeholder thumbnail when index
-   loading fails, preventing the renderer's full-media fallback;
-2. add a provider-neutral item capability that disables media-derived thumbnail
-   capture.
-
-Recommendation: use a safe placeholder in the MVP. Consider a capability only
-if another provider needs the same distinction.
+The provider prevents this behavior by returning a successful transparent
+placeholder when thumbnail resolution or loading fails. The renderer therefore
+does not enter its media-derived thumbnail capture path. A provider-neutral
+capability is unnecessary unless another provider demonstrates a need for one.
 
 ## Verification requirements
 
@@ -623,15 +645,16 @@ Real third-party gallery HTML and media should not be committed as test
 fixtures. Tests should use minimal synthetic HTML representing only the
 required structure.
 
-## Decisions needed before implementation
+## Decisions recorded for the experiment
 
-1. Accept lazy page-number items (Option B), or require original filenames at
-   the cost of eager gallery enumeration?
-2. Accept viewing-only behavior with downloads disabled?
-3. Add `parse5`, or choose another HTML parsing strategy?
-4. Accept a generic per-image failure message for quota exhaustion in the MVP?
-5. Accept provider-generated placeholder thumbnails to guarantee that a
-   thumbnail failure never triggers an unrequested full-image load?
+1. Use lazy page-number items rather than eagerly enumerating filenames.
+2. Keep downloads disabled.
+3. Parse provider HTML with `parse5`.
+4. Keep the generic per-image failure temporarily, but treat explicit HTTP 509
+   handling as required follow-up work.
+5. Return provider-generated placeholder thumbnails when thumbnail work fails.
+6. Admit at most twenty new thumbnail transfers per one-second window, with a
+   maximum of twenty active transfers.
 
 ## Official references
 

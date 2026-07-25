@@ -8,6 +8,7 @@ import {
   EHentaiImagePipeline,
   ImageRequestSupersededError
 } from "./imagePipeline";
+import { EHentaiThumbnailPipeline } from "./thumbnailPipeline";
 
 const INDEX_PAGE_SIZE = 20;
 const PREFETCH_COUNT = 5;
@@ -19,6 +20,7 @@ type GallerySessionOptions = {
   reference: EHentaiGalleryReference;
   fileCount: number;
   pipeline: Pick<EHentaiImagePipeline, "get">;
+  thumbnailPipeline: Pick<EHentaiThumbnailPipeline, "get">;
   fetchImpl?: typeof fetch;
 };
 
@@ -56,6 +58,22 @@ export class EHentaiGallerySession {
         return new Response(null, { status: 409 });
       }
       throw error;
+    }
+  }
+
+  async respondThumbnail(pageNumber: number): Promise<Response> {
+    if (!this.isValidPage(pageNumber)) return new Response(null, { status: 404 });
+
+    try {
+      const page = await this.resolvePage(pageNumber);
+      if (!page.thumbnailUrl) return emptyThumbnailResponse();
+      const resource = await this.options.thumbnailPipeline.get(
+        this.thumbnailCacheKey(page),
+        page.thumbnailUrl
+      );
+      return cachedResourceResponse(resource);
+    } catch {
+      return emptyThumbnailResponse();
     }
   }
 
@@ -169,4 +187,21 @@ export class EHentaiGallerySession {
   private cacheKey(page: EHentaiImagePageReference): string {
     return `${this.options.reference.galleryId}:${page.pageToken}:${page.pageNumber}`;
   }
+
+  private thumbnailCacheKey(page: EHentaiImagePageReference): string {
+    return `${this.cacheKey(page)}:thumbnail`;
+  }
+}
+
+const EMPTY_GIF = Uint8Array.from([
+  71, 73, 70, 56, 57, 97, 1, 0, 1, 0, 128, 0, 0, 0, 0, 0, 255, 255, 255,
+  33, 249, 4, 1, 0, 0, 0, 0, 44, 0, 0, 0, 0, 1, 0, 1, 0, 0, 2, 2, 68, 1,
+  0, 59
+]);
+
+function emptyThumbnailResponse(): Response {
+  return cachedResourceResponse({
+    bytes: EMPTY_GIF,
+    contentType: "image/gif"
+  });
 }

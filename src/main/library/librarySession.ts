@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, shell } from "electron";
 import path from "node:path";
 import type { OpenSourceRequest } from "../../shared/media";
 import type { RecentFolder } from "../../shared/recentFolders";
@@ -35,7 +35,9 @@ function userDataDirectory(): string {
 const mediaLibrary = new MediaLibrary({
   providers: createProviderRegistry({
     cacheDirectory: () =>
-      sessionResourceCacheDirectory(userDataDirectory())
+      sessionResourceCacheDirectory(userDataDirectory()),
+    thumbnailFetchImpl: (input, init) =>
+      net.fetch(input instanceof URL ? input.href : input, init)
   }),
   getSettings,
   remember: async (location) => {

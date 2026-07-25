@@ -5,6 +5,7 @@ import { ProviderRegistry } from "./providerRegistry";
 
 type ProviderRegistryOptions = {
   cacheDirectory: () => string;
+  thumbnailFetchImpl?: typeof fetch;
 };
 
 export function createProviderRegistry(
@@ -12,7 +13,8 @@ export function createProviderRegistry(
 ): ProviderRegistry {
   return new ProviderRegistry([
     new EHentaiProvider({
-      cacheDirectory: options.cacheDirectory
+      cacheDirectory: options.cacheDirectory,
+      thumbnailFetchImpl: options.thumbnailFetchImpl
     }),
     new FourChanProvider(),
     new LocalFolderProvider()
