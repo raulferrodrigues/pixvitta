@@ -38,12 +38,13 @@ function isApprovedThumbnailUrl(rawUrl: string): boolean {
     const url = new URL(rawUrl);
     return (
       url.protocol === "https:" &&
-      url.hostname === "ehgt.org" &&
       !url.port &&
       !url.username &&
       !url.password &&
       !url.search &&
-      !url.hash
+      !url.hash &&
+      (url.hostname === "ehgt.org" ||
+        url.hostname.endsWith(".hath.network"))
     );
   } catch {
     return false;

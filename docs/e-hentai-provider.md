@@ -226,6 +226,9 @@ Conclusions for the thumbnail discussion:
   cannot accumulate unbounded work;
 - successful thumbnails are cached for the session, duplicate in-flight work
   is coalesced, and cache hits bypass the scheduler;
+- galleries that expose a shared H@H WebP sprite fetch that sprite once; each
+  opaque page thumbnail returns only the validated CSS crop through an embedded
+  SVG wrapper that Chromium can decode;
 - HTTP 429 or 503 pauses new thumbnail starts, honoring a numeric
   `Retry-After` when present and otherwise backing off for thirty seconds.
 
@@ -406,6 +409,13 @@ cache:
   batches can reuse Chromium's normal connection and HTTP/2 behavior;
 - supported image formats are validated before bytes enter the separate
   thumbnail cache namespace;
+- both individual `ehgt.org` thumbnails and validated H@H WebP sprite sheets
+  are supported;
+- a sprite is cached and coalesced by its upstream URL, so twenty page crops
+  sharing one sheet make one upstream request rather than twenty;
+- sprite dimensions and CSS crop bounds are validated in main, then a
+  self-contained SVG applies the crop without exposing the upstream URL to
+  React;
 - a missing or failed thumbnail becomes a successful transparent placeholder,
   preventing renderer fallback from consuming a full-image request.
 
@@ -532,7 +542,8 @@ All extracted URLs must be parsed and independently validated:
 
 - gallery and image pages: exact HTTPS `e-hentai.org`;
 - API: exact HTTPS `api.e-hentai.org`;
-- thumbnails: exact HTTPS `ehgt.org`;
+- thumbnails: exact HTTPS `ehgt.org`, or validated HTTPS `*.hath.network`
+  sprite sheets with bounded CSS crops;
 - normal media: approved E-Hentai delivery hosts, including validated
   `*.hath.network` HTTPS hosts that may use non-default ports;
 - no credentials in URLs;

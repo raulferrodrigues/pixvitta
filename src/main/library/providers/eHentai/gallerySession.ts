@@ -8,6 +8,7 @@ import {
   EHentaiImagePipeline,
   ImageRequestSupersededError
 } from "./imagePipeline";
+import { renderSpriteThumbnail } from "./spriteThumbnail";
 import { EHentaiThumbnailPipeline } from "./thumbnailPipeline";
 
 const INDEX_PAGE_SIZE = 20;
@@ -66,12 +67,16 @@ export class EHentaiGallerySession {
 
     try {
       const page = await this.resolvePage(pageNumber);
-      if (!page.thumbnailUrl) return emptyThumbnailResponse();
+      if (!page.thumbnail) return emptyThumbnailResponse();
       const resource = await this.options.thumbnailPipeline.get(
-        this.thumbnailCacheKey(page),
-        page.thumbnailUrl
+        this.thumbnailCacheKey(page.thumbnail.url),
+        page.thumbnail.url
       );
-      return cachedResourceResponse(resource);
+      return cachedResourceResponse(
+        page.thumbnail.kind === "sprite"
+          ? renderSpriteThumbnail(resource, page.thumbnail.crop)
+          : resource
+      );
     } catch {
       return emptyThumbnailResponse();
     }
@@ -188,8 +193,8 @@ export class EHentaiGallerySession {
     return `${this.options.reference.galleryId}:${page.pageToken}:${page.pageNumber}`;
   }
 
-  private thumbnailCacheKey(page: EHentaiImagePageReference): string {
-    return `${this.cacheKey(page)}:thumbnail`;
+  private thumbnailCacheKey(thumbnailUrl: string): string {
+    return `thumbnail:${thumbnailUrl}`;
   }
 }
 

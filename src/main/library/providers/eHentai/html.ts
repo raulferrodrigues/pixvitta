@@ -31,10 +31,35 @@ export type EHentaiImagePageReference = {
   pageNumber: number;
   pageUrl: string;
   pageToken: string;
-  thumbnailUrl: string | null;
+  thumbnail: EHentaiThumbnailReference | null;
 };
 
-function thumbnailUrlFrom(anchor: HtmlNode): string | null {
+export type EHentaiThumbnailReference =
+  | {
+      kind: "direct";
+      url: string;
+    }
+  | {
+      kind: "sprite";
+      url: string;
+      crop: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      };
+    };
+
+function pixelValue(style: string, property: string): number | null {
+  const match = style.match(
+    new RegExp(`(?:^|;)\\s*${property}\\s*:\\s*(\\d+)px(?:;|$)`, "i")
+  );
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+function thumbnailFrom(anchor: HtmlNode): EHentaiThumbnailReference | null {
   const thumbnail = findElement(anchor, (node) => {
     const style = attribute(node, "style");
     return !!style && /url\(/i.test(style);
@@ -45,17 +70,47 @@ function thumbnailUrlFrom(anchor: HtmlNode): string | null {
 
   try {
     const url = new URL(match[1]);
-    return (
-      url.protocol === "https:" &&
-      url.hostname === "ehgt.org" &&
-      !url.port &&
-      !url.username &&
-      !url.password &&
-      !url.search &&
-      !url.hash
-    )
-      ? url.href
-      : null;
+    if (
+      url.protocol !== "https:" ||
+      url.port ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash
+    ) {
+      return null;
+    }
+    if (url.hostname === "ehgt.org") {
+      return { kind: "direct", url: url.href };
+    }
+    if (!url.hostname.endsWith(".hath.network") || !style) return null;
+
+    const width = pixelValue(style, "width");
+    const height = pixelValue(style, "height");
+    const position = style.match(
+      /url\([^)]*\)\s*(-?\d+)(?:px)?\s+(-?\d+)(?:px)?\s+no-repeat/i
+    );
+    if (!width || !height || !position) return null;
+    const positionX = Number(position[1]);
+    const positionY = Number(position[2]);
+    if (
+      !Number.isSafeInteger(positionX) ||
+      !Number.isSafeInteger(positionY) ||
+      positionX > 0 ||
+      positionY > 0
+    ) {
+      return null;
+    }
+    return {
+      kind: "sprite",
+      url: url.href,
+      crop: {
+        x: -positionX,
+        y: -positionY,
+        width,
+        height
+      }
+    };
   } catch {
     return null;
   }
@@ -92,7 +147,7 @@ export function parseGalleryImagePages(
                 pageNumber,
                 pageUrl: url.href.replace(/\/$/, ""),
                 pageToken: match[1].toLowerCase(),
-                thumbnailUrl: thumbnailUrlFrom(node)
+                thumbnail: thumbnailFrom(node)
               });
             }
           }
