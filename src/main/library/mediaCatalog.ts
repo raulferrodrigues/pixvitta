@@ -30,6 +30,7 @@ export class MediaCatalog {
       registeredItems.push({
         id,
         name: item.name,
+        downloadName: item.downloadName,
         downloadable: providerCollection.capabilities.canDownload,
         media: item.media,
         thumbnail:

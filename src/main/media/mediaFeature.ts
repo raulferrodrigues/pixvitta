@@ -50,7 +50,7 @@ async function downloadMedia(mediaId: unknown): Promise<DownloadMediaResult> {
       process.env.PIXVITTA_TEST_DOWNLOADS_PATH ?? app.getPath("downloads");
     const downloadPath = await downloadMediaResource(
       downloadsDirectory,
-      item.name,
+      item.downloadName ?? item.name,
       item.media
     );
     return { ok: true, fileName: path.basename(downloadPath) };

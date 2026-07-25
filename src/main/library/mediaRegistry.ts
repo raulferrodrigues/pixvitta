@@ -3,6 +3,7 @@ import type { MediaResource } from "./providers";
 export type RegisteredMediaItem = {
   id: string;
   name: string;
+  downloadName?: string;
   downloadable: boolean;
   media: MediaResource;
   thumbnail?: MediaResource;

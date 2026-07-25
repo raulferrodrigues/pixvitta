@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type {
   MediaProvider,
   ProviderCollection,
@@ -176,11 +177,17 @@ export class EHentaiProvider implements MediaProvider {
       fetchImpl: this.fetchImpl
     });
     const nameWidth = Math.max(3, String(metadata.fileCount).length);
+    const galleryHash = createHash("md5")
+      .update(`${reference.galleryId}:${reference.galleryToken}`)
+      .digest("hex")
+      .slice(0, 12);
     const items = Array.from({ length: metadata.fileCount }, (_, index) => {
       const pageNumber = index + 1;
+      const pageLabel = String(pageNumber).padStart(nameWidth, "0");
       return {
         key: `${reference.galleryId}:page:${pageNumber}`,
-        name: `Page ${String(pageNumber).padStart(nameWidth, "0")}`,
+        name: `Page ${pageLabel}`,
+        downloadName: `${galleryHash}-page-${pageLabel}`,
         kind: "image" as const,
         sizeBytes: 0,
         lastOpenedMs: metadata.postedMs,
