@@ -1,5 +1,5 @@
 export {
-  getRecentFolders,
+  getRecentSources,
   openFileAsCollection,
   openSource,
   openSourceOrigin,
@@ -7,5 +7,5 @@ export {
   resolveMediaId,
   resolveMediaUrl,
   refreshSource,
-  removeRecentFolder
+  removeRecentSource
 } from "./librarySession";

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { RecentSourceInput } from "../../shared/recentSources";
 import { defaultSettings } from "../../shared/settings";
 import { MediaLibrary } from "./mediaLibrary";
 import {
@@ -54,11 +55,16 @@ type PublishedCollection = {
   onDelivered(): void;
 };
 
+const exampleProviderIdentity = {
+  id: "example",
+  sourceKind: "web"
+} as const;
+
 function createLibrary(
   provider: MediaProvider,
   options: {
     ids?: string[];
-    remembered?: string[];
+    remembered?: RecentSourceInput[];
     loading?: boolean[];
     errors?: string[];
   } = {}
@@ -70,8 +76,8 @@ function createLibrary(
   const library = new MediaLibrary({
     providers: new ProviderRegistry([provider]),
     getSettings: async () => defaultSettings,
-    remember: async (location) => {
-      options.remembered?.push(location);
+    remember: async (source) => {
+      options.remembered?.push(source);
     },
     publishCollection(collection, onDelivered) {
       published.push({ collection, onDelivered });
@@ -107,9 +113,10 @@ function deliverAndAcknowledge(
 
 test("opens and refreshes through one authoritative commit pipeline", async () => {
   const loads: Array<{ location: string; refresh: boolean }> = [];
-  const remembered: string[] = [];
+  const remembered: RecentSourceInput[] = [];
   const loading: boolean[] = [];
   const provider: MediaProvider = {
+    ...exampleProviderIdentity,
     matches: (location) => location.startsWith("example:"),
     async load(request) {
       loads.push({ location: request.location, refresh: request.refresh });
@@ -125,12 +132,18 @@ test("opens and refreshes through one authoritative commit pipeline", async () =
   assert.equal(await library.openLocation("example:SOURCE"), true);
   assert.equal(library.getPhase(), "awaiting-renderer");
   assert.equal(published[0]?.collection.source.id, "collection-1");
-  assert.deepEqual(remembered, ["example:source"]);
+  assert.deepEqual(remembered, []);
 
   published[0]?.onDelivered();
   assert.equal(timers[0]?.timeoutMs, 1_000);
   library.acknowledgeRenderer();
   assert.equal(library.getPhase(), "idle");
+  assert.deepEqual(remembered, [{
+    location: "example:source",
+    title: "Source example:source",
+    providerId: "example",
+    kind: "web"
+  }]);
 
   assert.equal(await library.refresh(), true);
   assert.equal(published[1]?.collection.source.id, "collection-1");
@@ -150,6 +163,7 @@ test("collection-changing commands are ignored throughout the critical zone", as
   });
   let loadCount = 0;
   const provider: MediaProvider = {
+    ...exampleProviderIdentity,
     matches: () => true,
     async load(request) {
       loadCount += 1;
@@ -179,6 +193,7 @@ test("collection-changing commands are ignored throughout the critical zone", as
 test("a provider failure preserves the active collection and registry", async () => {
   const errors: string[] = [];
   const provider: MediaProvider = {
+    ...exampleProviderIdentity,
     matches: () => true,
     async load(request) {
       if (request.location === "example:broken") {
@@ -205,6 +220,7 @@ test("a provider failure preserves the active collection and registry", async ()
 
 test("the previous registry survives only until the renderer acknowledges", async () => {
   const provider: MediaProvider = {
+    ...exampleProviderIdentity,
     matches: () => true,
     async load(request) {
       return providerCollection(request.location);
@@ -230,6 +246,7 @@ test("the previous registry survives only until the renderer acknowledges", asyn
 
 test("missing or unexpected renderer acknowledgements are fatal", async () => {
   const provider: MediaProvider = {
+    ...exampleProviderIdentity,
     matches: () => true,
     async load(request) {
       return providerCollection(request.location);

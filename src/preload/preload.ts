@@ -7,7 +7,7 @@ import type {
   OpenSourceRequest
 } from "../shared/media";
 import type { PixvittaApi, PixvittaCommand, WindowChromeState } from "../shared/pixvittaApi";
-import type { RecentFolder } from "../shared/recentFolders";
+import type { RecentSource } from "../shared/recentSources";
 import type { AppSettings } from "../shared/settings";
 
 /*
@@ -29,9 +29,10 @@ const pixvittaApi = {
 
   // Persistent app data also goes through main. The renderer gets plain objects,
   // not direct access to JSON files under Electron's userData directory.
-  getRecentFolders: (): Promise<RecentFolder[]> => ipcRenderer.invoke("recent-folders:get"),
-  removeRecentFolder: (folderPath: string): Promise<RecentFolder[]> =>
-    ipcRenderer.invoke("recent-folders:remove", folderPath),
+  getRecentSources: (): Promise<RecentSource[]> =>
+    ipcRenderer.invoke("recent-sources:get"),
+  removeRecentSource: (location: string): Promise<RecentSource[]> =>
+    ipcRenderer.invoke("recent-sources:remove", location),
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings: AppSettings): Promise<AppSettings> => ipcRenderer.invoke("settings:save", settings),
 
@@ -83,6 +84,14 @@ const pixvittaApi = {
     const listener = (_event: Electron.IpcRendererEvent, error: OpenSourceError) => callback(error);
     ipcRenderer.on("library:source-error", listener);
     return () => ipcRenderer.removeListener("library:source-error", listener);
+  },
+  onRecentSourcesChanged: (callback: (sources: RecentSource[]) => void): (() => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      sources: RecentSource[]
+    ) => callback(sources);
+    ipcRenderer.on("recent-sources:changed", listener);
+    return () => ipcRenderer.removeListener("recent-sources:changed", listener);
   },
   onSettingsChanged: (callback: (settings: AppSettings) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, settings: AppSettings) => callback(settings);

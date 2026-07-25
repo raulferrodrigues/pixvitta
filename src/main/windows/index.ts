@@ -12,6 +12,7 @@ export {
   isMainWindow,
   publishMainWindowCollection,
   publishMainWindowLoading,
+  publishMainWindowRecentSources,
   publishMainWindowSourceError,
   resetFocusedWindowZoom,
   sendMenuCommand,

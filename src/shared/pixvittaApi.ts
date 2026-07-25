@@ -5,7 +5,7 @@ import type {
   OpenSourceError,
   OpenSourceRequest
 } from "./media";
-import type { RecentFolder } from "./recentFolders";
+import type { RecentSource } from "./recentSources";
 import type { AppSettings } from "./settings";
 
 export type PixvittaCommand =
@@ -29,8 +29,8 @@ export type PixvittaApi = {
   openSource(request: OpenSourceRequest): void;
   refreshSource(): void;
   openSourceOrigin(sourceId: string): Promise<boolean>;
-  getRecentFolders(): Promise<RecentFolder[]>;
-  removeRecentFolder(folderPath: string): Promise<RecentFolder[]>;
+  getRecentSources(): Promise<RecentSource[]>;
+  removeRecentSource(location: string): Promise<RecentSource[]>;
   getSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings): Promise<AppSettings>;
   downloadMedia(mediaId: string): Promise<DownloadMediaResult>;
@@ -47,5 +47,6 @@ export type PixvittaApi = {
   onCollectionChanged(callback: (collection: MediaCollection) => void): () => void;
   onSourceLoadingChanged(callback: (isLoading: boolean) => void): () => void;
   onSourceError(callback: (error: OpenSourceError) => void): () => void;
+  onRecentSourcesChanged(callback: (sources: RecentSource[]) => void): () => void;
   onSettingsChanged(callback: (settings: AppSettings) => void): () => void;
 };

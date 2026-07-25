@@ -130,6 +130,8 @@ function parseMetadata(
 }
 
 export class EHentaiProvider implements MediaProvider {
+  readonly id = "e-hentai";
+  readonly sourceKind = "web";
   private readonly fetchImpl: typeof fetch;
   private readonly imagePipeline: EHentaiImagePipeline;
   private readonly thumbnailPipeline: EHentaiThumbnailPipeline;
@@ -218,7 +220,7 @@ export class EHentaiProvider implements MediaProvider {
         canRefresh: true,
         canSort: false
       },
-      remember: false,
+      remember: true,
       items,
       selectedKey: items[0]?.key ?? null
     };

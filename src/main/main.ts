@@ -43,7 +43,7 @@ async function openFileArgument(
 
 // Configure product naming and per-flavor storage before taking Electron's
 // single-instance lock. This lets stable and development builds run together
-// without sharing settings, recent folders, thumbnails, or process locks.
+// without sharing settings, recent sources, thumbnails, or process locks.
 configureAppIdentity();
 
 // IPC handlers are registered before app readiness because they do not touch

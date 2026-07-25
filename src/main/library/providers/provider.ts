@@ -1,4 +1,5 @@
 import type { MediaItem, OpenSourceError } from "../../../shared/media";
+import type { RecentSourceKind } from "../../../shared/recentSources";
 import type { AppSettings } from "../../../shared/settings";
 
 export type MediaResource = {
@@ -43,6 +44,8 @@ export type ProviderLoadRequest = {
 };
 
 export interface MediaProvider {
+  readonly id: string;
+  readonly sourceKind: RecentSourceKind;
   matches(location: string): boolean;
   load(request: ProviderLoadRequest): Promise<ProviderCollection>;
 }

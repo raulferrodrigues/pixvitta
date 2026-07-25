@@ -7,7 +7,7 @@ import type {
   OpenSourceRequest
 } from "../../shared/media";
 import type { PixvittaApi } from "../../shared/pixvittaApi";
-import type { RecentFolder } from "../../shared/recentFolders";
+import type { RecentSource } from "../../shared/recentSources";
 import { defaultSettings, type AppSettings, type FileOrder } from "../../shared/settings";
 import { clampImageZoom, MIN_IMAGE_ZOOM, roundImageTransformValue } from "./imageView";
 import { nextIndex, previousIndex } from "./navigation";
@@ -34,7 +34,7 @@ export type ViewerState = {
   imagePanX: number;
   imagePanY: number;
   settings: AppSettings;
-  recentFolders: RecentFolder[];
+  recentSources: RecentSource[];
   filmstripWidth: number;
   isFilmstripVisible: boolean;
   sourceOpenError: OpenSourceError | null;
@@ -46,14 +46,15 @@ export type ViewerActions = {
   initialize(): Promise<void>;
   openFolder(): Promise<void>;
   openLocation(location: string): Promise<void>;
-  openRecentFolder(folderPath: string): Promise<void>;
-  removeRecentFolder(folderPath: string): Promise<void>;
+  openRecentSource(location: string): Promise<void>;
+  removeRecentSource(location: string): Promise<void>;
   openCollection(collection: MediaCollection): void;
   setSourceLoading(isLoading: boolean): void;
   showSourceError(error: OpenSourceError): void;
   refreshSource(): Promise<void>;
   downloadCurrentMedia(): Promise<void>;
-  refreshRecentFolders(): Promise<void>;
+  refreshRecentSources(): Promise<void>;
+  applyRecentSources(sources: RecentSource[]): void;
   loadSettings(): Promise<void>;
   applySettings(settings: AppSettings): void;
   setFileOrder(fileOrder: FileOrder): Promise<void>;
@@ -109,6 +110,7 @@ export function createViewerStore(
 ): ViewerStoreApi {
   let downloadRequestId = 0;
   let settingsSaveRevision = 0;
+  let recentSourcesRevision = 0;
 
   return createStore<ViewerStore>((set, get) => {
     const applySettingsState = (settings: AppSettings) => {
@@ -129,7 +131,6 @@ export function createViewerStore(
     const applyOpenedCollection = (collection: MediaCollection) => {
       downloadRequestId += 1;
       set(applyCollection(collection));
-      void get().refreshRecentFolders();
     };
 
     const openSourceRequest = async (request: OpenSourceRequest) => {
@@ -158,7 +159,7 @@ export function createViewerStore(
       imagePanX: 0,
       imagePanY: 0,
       settings: defaultSettings,
-      recentFolders: [],
+      recentSources: [],
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
       isFilmstripVisible: true,
       sourceOpenError: null,
@@ -166,7 +167,7 @@ export function createViewerStore(
       downloadedFileName: null,
 
       async initialize() {
-        await Promise.all([get().loadSettings(), get().refreshRecentFolders()]);
+        await Promise.all([get().loadSettings(), get().refreshRecentSources()]);
       },
 
       async openFolder() {
@@ -177,13 +178,15 @@ export function createViewerStore(
         await openSourceRequest({ kind: "location", location });
       },
 
-      async openRecentFolder(folderPath: string) {
-        await openSourceRequest({ kind: "location", location: folderPath });
+      async openRecentSource(location: string) {
+        await openSourceRequest({ kind: "location", location });
       },
 
-      async removeRecentFolder(folderPath: string) {
+      async removeRecentSource(location: string) {
+        const revision = ++recentSourcesRevision;
         try {
-          set({ recentFolders: await api.removeRecentFolder(folderPath) });
+          const recentSources = await api.removeRecentSource(location);
+          if (revision === recentSourcesRevision) set({ recentSources });
         } catch (error) {
           console.error(error);
         }
@@ -267,13 +270,20 @@ export function createViewerStore(
         }
       },
 
-      async refreshRecentFolders() {
+      async refreshRecentSources() {
+        const revision = recentSourcesRevision;
         try {
-          set({ recentFolders: await api.getRecentFolders() });
+          const recentSources = await api.getRecentSources();
+          if (revision === recentSourcesRevision) set({ recentSources });
         } catch (error) {
           console.error(error);
-          set({ recentFolders: [] });
+          if (revision === recentSourcesRevision) set({ recentSources: [] });
         }
+      },
+
+      applyRecentSources(recentSources: RecentSource[]) {
+        recentSourcesRevision += 1;
+        set({ recentSources });
       },
 
       async loadSettings() {

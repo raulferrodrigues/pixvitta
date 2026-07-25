@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { MediaCollection, OpenSourceError } from "../../shared/media";
+import type { RecentSourceInput } from "../../shared/recentSources";
 import type { AppSettings } from "../../shared/settings";
 import { MediaCatalog } from "./mediaCatalog";
 import type { RegisteredMediaItem } from "./mediaRegistry";
@@ -23,7 +24,7 @@ type ActiveLibraryState = {
 type MediaLibraryDependencies = {
   providers: ProviderRegistry;
   getSettings(): Promise<AppSettings>;
-  remember(location: string): Promise<void>;
+  remember(source: RecentSourceInput): Promise<void>;
   publishCollection(
     collection: MediaCollection,
     onDelivered: () => void
@@ -41,6 +42,7 @@ type LoadedCandidate = {
   provider: MediaProvider;
   collectionId: string;
   providerCollection: ProviderCollection;
+  rememberAfterAcknowledgement: boolean;
 };
 
 const DEFAULT_ACKNOWLEDGEMENT_TIMEOUT_MS = 1_000;
@@ -49,6 +51,7 @@ export class MediaLibrary {
   private phase: MediaLibraryPhase = "idle";
   private active: ActiveLibraryState | null = null;
   private previousCatalog: MediaCatalog | null = null;
+  private pendingRecentSource: RecentSourceInput | null = null;
   private acknowledgementTimer: unknown | null = null;
   private readonly createCollectionId: () => string;
   private readonly acknowledgementTimeoutMs: number;
@@ -98,7 +101,8 @@ export class MediaLibrary {
       return {
         provider: active.provider,
         collectionId: active.catalog.collection.source.id,
-        providerCollection
+        providerCollection,
+        rememberAfterAcknowledgement: false
       };
     });
   }
@@ -119,8 +123,15 @@ export class MediaLibrary {
     );
     this.acknowledgementTimer = null;
     this.previousCatalog = null;
+    const recentSource = this.pendingRecentSource;
+    this.pendingRecentSource = null;
     this.phase = "idle";
     this.dependencies.publishLoading(false);
+    if (recentSource) {
+      void this.dependencies.remember(recentSource).catch((error) => {
+        console.error("Could not save recent source.", error);
+      });
+    }
   }
 
   originUrl(collectionId: string): string | null {
@@ -154,12 +165,6 @@ export class MediaLibrary {
     let candidate: LoadedCandidate | null;
     try {
       candidate = await loadCandidate();
-
-      if (candidate?.providerCollection.remember) {
-        await this.dependencies.remember(
-          candidate.providerCollection.canonicalLocation
-        );
-      }
     } catch (error) {
       this.finishWithoutCommit();
       this.dependencies.publishError(this.sourceError(error));
@@ -202,7 +207,8 @@ export class MediaLibrary {
     return {
       provider,
       collectionId: this.createCollectionId(),
-      providerCollection
+      providerCollection,
+      rememberAfterAcknowledgement: providerCollection.remember
     };
   }
 
@@ -220,6 +226,14 @@ export class MediaLibrary {
       catalog
     };
     this.previousCatalog = previousCatalog;
+    this.pendingRecentSource = candidate.rememberAfterAcknowledgement
+      ? {
+          location: candidate.providerCollection.canonicalLocation,
+          title: candidate.providerCollection.title,
+          providerId: candidate.provider.id,
+          kind: candidate.provider.sourceKind
+        }
+      : null;
     this.phase = "awaiting-renderer";
 
     try {
@@ -254,6 +268,7 @@ export class MediaLibrary {
   }
 
   private finishWithoutCommit(): void {
+    this.pendingRecentSource = null;
     this.phase = "idle";
     this.dependencies.publishLoading(false);
   }

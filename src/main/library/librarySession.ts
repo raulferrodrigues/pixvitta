@@ -1,18 +1,19 @@
 import { app, BrowserWindow, dialog, ipcMain, net, shell } from "electron";
 import path from "node:path";
 import type { OpenSourceRequest } from "../../shared/media";
-import type { RecentFolder } from "../../shared/recentFolders";
+import type { RecentSource } from "../../shared/recentSources";
 import { parseDialogResponses } from "../app";
 import { getSettings } from "../settings";
 import {
-  getRecentFolders as getStoredRecentFolders,
-  removeRecentFolder as removeStoredRecentFolder,
-  saveRecentFolder
+  getRecentSources as getStoredRecentSources,
+  removeRecentSource as removeStoredRecentSource,
+  saveRecentSource
 } from "../stores";
 import {
   isMainWindow,
   publishMainWindowCollection,
   publishMainWindowLoading,
+  publishMainWindowRecentSources,
   publishMainWindowSourceError
 } from "../windows";
 import { MediaLibrary } from "./mediaLibrary";
@@ -40,8 +41,9 @@ const mediaLibrary = new MediaLibrary({
       net.fetch(input instanceof URL ? input.href : input, init)
   }),
   getSettings,
-  remember: async (location) => {
-    await saveRecentFolder(location);
+  remember: async (source) => {
+    const sources = await saveRecentSource(source);
+    publishMainWindowRecentSources(sources);
   },
   publishCollection: publishMainWindowCollection,
   publishLoading: publishMainWindowLoading,
@@ -138,14 +140,14 @@ export function resolveMediaUrl(url: string): MediaResource | null {
   return mediaLibrary.resolveMediaUrl(url);
 }
 
-export async function getRecentFolders(): Promise<RecentFolder[]> {
-  return getStoredRecentFolders();
+export async function getRecentSources(): Promise<RecentSource[]> {
+  return getStoredRecentSources();
 }
 
-export async function removeRecentFolder(
-  folderPath: string
-): Promise<RecentFolder[]> {
-  return removeStoredRecentFolder(folderPath);
+export async function removeRecentSource(
+  location: string
+): Promise<RecentSource[]> {
+  return removeStoredRecentSource(location);
 }
 
 ipcMain.on("source:open", (event, request: unknown) => {
@@ -169,7 +171,9 @@ ipcMain.on("library:renderer-stable", (event) => {
   mediaLibrary.acknowledgeRenderer();
 });
 
-ipcMain.handle("recent-folders:get", () => getRecentFolders());
-ipcMain.handle("recent-folders:remove", (_event, folderPath: string) =>
-  removeRecentFolder(folderPath)
+ipcMain.handle("recent-sources:get", () => getRecentSources());
+ipcMain.handle("recent-sources:remove", (_event, location: unknown) =>
+  typeof location === "string"
+    ? removeRecentSource(location)
+    : getRecentSources()
 );

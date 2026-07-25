@@ -4,7 +4,7 @@ import type { AppBuildInfo } from "../../shared/appBuild";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { BuildFlavorBadge } from "../ui/BuildFlavorBadge";
 import { PrimaryButton } from "../ui/PrimaryButton";
-import { RecentFolders } from "./RecentFolders";
+import { RecentSources } from "./RecentSources";
 import { LocationPicker } from "./LocationPicker";
 
 export function SourcePicker({ buildInfo }: { buildInfo: AppBuildInfo }) {
@@ -37,7 +37,7 @@ export function SourcePicker({ buildInfo }: { buildInfo: AppBuildInfo }) {
           </PrimaryButton>
         </div>
         <LocationPicker />
-        <RecentFolders />
+        <RecentSources />
       </div>
     </main>
   );
