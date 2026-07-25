@@ -2,6 +2,7 @@ import { BrowserWindow } from "electron";
 import path from "node:path";
 import { HOTKEYS } from "../../shared/hotkeys";
 import { appBuildInfo } from "../app/buildInfo";
+import { installTextEditingContextMenu } from "./textEditingContextMenu";
 import { isCommandShortcut } from "./windowChrome";
 import { getWindowIcon } from "./windowIcon";
 
@@ -35,6 +36,7 @@ export function createPreferencesBrowserWindow(options: PreferencesWindowOptions
     }
   });
 
+  installTextEditingContextMenu(window);
   window.on("closed", options.onClosed);
 
   window.webContents.on("before-input-event", (event, input) => {
