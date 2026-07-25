@@ -86,11 +86,7 @@ export class EHentaiGallerySession {
     selectedPage: number,
     revision: number
   ): Promise<void> {
-    for (
-      let pageNumber = selectedPage + 1;
-      pageNumber <= Math.min(this.options.fileCount, selectedPage + PREFETCH_COUNT);
-      pageNumber += 1
-    ) {
+    for (const pageNumber of this.prefetchOrderFrom(selectedPage)) {
       if (revision !== this.demandRevision) return;
       try {
         const page = await this.resolvePage(pageNumber);
@@ -171,14 +167,23 @@ export class EHentaiGallerySession {
   }
 
   private windowFrom(pageNumber: number): number[] {
-    const lastPage = Math.min(
-      this.options.fileCount,
-      pageNumber + PREFETCH_COUNT
+    return [pageNumber, ...this.prefetchOrderFrom(pageNumber)];
+  }
+
+  private prefetchOrderFrom(pageNumber: number): number[] {
+    const forward = Array.from(
+      {
+        length:
+          Math.min(this.options.fileCount, pageNumber + PREFETCH_COUNT) -
+          pageNumber
+      },
+      (_, index) => pageNumber + index + 1
     );
-    return Array.from(
-      { length: lastPage - pageNumber + 1 },
-      (_, index) => pageNumber + index
+    const backward = Array.from(
+      { length: Math.min(PREFETCH_COUNT, pageNumber - 1) },
+      (_, index) => pageNumber - index - 1
     );
+    return [...forward, ...backward];
   }
 
   private isValidPage(pageNumber: number): boolean {

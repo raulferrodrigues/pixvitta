@@ -14,7 +14,7 @@ The current local implementation proves this path:
 public gallery URL
   -> documented metadata API
   -> lightweight items for every gallery page
-  -> selected page establishes selected + next-five demand
+  -> selected page establishes selected + ten-neighbor demand
   -> lazy gallery-index HTML resolution
   -> stable image-page URLs
   -> normal displayed WebP
@@ -25,9 +25,10 @@ public gallery URL
 
 The gallery opens after one metadata request. Its gallery-index HTML is not
 enumerated up front. Selecting a page lazily resolves only the required index
-page, requests the selected image, and prefetches the next five sequentially.
-Jumping elsewhere replaces background work that has not started; an active
-transfer finishes and enters the cache.
+page, requests the selected image, then sequentially prefetches up to five
+pages ahead followed by up to five pages behind. Gallery boundaries clamp the
+window; it never wraps. Jumping elsewhere replaces background work that has
+not started; an active transfer finishes and enters the cache.
 
 The experiment has these hard boundaries:
 
@@ -163,7 +164,9 @@ An array of up to 2,000 lightweight placeholder items is reasonable. Fetching
 - Full media loading is intentionally lazy and slow.
 - The provider must enforce a hard maximum of one new full-image transfer every
   two seconds.
-- The selected image is followed by a prefetch window of the next five images.
+- The selected image is followed by up to five images ahead, then up to five
+  images behind, in that order.
+- The prefetch window is clamped to the gallery boundaries and never wraps.
 - Prefetching must obey the same hard gate; it does not create parallel image
   transfers.
 - Successfully fetched images enter an explicit cache so back-navigation does
@@ -269,13 +272,16 @@ When page `N` becomes selected, the desired full-media set becomes:
 
 ```text
 urgent: N
-background: N+1, N+2, N+3, N+4, N+5
+background order:
+  N+1, N+2, N+3, N+4, N+5,
+  N-1, N-2, N-3, N-4, N-5
 ```
 
-This should not be an unbounded FIFO queue. If the user jumps to another page,
-background work that has not started is replaced by the new desired window.
-The one transfer already in progress is allowed to finish and enter the cache
-rather than wasting a likely quota hit.
+Entries outside `1...fileCount` are omitted rather than wrapped. This should
+not be an unbounded FIFO queue. If the user jumps to another page, background
+work that has not started is replaced by the new desired window. The one
+transfer already in progress is allowed to finish and enter the cache rather
+than wasting a likely quota hit.
 
 ### `FullImagePipeline`
 
@@ -366,20 +372,22 @@ Select page 1
   network: fetch 1 through 6 under the hard gate
 
 Jump to page 300
-  desired: 300, 301, 302, 303, 304, 305
+  urgent: 300
+  background order: 301, 302, 303, 304, 305, 299, 298, 297, 296, 295
   cache: all miss
   network: fetch them under the same hard gate
 
 Return to page 2
-  desired: 2, 3, 4, 5, 6, 7
-  cache: 2 through 6 hit and are served immediately
+  urgent: 2
+  background order: 3, 4, 5, 6, 7, 1
+  cache: 1 through 6 hit and are served immediately
   network: only page 7 is admitted
 ```
 
 The generic module supports provider namespaces without inheriting E-Hentai's
-two-second gate or five-page prefetch rule. It intentionally has no size limit,
-LRU, access tracking, statistics, byte-range behavior, content-addressed
-storage, or separate media/thumbnail budgets.
+two-second gate or neighbor-prefetch rule. It intentionally has no size limit,
+LRU, access tracking, statistics, byte-range behavior, content-addressed storage,
+or separate media/thumbnail budgets.
 
 Instead, the complete versioned `media-cache/v1` directory is deleted once at
 application startup, before any source operation can begin. Normal startup,
@@ -438,7 +446,8 @@ The cleaner trigger is the first media request after commit:
 1. metadata and the collection commit;
 2. React requests selected page 1;
 3. page 1 becomes urgent;
-4. pages 2 through 6 become the background desired window;
+4. pages 2 through 6 become the forward background window; there are no valid
+   backward pages and nothing wraps from the end of the gallery;
 5. the global pipeline fetches them serially under the hard gate.
 
 To the user this still begins immediately after metadata loading, but ownership
