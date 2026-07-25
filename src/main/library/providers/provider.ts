@@ -7,7 +7,8 @@ export type MediaResource = {
 
 export type ProviderThumbnail =
   | { kind: "direct"; url: string }
-  | { kind: "resource"; resource: MediaResource };
+  | { kind: "resource"; resource: MediaResource }
+  | { kind: "none" };
 
 export type ProviderMediaItem = Omit<MediaItem, "id" | "url" | "thumbnailUrl"> & {
   key: string;

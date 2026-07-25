@@ -12,13 +12,15 @@ export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps)
   const gt = useGT();
   const hasMediaError = useViewerStore((state) => state.mediaErrors.has(item.id));
   const selectMedia = useViewerStore((state) => state.selectMedia);
-  const [previewMode, setPreviewMode] = useState<PreviewMode>("thumbnail");
+  const [previewMode, setPreviewMode] = useState<PreviewMode>(
+    item.thumbnailUrl ? "thumbnail" : "fallback"
+  );
   const [thumbnailSrc, setThumbnailSrc] = useState(item.thumbnailUrl);
   const isCapturingFrameRef = useRef(false);
   const hasRequestedSeekRef = useRef(false);
 
   useEffect(() => {
-    setPreviewMode("thumbnail");
+    setPreviewMode(item.thumbnailUrl ? "thumbnail" : "fallback");
     setThumbnailSrc(item.thumbnailUrl);
     isCapturingFrameRef.current = false;
     hasRequestedSeekRef.current = false;
@@ -35,7 +37,7 @@ export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps)
   }
 
   async function saveCapturedThumbnail(source: CanvasImageSource, sourceWidth: number, sourceHeight: number) {
-    if (isCapturingFrameRef.current) return;
+    if (isCapturingFrameRef.current || !item.thumbnailUrl) return;
     isCapturingFrameRef.current = true;
     try {
       const thumbnailDataUrl = createMediaThumbnailDataUrl(source, sourceWidth, sourceHeight);
@@ -99,7 +101,7 @@ export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps)
           ) : showVideoCapture ? (
             <video className="pointer-events-none block h-full w-full min-w-0 object-cover" src={item.url} crossOrigin="anonymous" muted playsInline preload="auto" aria-hidden tabIndex={-1} onLoadedMetadata={loadVideoCaptureFrame} onLoadedData={(event) => saveVideoFrame(event.currentTarget)} onSeeked={(event) => saveVideoFrame(event.currentTarget)} onError={() => setPreviewMode("fallback")} />
           ) : (
-            <img className="block h-full w-full min-w-0 object-cover" src={thumbnailSrc} alt="" crossOrigin="anonymous" loading={isActive ? "eager" : "lazy"} fetchPriority={isActive ? "high" : "auto"} onError={handleThumbnailError} />
+            <img className="block h-full w-full min-w-0 object-cover" src={thumbnailSrc ?? undefined} alt="" crossOrigin="anonymous" loading={isActive ? "eager" : "lazy"} fetchPriority={isActive ? "high" : "auto"} onError={handleThumbnailError} />
           )}
           {item.kind === "video" && <span className="absolute bottom-[5px] right-[5px] inline-flex h-[22px] w-[22px] items-center justify-center rounded-full bg-pix-overlay text-pix-text" aria-hidden><Film size={14} /></span>}
         </>

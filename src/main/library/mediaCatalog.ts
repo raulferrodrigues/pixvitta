@@ -53,7 +53,9 @@ export class MediaCatalog {
         thumbnailUrl:
           item.thumbnail.kind === "direct"
             ? item.thumbnail.url
-            : createMediaUrl("thumbnail", id)
+            : item.thumbnail.kind === "resource"
+              ? createMediaUrl("thumbnail", id)
+              : null
       };
     });
 

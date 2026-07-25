@@ -21,11 +21,22 @@ import {
   createProviderRegistry,
   type MediaResource
 } from "./providers";
+import {
+  prepareSessionResourceCache,
+  sessionResourceCacheDirectory
+} from "../resourceCache/sessionResourceCache";
 
 let dialogResponses = parseDialogResponses();
 
+function userDataDirectory(): string {
+  return app.getPath("userData");
+}
+
 const mediaLibrary = new MediaLibrary({
-  providers: createProviderRegistry(),
+  providers: createProviderRegistry({
+    cacheDirectory: () =>
+      sessionResourceCacheDirectory(userDataDirectory())
+  }),
   getSettings,
   remember: async (location) => {
     await saveRecentFolder(location);
@@ -79,9 +90,14 @@ async function openSourceForWindow(
   request: OpenSourceRequest,
   window?: BrowserWindow | null
 ): Promise<boolean> {
+  await prepareSessionMediaCache();
   return request.kind === "pick-directory"
     ? mediaLibrary.openPickedLocation(() => chooseDirectory(window))
     : mediaLibrary.openLocation(request.location);
+}
+
+export function prepareSessionMediaCache(): Promise<void> {
+  return prepareSessionResourceCache(userDataDirectory());
 }
 
 export async function openSource(
@@ -91,6 +107,7 @@ export async function openSource(
 }
 
 export async function refreshSource(): Promise<boolean> {
+  await prepareSessionMediaCache();
   return mediaLibrary.refresh();
 }
 
@@ -105,6 +122,7 @@ export async function openFileAsCollection(
   filePath: string,
   baseDirectory = process.cwd()
 ): Promise<boolean> {
+  await prepareSessionMediaCache();
   return mediaLibrary.openLocation(path.resolve(baseDirectory, filePath));
 }
 

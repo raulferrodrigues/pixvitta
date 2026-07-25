@@ -3,6 +3,7 @@ export {
   openFileAsCollection,
   openSource,
   openSourceOrigin,
+  prepareSessionMediaCache,
   resolveMediaId,
   resolveMediaUrl,
   refreshSource,
