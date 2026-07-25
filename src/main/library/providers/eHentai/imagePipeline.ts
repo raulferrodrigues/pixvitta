@@ -3,12 +3,18 @@ import type {
   ResourceCache
 } from "../../../resourceCache/diskResourceCache";
 import { parseDisplayedImageUrl } from "./html";
+import { mediaFileTypes } from "../../../utils/mediaTypes";
 
 const USER_AGENT =
   "Pixvitta media viewer (+https://github.com/raulferrodrigues/pixvitta)";
 const DEFAULT_INTERVAL_MS = 2_000;
 const PAGE_TIMEOUT_MS = 15_000;
 const IMAGE_TIMEOUT_MS = 60_000;
+const SUPPORTED_IMAGE_CONTENT_TYPES = new Set<string>(
+  mediaFileTypes
+    .filter((fileType) => fileType.kind === "image")
+    .map((fileType) => fileType.mimeType)
+);
 
 type ImagePipelineOptions = {
   fetchImpl?: typeof fetch;
@@ -170,7 +176,7 @@ export class EHentaiImagePipeline {
     const imageResponse = await this.fetchImpl(deliveryUrl, {
       method: "GET",
       headers: {
-        Accept: "image/webp",
+        Accept: "image/*",
         Referer: imagePageUrl,
         "User-Agent": USER_AGENT
       },
@@ -182,9 +188,9 @@ export class EHentaiImagePipeline {
     }
 
     const contentType = imageResponse.headers.get("Content-Type")?.split(";")[0].trim();
-    if (contentType !== "image/webp") {
+    if (!contentType || !SUPPORTED_IMAGE_CONTENT_TYPES.has(contentType)) {
       throw new Error(
-        `This experiment only accepts WebP renditions, but received ${contentType ?? "an unknown type"}.`
+        `E-Hentai returned an unsupported image type: ${contentType ?? "unknown"}.`
       );
     }
 

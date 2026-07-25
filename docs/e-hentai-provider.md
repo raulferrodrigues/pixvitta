@@ -33,7 +33,7 @@ The experiment has these hard boundaries:
 
 - only `https://e-hentai.org/g/{gallery_id}/{gallery_token}/` is accepted;
 - only the normal displayed rendition is fetched;
-- only a response explicitly identified as `image/webp` is accepted;
+- any normal displayed image format supported by Pixvitta is accepted;
 - original images are never requested;
 - cache misses pass through one provider-global transfer pipeline;
 - transfer starts are serialized with a minimum two-second interval;
@@ -41,7 +41,7 @@ The experiment has these hard boundaries:
 - image bytes remain under Pixvitta's versioned `media-cache` directory for
   the current application session;
 - no thumbnail URL or thumbnail resource is exposed;
-- download, authentication, and non-WebP rendition support are not implemented.
+- download and authentication are not implemented.
 
 ## Goal
 
@@ -171,11 +171,58 @@ An array of up to 2,000 lightweight placeholder items is reasonable. Fetching
   provider-neutral fallback tile and does not request full media for the
   filmstrip.
 
-One detail still needs confirmation:
+The format decision is explicit: the provider requests the site's normal
+displayed rendition and accepts any supported image content type. WebP is an
+observed delivery format, not part of the provider contract.
 
-1. whether “WebP only” means the normal resampled image exposed by the site
-   (which is often WebP but is not guaranteed to be), or literally rejecting
-   any normal image response that is JPEG/GIF/PNG;
+HTTP 509 handling remains required before this provider is considered ready.
+The current generic media failure is insufficient. We still need to determine
+the exact provider behavior and UI, but it must:
+
+- recognize 509 as an image-quota response rather than a broken image;
+- stop current background prefetch immediately;
+- prevent additional automatic full-image requests while quota is exhausted;
+- avoid force reloads or aggressive retries;
+- explain the condition clearly to the user;
+- provide only an explicitly chosen, policy-safe recovery action.
+
+## Thumbnail request-rate research
+
+As of July 25, 2026, official E-Hentai documentation publishes no numeric
+request limit for per-page files served from `ehgt.org`.
+
+The documented metadata API limit does not apply automatically to the
+thumbnail host. Its guidance is specific to API calls: up to 25 metadata
+entries per request, with roughly four or five sequential API requests before
+waiting about five seconds.
+
+The normal gallery UI is designed to request thumbnail rows as ordinary page
+assets. E-Hentai documents four thumbnail rows per gallery by default and up
+to forty with account perks. This strongly suggests that the thumbnail
+infrastructure expects normal browser-style batches and concurrency. It does
+not establish an unlimited or formally safe automation rate.
+
+The documentation also says that smaller thumbnails for new or updated
+galleries are generated after larger thumbnails and may temporarily be
+unavailable. A missing thumbnail must therefore be treated as normal and must
+not trigger aggressive retries.
+
+Conclusions for the thumbnail discussion:
+
+- there is no official requests-per-second value we can truthfully implement;
+- the two-second full-image gate should not be assumed to apply to thumbnails;
+- we should not load-test or probe the service to discover an unpublished
+  threshold;
+- any thumbnail design should resemble an ordinary visible gallery page,
+  bound concurrency, cache successful results for the session, and stop or
+  back off on explicit server resistance.
+
+Official references:
+
+- <https://ehwiki.org/wiki/API>
+- <https://ehwiki.org/wiki/Galleries>
+- <https://ehwiki.org/wiki/Gallery_FAQ>
+- <https://ehwiki.org/wiki/Making_Galleries>
 
 ## Proposed deep-module ownership
 

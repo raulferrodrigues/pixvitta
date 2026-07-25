@@ -168,7 +168,7 @@ export class EHentaiProvider implements MediaProvider {
       const pageNumber = index + 1;
       return {
         key: `${reference.galleryId}:page:${pageNumber}`,
-        name: `${String(pageNumber).padStart(nameWidth, "0")}.webp`,
+        name: `Page ${String(pageNumber).padStart(nameWidth, "0")}`,
         kind: "image" as const,
         sizeBytes: 0,
         lastOpenedMs: metadata.postedMs,
