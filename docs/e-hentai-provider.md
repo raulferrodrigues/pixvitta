@@ -45,7 +45,9 @@ The experiment has these hard boundaries:
 - thumbnail cache misses use a separate scheduler that admits no more than
   twenty starts in a one-second sliding window and no more than twenty active
   transfers;
-- download and authentication are not implemented.
+- individual downloads save the normal displayed rendition;
+- original-image, bulk-gallery, and authenticated downloads are not
+  implemented.
 
 ## Goal
 
@@ -490,7 +492,8 @@ Advantages:
 
 - gallery opening requires only one API request;
 - full images remain strictly user-driven;
-- filmstrip activity performs no provider requests;
+- filmstrip activity requests only governed thumbnail resources, never full
+  media;
 - supports the current authoritative one-shot collection commit;
 - scales to 2,000 pages without loading the whole remote index.
 
@@ -498,7 +501,8 @@ Costs:
 
 - item names remain page numbers rather than original filenames;
 - file sizes are unknown per item;
-- downloads should be disabled;
+- individual downloads use page-number filenames plus the validated delivered
+  extension rather than the original gallery filename;
 - per-item image-page URLs are not available for context-menu copying until
   their index page has been loaded;
 - an index HTML request may occur when the user jumps far through the gallery.
@@ -588,16 +592,21 @@ walking inside a small provider-private parsing module.
 
 ## Download decision
 
-Recommendation: set `canDownload` to false for the MVP.
+Individual downloads are enabled for the normal displayed rendition only. The
+download path uses the same governed resource and explicit cache as viewing, so
+it cannot bypass the two-second transfer gate, host validation, or request
+policy.
 
-The current download manager needs a static item filename before the resource
-is resolved. E-Hentai can return resampled WebP bytes for an original JPG/PNG
-filename, while the actual original-download path can consume quota or
-currency. Neither behavior is safe to hide behind the existing button.
+Items retain stable page-number display names. After the resource responds, the
+generic download boundary validates its content type and appends or corrects
+the final supported extension before reserving the destination path. A
+displayed WebP therefore becomes `Page 001.webp` rather than inheriting the
+gallery's unrelated original JPG/PNG filename.
 
-Individual downloads can be revisited after the download job design supports a
-resource-provided final filename and the UI can distinguish “displayed image”
-from “original image with possible cost.”
+The provider does not follow the site's original-download path, request
+archives, or imply that the downloaded bytes are originals. Collection
+subfolders, persistent deduplication, bulk jobs, and downloads-list behavior
+belong to the separate provider-aware download-manager proposal.
 
 ## Error behavior
 
@@ -668,7 +677,8 @@ required structure.
 ## Decisions recorded for the experiment
 
 1. Use lazy page-number items rather than eagerly enumerating filenames.
-2. Keep downloads disabled.
+2. Allow individual normal-rendition downloads; keep original and bulk
+   downloads disabled.
 3. Parse provider HTML with `parse5`.
 4. Keep the generic per-image failure temporarily, but treat explicit HTTP 509
    handling as required follow-up work.

@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import type { MediaResource } from "../library/providers/provider";
+import { getMediaFileType, mediaFileTypes } from "../utils/mediaTypes";
 
 const MAX_FILENAME_ATTEMPTS = 10_000;
 
@@ -23,6 +24,25 @@ function numberedName(fileName: string, attempt: number): string {
   const extension = path.extname(fileName);
   const stem = path.basename(fileName, extension);
   return `${stem} (${attempt})${extension}`;
+}
+
+function responseDownloadName(name: string, response: Response): string {
+  const contentType = response.headers
+    .get("Content-Type")
+    ?.split(";")[0]
+    .trim()
+    .toLowerCase();
+  const responseType = mediaFileTypes.find(
+    (fileType) => fileType.mimeType === contentType
+  );
+  if (!responseType) return name;
+
+  const namedType = getMediaFileType(name);
+  if (namedType?.mimeType === responseType.mimeType) return name;
+
+  const extension = path.extname(name);
+  const stem = extension ? name.slice(0, -extension.length) : name;
+  return `${stem}${responseType.extension}`;
 }
 
 async function reserveDownloadPath(
@@ -62,7 +82,7 @@ export async function downloadMediaResource(
 
   const downloadPath = await reserveDownloadPath(
     downloadsDirectory,
-    safeDownloadName(name)
+    safeDownloadName(responseDownloadName(name, response))
   );
   try {
     await pipeline(

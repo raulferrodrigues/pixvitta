@@ -207,7 +207,7 @@ export class EHentaiProvider implements MediaProvider {
         url: reference.pageUrl
       },
       capabilities: {
-        canDownload: false,
+        canDownload: true,
         canRefresh: true,
         canSort: false
       },
