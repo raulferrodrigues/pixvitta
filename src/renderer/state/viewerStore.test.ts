@@ -41,7 +41,7 @@ function createApi(
   overrides: Partial<PixvittaApi>
 ): PixvittaApi {
   return {
-    getRecentFolders: async () => [],
+    getRecentSources: async () => [],
     ...overrides
   } as PixvittaApi;
 }

@@ -4,4 +4,10 @@
  * Stores expose plain read/save verbs. Store classes, JSON file names, lazy load
  * promises, and userData paths stay hidden behind stores.ts.
  */
-export { getRecentFolders, getSettings, removeRecentFolder, saveRecentFolder, saveSettings } from "./stores";
+export {
+  getRecentSources,
+  getSettings,
+  removeRecentSource,
+  saveRecentSource,
+  saveSettings
+} from "./stores";

@@ -30,6 +30,7 @@ export class MediaCatalog {
       registeredItems.push({
         id,
         name: item.name,
+        downloadName: item.downloadName,
         downloadable: providerCollection.capabilities.canDownload,
         media: item.media,
         thumbnail:
@@ -53,7 +54,9 @@ export class MediaCatalog {
         thumbnailUrl:
           item.thumbnail.kind === "direct"
             ? item.thumbnail.url
-            : createMediaUrl("thumbnail", id)
+            : item.thumbnail.kind === "resource"
+              ? createMediaUrl("thumbnail", id)
+              : null
       };
     });
 

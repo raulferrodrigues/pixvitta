@@ -4,6 +4,7 @@ import type {
   OpenSourceError
 } from "../../shared/media";
 import type { PixvittaCommand } from "../../shared/pixvittaApi";
+import type { RecentSource } from "../../shared/recentSources";
 import { rendererUrl } from "../app";
 import { createPreferencesBrowserWindow } from "./preferencesWindow";
 import { createMainWindow as createMainBrowserWindow } from "./mainWindow";
@@ -168,6 +169,19 @@ export function publishMainWindowSourceError(error: OpenSourceError): void {
     return;
   }
   pendingSourceError = error;
+}
+
+export function publishMainWindowRecentSources(
+  sources: RecentSource[]
+): void {
+  if (
+    mainWindow &&
+    !mainWindow.isDestroyed() &&
+    mainWindowLoaded &&
+    mainWindowReady
+  ) {
+    mainWindow.webContents.send("recent-sources:changed", sources);
+  }
 }
 
 export function isMainWindow(window: BrowserWindow | null): boolean {

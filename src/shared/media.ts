@@ -18,7 +18,7 @@ export type MediaItem = {
   id: string;
   name: string;
   url: string;
-  thumbnailUrl: string;
+  thumbnailUrl: string | null;
   kind: MediaKind;
   sizeBytes: number;
   lastOpenedMs: number;

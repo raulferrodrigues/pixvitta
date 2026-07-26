@@ -16,7 +16,7 @@ Pixvitta media folder. It is intentionally narrower than board browsing.
 - JPG, PNG, GIF, WebP, WebM, and MP4 attachments are accepted. Unsupported or
   deleted attachments are skipped.
 - The full media and official thumbnails are loaded lazily from `i.4cdn.org`.
-- Remote threads are not added to local recent folders.
+- Remote threads now opt into the provider-neutral recent-sources list.
 - A source link remains visible while browsing a thread.
 
 ## API Policy

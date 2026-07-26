@@ -1,18 +1,19 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, shell } from "electron";
 import path from "node:path";
 import type { OpenSourceRequest } from "../../shared/media";
-import type { RecentFolder } from "../../shared/recentFolders";
+import type { RecentSource } from "../../shared/recentSources";
 import { parseDialogResponses } from "../app";
 import { getSettings } from "../settings";
 import {
-  getRecentFolders as getStoredRecentFolders,
-  removeRecentFolder as removeStoredRecentFolder,
-  saveRecentFolder
+  getRecentSources as getStoredRecentSources,
+  removeRecentSource as removeStoredRecentSource,
+  saveRecentSource
 } from "../stores";
 import {
   isMainWindow,
   publishMainWindowCollection,
   publishMainWindowLoading,
+  publishMainWindowRecentSources,
   publishMainWindowSourceError
 } from "../windows";
 import { MediaLibrary } from "./mediaLibrary";
@@ -21,14 +22,28 @@ import {
   createProviderRegistry,
   type MediaResource
 } from "./providers";
+import {
+  prepareSessionResourceCache,
+  sessionResourceCacheDirectory
+} from "../resourceCache/sessionResourceCache";
 
 let dialogResponses = parseDialogResponses();
 
+function userDataDirectory(): string {
+  return app.getPath("userData");
+}
+
 const mediaLibrary = new MediaLibrary({
-  providers: createProviderRegistry(),
+  providers: createProviderRegistry({
+    cacheDirectory: () =>
+      sessionResourceCacheDirectory(userDataDirectory()),
+    thumbnailFetchImpl: (input, init) =>
+      net.fetch(input instanceof URL ? input.href : input, init)
+  }),
   getSettings,
-  remember: async (location) => {
-    await saveRecentFolder(location);
+  remember: async (source) => {
+    const sources = await saveRecentSource(source);
+    publishMainWindowRecentSources(sources);
   },
   publishCollection: publishMainWindowCollection,
   publishLoading: publishMainWindowLoading,
@@ -79,9 +94,14 @@ async function openSourceForWindow(
   request: OpenSourceRequest,
   window?: BrowserWindow | null
 ): Promise<boolean> {
+  await prepareSessionMediaCache();
   return request.kind === "pick-directory"
     ? mediaLibrary.openPickedLocation(() => chooseDirectory(window))
     : mediaLibrary.openLocation(request.location);
+}
+
+export function prepareSessionMediaCache(): Promise<void> {
+  return prepareSessionResourceCache(userDataDirectory());
 }
 
 export async function openSource(
@@ -91,6 +111,7 @@ export async function openSource(
 }
 
 export async function refreshSource(): Promise<boolean> {
+  await prepareSessionMediaCache();
   return mediaLibrary.refresh();
 }
 
@@ -105,6 +126,7 @@ export async function openFileAsCollection(
   filePath: string,
   baseDirectory = process.cwd()
 ): Promise<boolean> {
+  await prepareSessionMediaCache();
   return mediaLibrary.openLocation(path.resolve(baseDirectory, filePath));
 }
 
@@ -118,14 +140,14 @@ export function resolveMediaUrl(url: string): MediaResource | null {
   return mediaLibrary.resolveMediaUrl(url);
 }
 
-export async function getRecentFolders(): Promise<RecentFolder[]> {
-  return getStoredRecentFolders();
+export async function getRecentSources(): Promise<RecentSource[]> {
+  return getStoredRecentSources();
 }
 
-export async function removeRecentFolder(
-  folderPath: string
-): Promise<RecentFolder[]> {
-  return removeStoredRecentFolder(folderPath);
+export async function removeRecentSource(
+  location: string
+): Promise<RecentSource[]> {
+  return removeStoredRecentSource(location);
 }
 
 ipcMain.on("source:open", (event, request: unknown) => {
@@ -149,7 +171,9 @@ ipcMain.on("library:renderer-stable", (event) => {
   mediaLibrary.acknowledgeRenderer();
 });
 
-ipcMain.handle("recent-folders:get", () => getRecentFolders());
-ipcMain.handle("recent-folders:remove", (_event, folderPath: string) =>
-  removeRecentFolder(folderPath)
+ipcMain.handle("recent-sources:get", () => getRecentSources());
+ipcMain.handle("recent-sources:remove", (_event, location: unknown) =>
+  typeof location === "string"
+    ? removeRecentSource(location)
+    : getRecentSources()
 );

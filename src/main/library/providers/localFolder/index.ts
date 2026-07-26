@@ -12,6 +12,8 @@ import {
 } from "../provider";
 
 export class LocalFolderProvider implements MediaProvider {
+  readonly id = "local-folder";
+  readonly sourceKind = "folder";
   private randomOrderSession: { folderPath: string; seed: string } | null = null;
 
   matches(location: string): boolean {

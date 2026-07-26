@@ -1,4 +1,5 @@
 import type { MediaKind } from "../../../../shared/media";
+import { parseFragment } from "parse5";
 import type {
   MediaProvider,
   ProviderCollection,
@@ -34,6 +35,7 @@ export type FourChanThreadReference = {
 
 type FourChanPost = {
   no?: unknown;
+  sub?: unknown;
   time?: unknown;
   tim?: unknown;
   filename?: unknown;
@@ -106,6 +108,24 @@ function isFourChanLocation(input: string): boolean {
 
 function numberOrZero(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+type HtmlTextNode = {
+  value?: string;
+  childNodes?: HtmlTextNode[];
+};
+
+function textFromHtml(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const fragment = parseFragment(value) as unknown as HtmlTextNode;
+  const parts: string[] = [];
+  function visit(node: HtmlTextNode): void {
+    if (typeof node.value === "string") parts.push(node.value);
+    for (const child of node.childNodes ?? []) visit(child);
+  }
+  visit(fragment);
+  const title = parts.join(" ").replace(/\s+/g, " ").trim();
+  return title || null;
 }
 
 async function createRemoteMediaResponse(
@@ -254,9 +274,15 @@ export function createFourChanThreadCollection(
     );
   }
 
+  const firstPost = posts[0];
+  const subject =
+    firstPost && typeof firstPost === "object"
+      ? textFromHtml((firstPost as FourChanPost).sub)
+      : null;
+
   return {
     canonicalLocation: reference.pageUrl,
-    title: `/${reference.board}/ thread ${reference.threadId}`,
+    title: subject ?? `/${reference.board}/ · Thread ${reference.threadId}`,
     origin: {
       label: `/${reference.board}/ · 4chan`,
       url: reference.pageUrl
@@ -266,13 +292,15 @@ export function createFourChanThreadCollection(
       canRefresh: true,
       canSort: false
     },
-    remember: false,
+    remember: true,
     items,
     selectedKey: items[0].key
   };
 }
 
 export class FourChanProvider implements MediaProvider {
+  readonly id = "four-chan";
+  readonly sourceKind = "web";
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => number;
   private readonly wait: (milliseconds: number) => Promise<void>;

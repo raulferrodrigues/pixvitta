@@ -2,7 +2,10 @@ import { app, BrowserWindow } from "electron";
 import { configureAppIdentity } from "./app/buildInfo";
 import { createAppMenu } from "./menus";
 import { registerIpcHandlers } from "./ipc";
-import { openFileAsCollection } from "./library";
+import {
+  openFileAsCollection,
+  prepareSessionMediaCache
+} from "./library";
 import "./media";
 import { startAutomaticUpdates } from "./updates";
 import { createMainWindow, createPreferencesWindow } from "./windows";
@@ -40,7 +43,7 @@ async function openFileArgument(
 
 // Configure product naming and per-flavor storage before taking Electron's
 // single-instance lock. This lets stable and development builds run together
-// without sharing settings, recent folders, thumbnails, or process locks.
+// without sharing settings, recent sources, thumbnails, or process locks.
 configureAppIdentity();
 
 // IPC handlers are registered before app readiness because they do not touch
@@ -72,6 +75,7 @@ if (!hasSingleInstanceLock) {
 // we handled the open request ourselves.
 app.on("open-file", (event, filePath) => {
   event.preventDefault();
+  if (!hasSingleInstanceLock) return;
   void app
     .whenReady()
     .then(() => openFileAsCollection(filePath))
@@ -85,6 +89,9 @@ app.on("open-file", (event, filePath) => {
 // that relies on OS integration, such as protocol handlers and windows, starts
 // here instead of at module load time.
 void app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) return;
+  await prepareSessionMediaCache();
+
   // Menus are global/native in Electron. Creating the application menu here
   // wires macOS menu items to either native actions or renderer commands.
   createAppMenu();

@@ -1,9 +1,21 @@
+import { EHentaiProvider } from "./eHentai";
 import { FourChanProvider } from "./fourChan";
 import { LocalFolderProvider } from "./localFolder";
 import { ProviderRegistry } from "./providerRegistry";
 
-export function createProviderRegistry(): ProviderRegistry {
+type ProviderRegistryOptions = {
+  cacheDirectory: () => string;
+  thumbnailFetchImpl?: typeof fetch;
+};
+
+export function createProviderRegistry(
+  options: ProviderRegistryOptions
+): ProviderRegistry {
   return new ProviderRegistry([
+    new EHentaiProvider({
+      cacheDirectory: options.cacheDirectory,
+      thumbnailFetchImpl: options.thumbnailFetchImpl
+    }),
     new FourChanProvider(),
     new LocalFolderProvider()
   ]);

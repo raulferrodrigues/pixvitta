@@ -16,6 +16,7 @@ export function useAppLifecycle(api: PixvittaApi) {
   const openCollection = useViewerStore((state) => state.openCollection);
   const setSourceLoading = useViewerStore((state) => state.setSourceLoading);
   const showSourceError = useViewerStore((state) => state.showSourceError);
+  const applyRecentSources = useViewerStore((state) => state.applyRecentSources);
   const applySettings = useViewerStore((state) => state.applySettings);
 
   useEffect(() => { void initialize(); }, [initialize]);
@@ -37,6 +38,8 @@ export function useAppLifecycle(api: PixvittaApi) {
     });
     const unsubscribeLoading = api.onSourceLoadingChanged(setSourceLoading);
     const unsubscribeSourceError = api.onSourceError(showSourceError);
+    const unsubscribeRecentSources =
+      api.onRecentSourcesChanged(applyRecentSources);
     const unsubscribeSettings = api.onSettingsChanged(applySettings);
     void api.markViewerReady();
     return () => {
@@ -44,7 +47,8 @@ export function useAppLifecycle(api: PixvittaApi) {
       unsubscribeCollection();
       unsubscribeLoading();
       unsubscribeSourceError();
+      unsubscribeRecentSources();
       unsubscribeSettings();
     };
-  }, [api, applySettings, goNext, goPrevious, openCollection, openFolder, refreshSource, seekVideoBy, setSourceLoading, showSourceError, toggleVideoPlayback]);
+  }, [api, applyRecentSources, applySettings, goNext, goPrevious, openCollection, openFolder, refreshSource, seekVideoBy, setSourceLoading, showSourceError, toggleVideoPlayback]);
 }
