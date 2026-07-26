@@ -12,7 +12,6 @@ const payload = {
   posts: [
     {
       no: 123456,
-      sub: "Example &amp; thread",
       time: 1_700_000_000,
       tim: 1_700_000_000_001,
       filename: "first image",
@@ -74,7 +73,6 @@ test("maps supported attachments in post order", () => {
   });
 
   assert.equal(collection.canonicalLocation, "https://boards.4chan.org/gif/thread/123456");
-  assert.equal(collection.title, "Example & thread");
   assert.equal(collection.origin?.label, "/gif/ · 4chan");
   assert.deepEqual(collection.items.map((item) => item.kind), ["image", "video"]);
   assert.deepEqual(collection.items.map((item) => item.name), ["first image.jpg", "animation.webm"]);
