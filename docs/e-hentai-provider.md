@@ -2,9 +2,9 @@
 
 ## Status
 
-Requirements, feasibility study, and a deliberately tiny vertical slice.
-This work is local and must not be pushed until it has been reviewed and tested
-manually.
+Experimental provider implemented for public galleries. This document retains
+the original feasibility research, product boundaries, and request-policy
+decisions that govern the implementation.
 
 ## Experimental vertical slice
 

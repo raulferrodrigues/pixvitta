@@ -2,20 +2,16 @@ import type {
   CachedResource,
   ResourceCache
 } from "../../../resourceCache/diskResourceCache";
-import { mediaFileTypes } from "../../../utils/mediaTypes";
+import {
+  EHENTAI_CONTROL_REQUEST_TIMEOUT_MS,
+  EHENTAI_USER_AGENT,
+  readImageResource
+} from "./network";
 
-const USER_AGENT =
-  "Pixvitta media viewer (+https://github.com/raulferrodrigues/pixvitta)";
 const DEFAULT_BATCH_SIZE = 20;
 const DEFAULT_BATCH_INTERVAL_MS = 1_000;
 const DEFAULT_MAX_CONCURRENCY = 20;
-const REQUEST_TIMEOUT_MS = 15_000;
 const DEFAULT_BACKOFF_MS = 30_000;
-const SUPPORTED_IMAGE_CONTENT_TYPES = new Set<string>(
-  mediaFileTypes
-    .filter((fileType) => fileType.kind === "image")
-    .map((fileType) => fileType.mimeType)
-);
 
 type ThumbnailPipelineOptions = {
   fetchImpl?: typeof fetch;
@@ -78,7 +74,8 @@ export class EHentaiThumbnailPipeline {
     this.now = options.now ?? Date.now;
     this.wait =
       options.wait ??
-      ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+      ((milliseconds) =>
+        new Promise((resolve) => setTimeout(resolve, milliseconds)));
     this.batchSize = Math.max(1, options.batchSize ?? DEFAULT_BATCH_SIZE);
     this.batchIntervalMs = Math.max(
       1,
@@ -137,10 +134,10 @@ export class EHentaiThumbnailPipeline {
       method: "GET",
       headers: {
         Accept: "image/*",
-        "User-Agent": USER_AGENT
+        "User-Agent": EHENTAI_USER_AGENT
       },
       redirect: "error",
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+      signal: AbortSignal.timeout(EHENTAI_CONTROL_REQUEST_TIMEOUT_MS)
     });
     if (response.status === 429 || response.status === 503) {
       this.blockedUntilMs = Math.max(
@@ -152,22 +149,10 @@ export class EHentaiThumbnailPipeline {
       throw new Error(`E-Hentai thumbnail server returned ${response.status}.`);
     }
 
-    const contentType = response.headers
-      .get("Content-Type")
-      ?.split(";")[0]
-      .trim()
-      .toLowerCase();
-    if (!contentType || !SUPPORTED_IMAGE_CONTENT_TYPES.has(contentType)) {
-      throw new Error(
-        `E-Hentai returned an unsupported thumbnail type: ${contentType ?? "unknown"}.`
-      );
-    }
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.byteLength === 0) {
-      throw new Error("E-Hentai thumbnail server returned an empty image.");
-    }
-
-    const resource = { bytes, contentType };
+    const resource = await readImageResource(
+      response,
+      "E-Hentai thumbnail server"
+    );
     await this.cache.write(entry.cacheKey, resource);
     return resource;
   }

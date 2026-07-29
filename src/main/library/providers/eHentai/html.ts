@@ -163,20 +163,6 @@ export function parseGalleryImagePages(
   return references;
 }
 
-export function parseFirstImagePageUrl(
-  html: string,
-  galleryUrl: string,
-  galleryId: string
-): { pageUrl: string; pageToken: string } | null {
-  const first = parseGalleryImagePages(html, galleryUrl, galleryId).get(1);
-  return first
-    ? {
-        pageUrl: first.pageUrl,
-        pageToken: first.pageToken
-      }
-    : null;
-}
-
 export function parseDisplayedImageUrl(
   html: string,
   imagePageUrl: string
