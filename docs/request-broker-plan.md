@@ -2,9 +2,9 @@
 
 ## Status
 
-Implementation approved. Public signatures and the per-policy queue-loop shape
-exist, but provider networking has not been migrated and the broker and cache
-do not perform work yet.
+Implemented on the background-download redesign feature branch. Automated
+validation is complete; provider behavior still requires the planned manual
+verification.
 
 ## Main goal
 

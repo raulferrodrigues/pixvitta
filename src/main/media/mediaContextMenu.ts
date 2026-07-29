@@ -88,18 +88,9 @@ export function showLocalMediaContextMenu(window: BrowserWindow, filePath: strin
 
 export function showRemoteMediaContextMenu(
   window: BrowserWindow,
-  mediaUrl: string,
-  download: () => Promise<void>
+  mediaUrl: string
 ): void {
   const menu = Menu.buildFromTemplate([
-    {
-      label: "Download File",
-      click: () => {
-        void download().catch((error: unknown) =>
-          showMenuActionError(window, "Download Failed", error)
-        );
-      }
-    },
     {
       label: "Copy Media URL",
       click: () => clipboard.writeText(mediaUrl)

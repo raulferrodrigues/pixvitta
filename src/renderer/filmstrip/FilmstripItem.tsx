@@ -8,6 +8,12 @@ import { createMediaThumbnailDataUrl } from "./thumbnailCapture";
 type FilmstripItemProps = { item: MediaItem; itemIndex: number; isActive: boolean };
 type PreviewMode = "thumbnail" | "image-capture" | "video-capture" | "fallback";
 
+function prefetchUrl(rawUrl: string): string {
+  const url = new URL(rawUrl);
+  url.searchParams.set("intent", "prefetch");
+  return url.href;
+}
+
 export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps) {
   const gt = useGT();
   const hasMediaError = useViewerStore((state) => state.mediaErrors.has(item.id));
@@ -80,6 +86,7 @@ export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps)
   const showFallback = hasMediaError || previewMode === "fallback";
   const showImageCapture = !showFallback && item.kind === "image" && previewMode === "image-capture";
   const showVideoCapture = !showFallback && item.kind === "video" && previewMode === "video-capture";
+  const mediaPreviewUrl = prefetchUrl(item.url);
 
   return (
     <button
@@ -97,9 +104,9 @@ export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps)
       ) : (
         <>
           {showImageCapture ? (
-            <img className="block h-full w-full min-w-0 object-cover" src={item.url} alt="" crossOrigin="anonymous" loading={isActive ? "eager" : "lazy"} fetchPriority={isActive ? "high" : "auto"} onLoad={(event) => saveImageThumbnail(event.currentTarget)} onError={() => setPreviewMode("fallback")} />
+            <img className="block h-full w-full min-w-0 object-cover" src={mediaPreviewUrl} alt="" crossOrigin="anonymous" loading={isActive ? "eager" : "lazy"} fetchPriority={isActive ? "high" : "auto"} onLoad={(event) => saveImageThumbnail(event.currentTarget)} onError={() => setPreviewMode("fallback")} />
           ) : showVideoCapture ? (
-            <video className="pointer-events-none block h-full w-full min-w-0 object-cover" src={item.url} crossOrigin="anonymous" muted playsInline preload="auto" aria-hidden tabIndex={-1} onLoadedMetadata={loadVideoCaptureFrame} onLoadedData={(event) => saveVideoFrame(event.currentTarget)} onSeeked={(event) => saveVideoFrame(event.currentTarget)} onError={() => setPreviewMode("fallback")} />
+            <video className="pointer-events-none block h-full w-full min-w-0 object-cover" src={mediaPreviewUrl} crossOrigin="anonymous" muted playsInline preload="auto" aria-hidden tabIndex={-1} onLoadedMetadata={loadVideoCaptureFrame} onLoadedData={(event) => saveVideoFrame(event.currentTarget)} onSeeked={(event) => saveVideoFrame(event.currentTarget)} onError={() => setPreviewMode("fallback")} />
           ) : (
             <img className="block h-full w-full min-w-0 object-cover" src={thumbnailSrc ?? undefined} alt="" crossOrigin="anonymous" loading={isActive ? "eager" : "lazy"} fetchPriority={isActive ? "high" : "auto"} onError={handleThumbnailError} />
           )}

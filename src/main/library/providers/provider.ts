@@ -1,9 +1,13 @@
 import type { MediaItem, OpenSourceError } from "../../../shared/media";
 import type { RecentSourceKind } from "../../../shared/recentSources";
 import type { AppSettings } from "../../../shared/settings";
+import type { RequestPriority } from "../../requestBroker";
 
 export type MediaResource = {
-  respond(request: Request): Promise<Response>;
+  respond(
+    request: Request,
+    priority: RequestPriority
+  ): Promise<Response>;
 };
 
 export type ProviderThumbnail =
@@ -13,7 +17,6 @@ export type ProviderThumbnail =
 
 export type ProviderMediaItem = Omit<MediaItem, "id" | "url" | "thumbnailUrl"> & {
   key: string;
-  downloadName?: string;
   media: MediaResource;
   thumbnail: ProviderThumbnail;
   externalUrl?: string;
@@ -28,7 +31,6 @@ export type ProviderCollection = {
     url: string;
   };
   capabilities: {
-    canDownload: boolean;
     canRefresh: boolean;
     canSort: boolean;
   };

@@ -1,13 +1,13 @@
-import { createHash } from "node:crypto";
+import { broker, type RequestPriority } from "../../../requestBroker";
 import type {
   MediaProvider,
   ProviderCollection,
   ProviderLoadRequest
 } from "../provider";
 import { ProviderError } from "../provider";
-import { DiskResourceCache } from "../../../resourceCache/diskResourceCache";
 import { EHentaiGallerySession } from "./gallerySession";
 import { EHentaiImagePipeline } from "./imagePipeline";
+import { API_POLICY } from "./requestPolicies";
 import { EHentaiThumbnailPipeline } from "./thumbnailPipeline";
 
 const API_URL = "https://api.e-hentai.org/api.php";
@@ -25,15 +25,6 @@ type GalleryMetadata = {
   title: string;
   postedMs: number;
   fileCount: number;
-};
-
-type EHentaiProviderOptions = {
-  cacheDirectory: () => string;
-  fetchImpl?: typeof fetch;
-  now?: () => number;
-  wait?: (milliseconds: number) => Promise<void>;
-  imageIntervalMs?: number;
-  thumbnailFetchImpl?: typeof fetch;
 };
 
 export function parseEHentaiGalleryUrl(
@@ -74,7 +65,9 @@ export function parseEHentaiGalleryUrl(
   return {
     galleryId,
     galleryToken: galleryToken.toLowerCase(),
-    pageUrl: `https://e-hentai.org/g/${galleryId}/${galleryToken.toLowerCase()}/`
+    pageUrl:
+      `https://e-hentai.org/g/${galleryId}/` +
+      `${galleryToken.toLowerCase()}/`
   };
 }
 
@@ -91,18 +84,21 @@ function parseMetadata(
   reference: EHentaiGalleryReference
 ): GalleryMetadata {
   if (!payload || typeof payload !== "object") {
-    throw new ProviderError("invalid-response", "Gallery metadata was not an object.");
+    throw new ProviderError(
+      "invalid-response",
+      "Gallery metadata was not an object."
+    );
   }
   const entries = (payload as { gmetadata?: unknown }).gmetadata;
-  const entry = Array.isArray(entries) ? entries[0] : null;
-  if (!entry || typeof entry !== "object") {
+  const item = Array.isArray(entries) ? entries[0] : null;
+  if (!item || typeof item !== "object") {
     throw new ProviderError(
       "invalid-response",
       "Gallery metadata did not contain a gallery."
     );
   }
 
-  const metadata = entry as Record<string, unknown>;
+  const metadata = item as Record<string, unknown>;
   if (metadata.error) {
     throw new ProviderError("not-found", "The gallery is unavailable.");
   }
@@ -129,33 +125,19 @@ function parseMetadata(
   };
 }
 
+async function cancelResponse(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // The provider is already rejecting this response.
+  }
+}
+
 export class EHentaiProvider implements MediaProvider {
   readonly id = "e-hentai";
   readonly sourceKind = "web";
-  private readonly fetchImpl: typeof fetch;
-  private readonly imagePipeline: EHentaiImagePipeline;
-  private readonly thumbnailPipeline: EHentaiThumbnailPipeline;
-
-  constructor(options: EHentaiProviderOptions) {
-    this.fetchImpl = options.fetchImpl ?? fetch;
-    this.imagePipeline = new EHentaiImagePipeline(
-      new DiskResourceCache(options.cacheDirectory, "e-hentai-images-v1"),
-      {
-        fetchImpl: this.fetchImpl,
-        now: options.now,
-        wait: options.wait,
-        intervalMs: options.imageIntervalMs
-      }
-    );
-    this.thumbnailPipeline = new EHentaiThumbnailPipeline(
-      new DiskResourceCache(options.cacheDirectory, "e-hentai-thumbnails-v1"),
-      {
-        fetchImpl: options.thumbnailFetchImpl ?? this.fetchImpl,
-        now: options.now,
-        wait: options.wait
-      }
-    );
-  }
+  private readonly imagePipeline = new EHentaiImagePipeline();
+  private readonly thumbnailPipeline = new EHentaiThumbnailPipeline();
 
   matches(location: string): boolean {
     return isEHentaiLocation(location);
@@ -175,21 +157,15 @@ export class EHentaiProvider implements MediaProvider {
       reference,
       fileCount: metadata.fileCount,
       pipeline: this.imagePipeline,
-      thumbnailPipeline: this.thumbnailPipeline,
-      fetchImpl: this.fetchImpl
+      thumbnailPipeline: this.thumbnailPipeline
     });
     const nameWidth = Math.max(3, String(metadata.fileCount).length);
-    const galleryHash = createHash("md5")
-      .update(`${reference.galleryId}:${reference.galleryToken}`)
-      .digest("hex")
-      .slice(0, 12);
     const items = Array.from({ length: metadata.fileCount }, (_, index) => {
       const pageNumber = index + 1;
       const pageLabel = String(pageNumber).padStart(nameWidth, "0");
       return {
         key: `${reference.galleryId}:page:${pageNumber}`,
         name: `Page ${pageLabel}`,
-        downloadName: `${galleryHash}-page-${pageLabel}`,
         kind: "image" as const,
         sizeBytes: 0,
         lastOpenedMs: metadata.postedMs,
@@ -197,12 +173,23 @@ export class EHentaiProvider implements MediaProvider {
         modifiedMs: metadata.postedMs,
         createdMs: metadata.postedMs,
         media: {
-          respond: () => session.respond(pageNumber)
+          respond: (
+            mediaRequest: Request,
+            priority: RequestPriority
+          ) => session.respond(pageNumber, mediaRequest, priority)
         },
         thumbnail: {
           kind: "resource" as const,
           resource: {
-            respond: () => session.respondThumbnail(pageNumber)
+            respond: (
+              thumbnailRequest: Request,
+              priority: RequestPriority
+            ) =>
+              session.respondThumbnail(
+                pageNumber,
+                thumbnailRequest,
+                priority
+              )
           }
         }
       };
@@ -216,7 +203,6 @@ export class EHentaiProvider implements MediaProvider {
         url: reference.pageUrl
       },
       capabilities: {
-        canDownload: true,
         canRefresh: true,
         canSort: false
       },
@@ -229,9 +215,10 @@ export class EHentaiProvider implements MediaProvider {
   private async fetchMetadata(
     reference: EHentaiGalleryReference
   ): Promise<GalleryMetadata> {
-    let response: Response;
-    try {
-      response = await this.fetchImpl(API_URL, {
+    const task = broker.request<GalleryMetadata>({
+      policy: API_POLICY,
+      priority: "high",
+      request: new Request(API_URL, {
         method: "POST",
         headers: {
           Accept: "application/json",
@@ -240,33 +227,49 @@ export class EHentaiProvider implements MediaProvider {
         },
         body: JSON.stringify({
           method: "gdata",
-          gidlist: [[Number(reference.galleryId), reference.galleryToken]],
+          gidlist: [
+            [Number(reference.galleryId), reference.galleryToken]
+          ],
           namespace: 1
         }),
         redirect: "error",
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
-      });
-    } catch {
-      throw new ProviderError("unavailable", "Could not reach E-Hentai.");
-    }
-    if (response.status === 429 || response.status === 503) {
-      throw new ProviderError("rate-limited", "E-Hentai asked the app to slow down.");
-    }
-    if (!response.ok) {
-      throw new ProviderError(
-        "unavailable",
-        `The gallery API returned ${response.status}.`
-      );
-    }
+      }),
+      handleResponse: async (response) => {
+        if (response.status === 503) {
+          await cancelResponse(response);
+          throw new ProviderError(
+            "rate-limited",
+            "E-Hentai asked the app to slow down."
+          );
+        }
+        if (!response.ok) {
+          const status = response.status;
+          await cancelResponse(response);
+          throw new ProviderError(
+            "unavailable",
+            `The gallery API returned ${status}.`
+          );
+        }
+
+        let payload: unknown;
+        try {
+          payload = await response.json();
+        } catch {
+          throw new ProviderError(
+            "invalid-response",
+            "The gallery API returned invalid JSON."
+          );
+        }
+        return parseMetadata(payload, reference);
+      }
+    });
 
     try {
-      return parseMetadata(await response.json(), reference);
+      return await task.result;
     } catch (error) {
       if (error instanceof ProviderError) throw error;
-      throw new ProviderError(
-        "invalid-response",
-        "The gallery API returned invalid JSON."
-      );
+      throw new ProviderError("unavailable", "Could not reach E-Hentai.");
     }
   }
 }

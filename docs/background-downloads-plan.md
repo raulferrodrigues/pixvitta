@@ -2,7 +2,9 @@
 
 ## Status
 
-Foundation implementation approved. This document belongs to draft PR #15.
+The broker and full-file session-cache foundation is implemented on draft PR
+#15 and awaits manual provider verification. Actual download jobs remain
+deferred.
 
 The download implementation abandoned before this PR is not a starting point.
 Its code and detailed product decisions are deliberately excluded. Draft PR #4

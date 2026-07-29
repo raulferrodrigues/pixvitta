@@ -1,13 +1,20 @@
+import { readFile } from "node:fs/promises";
+import { createMediaFileResponse } from "../../../media/mediaResponses";
+import {
+  broker,
+  type BrokerTask,
+  type RequestPriority
+} from "../../../requestBroker";
 import type { EHentaiGalleryReference } from ".";
 import {
   type EHentaiImagePageReference,
   parseGalleryImagePages
 } from "./html";
 import {
-  cachedResourceResponse,
   EHentaiImagePipeline,
   ImageRequestSupersededError
 } from "./imagePipeline";
+import { PAGES_POLICY } from "./requestPolicies";
 import { renderSpriteThumbnail } from "./spriteThumbnail";
 import { EHentaiThumbnailPipeline } from "./thumbnailPipeline";
 
@@ -22,38 +29,71 @@ type GallerySessionOptions = {
   fileCount: number;
   pipeline: Pick<EHentaiImagePipeline, "get">;
   thumbnailPipeline: Pick<EHentaiThumbnailPipeline, "get">;
-  fetchImpl?: typeof fetch;
 };
 
+type IndexRequestEntry = {
+  priority: RequestPriority;
+  brokerTask: BrokerTask<unknown> | null;
+  promise: Promise<void>;
+};
+
+const priorityRanks: Record<RequestPriority, number> = {
+  low: 0,
+  normal: 1,
+  high: 2
+};
+
+async function cancelResponse(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // The session is already rejecting this response.
+  }
+}
+
 export class EHentaiGallerySession {
-  private readonly fetchImpl: typeof fetch;
   private readonly pages = new Map<number, EHentaiImagePageReference>();
-  private readonly indexRequests = new Map<number, Promise<void>>();
+  private readonly indexRequests: {
+    [indexPage: string]: IndexRequestEntry | undefined;
+  } = {};
   private desiredPages = new Set<number>();
   private demandRevision = 0;
 
-  constructor(private readonly options: GallerySessionOptions) {
-    this.fetchImpl = options.fetchImpl ?? fetch;
-  }
+  constructor(private readonly options: GallerySessionOptions) {}
 
-  async respond(pageNumber: number): Promise<Response> {
-    if (!this.isValidPage(pageNumber)) return new Response(null, { status: 404 });
+  async respond(
+    pageNumber: number,
+    request: Request,
+    priority: RequestPriority
+  ): Promise<Response> {
+    if (!this.isValidPage(pageNumber)) {
+      return new Response(null, { status: 404 });
+    }
 
-    const revision = ++this.demandRevision;
-    this.desiredPages = new Set(this.windowFrom(pageNumber));
+    const isSelected = priority === "high";
+    const revision = isSelected ? ++this.demandRevision : 0;
+    if (isSelected) {
+      this.desiredPages = new Set(this.windowFrom(pageNumber));
+    }
 
     try {
-      const page = await this.resolvePage(pageNumber);
-      const selected = this.options.pipeline.get(
+      const page = await this.resolvePage(pageNumber, priority);
+      const file = await this.options.pipeline.get(
         this.cacheKey(page),
         page.pageUrl,
-        () => this.desiredPages.has(pageNumber)
+        priority,
+        isSelected
+          ? () => this.desiredPages.has(pageNumber)
+          : () => true
       );
-      const resource = await selected;
-      if (revision === this.demandRevision) {
+      if (isSelected && revision === this.demandRevision) {
         void this.prefetch(pageNumber, revision);
       }
-      return cachedResourceResponse(resource);
+      return createMediaFileResponse(
+        file.filePath,
+        request.headers,
+        file.contentType
+      );
     } catch (error) {
       if (error instanceof ImageRequestSupersededError) {
         return new Response(null, { status: 409 });
@@ -62,21 +102,39 @@ export class EHentaiGallerySession {
     }
   }
 
-  async respondThumbnail(pageNumber: number): Promise<Response> {
-    if (!this.isValidPage(pageNumber)) return new Response(null, { status: 404 });
+  async respondThumbnail(
+    pageNumber: number,
+    request: Request,
+    priority: RequestPriority
+  ): Promise<Response> {
+    if (!this.isValidPage(pageNumber)) {
+      return new Response(null, { status: 404 });
+    }
 
     try {
-      const page = await this.resolvePage(pageNumber);
+      const page = await this.resolvePage(pageNumber, priority);
       if (!page.thumbnail) return emptyThumbnailResponse();
-      const resource = await this.options.thumbnailPipeline.get(
+      const file = await this.options.thumbnailPipeline.get(
         this.thumbnailCacheKey(page.thumbnail.url),
-        page.thumbnail.url
+        page.thumbnail.url,
+        priority
       );
-      return cachedResourceResponse(
-        page.thumbnail.kind === "sprite"
-          ? renderSpriteThumbnail(resource, page.thumbnail.crop)
-          : resource
+      if (page.thumbnail.kind === "direct") {
+        return createMediaFileResponse(
+          file.filePath,
+          request.headers,
+          file.contentType
+        );
+      }
+
+      const rendered = renderSpriteThumbnail(
+        {
+          bytes: new Uint8Array(await readFile(file.filePath)),
+          contentType: file.contentType
+        },
+        page.thumbnail.crop
       );
+      return bytesResponse(rendered.bytes, rendered.contentType);
     } catch {
       return emptyThumbnailResponse();
     }
@@ -89,12 +147,15 @@ export class EHentaiGallerySession {
     for (const pageNumber of this.prefetchOrderFrom(selectedPage)) {
       if (revision !== this.demandRevision) return;
       try {
-        const page = await this.resolvePage(pageNumber);
+        const page = await this.resolvePage(pageNumber, "low");
         if (revision !== this.demandRevision) return;
         await this.options.pipeline.get(
           this.cacheKey(page),
           page.pageUrl,
-          () => this.desiredPages.has(pageNumber)
+          "low",
+          () =>
+            revision === this.demandRevision &&
+            this.desiredPages.has(pageNumber)
         );
       } catch (error) {
         if (error instanceof ImageRequestSupersededError) return;
@@ -108,23 +169,38 @@ export class EHentaiGallerySession {
   }
 
   private async resolvePage(
-    pageNumber: number
+    pageNumber: number,
+    priority: RequestPriority
   ): Promise<EHentaiImagePageReference> {
-    const existing = this.pages.get(pageNumber);
-    if (existing) return existing;
+    const existingPage = this.pages.get(pageNumber);
+    if (existingPage) return existingPage;
 
     const indexPage = Math.floor((pageNumber - 1) / INDEX_PAGE_SIZE);
-    let request = this.indexRequests.get(indexPage);
-    if (!request) {
-      request = this.loadIndexPage(indexPage);
-      this.indexRequests.set(indexPage, request);
-      void request.catch(() => {
-        if (this.indexRequests.get(indexPage) === request) {
-          this.indexRequests.delete(indexPage);
+    const key = String(indexPage);
+    let entry = this.indexRequests[key];
+    if (entry) {
+      if (priorityRanks[priority] > priorityRanks[entry.priority]) {
+        entry.priority = priority;
+        if (entry.brokerTask) {
+          broker.promote(entry.brokerTask, priority);
         }
-      });
+      }
+    } else {
+      entry = {
+        priority,
+        brokerTask: null,
+        promise: Promise.resolve()
+      };
+      this.indexRequests[key] = entry;
+      entry.promise = this.loadIndexPage(indexPage, entry);
+      const cleanup = () => {
+        if (this.indexRequests[key] === entry) {
+          delete this.indexRequests[key];
+        }
+      };
+      void entry.promise.then(cleanup, cleanup);
     }
-    await request;
+    await entry.promise;
 
     const resolved = this.pages.get(pageNumber);
     if (!resolved) {
@@ -135,34 +211,56 @@ export class EHentaiGallerySession {
     return resolved;
   }
 
-  private async loadIndexPage(indexPage: number): Promise<void> {
+  private async loadIndexPage(
+    indexPage: number,
+    entry: IndexRequestEntry
+  ): Promise<void> {
     const indexUrl =
       indexPage === 0
         ? this.options.reference.pageUrl
         : `${this.options.reference.pageUrl}?p=${indexPage}`;
-    const response = await this.fetchImpl(indexUrl, {
-      method: "GET",
-      headers: {
-        Accept: "text/html",
-        "User-Agent": USER_AGENT
-      },
-      redirect: "error",
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+    const task = broker.request<Map<number, EHentaiImagePageReference>>({
+      policy: PAGES_POLICY,
+      priority: entry.priority,
+      request: new Request(indexUrl, {
+        method: "GET",
+        headers: {
+          Accept: "text/html",
+          "User-Agent": USER_AGENT
+        },
+        redirect: "error",
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+      }),
+      handleResponse: async (response) => {
+        if (!response.ok) {
+          const status = response.status;
+          await cancelResponse(response);
+          throw new Error(`E-Hentai gallery index returned ${status}.`);
+        }
+        const references = parseGalleryImagePages(
+          await response.text(),
+          this.options.reference.pageUrl,
+          this.options.reference.galleryId
+        );
+        if (references.size === 0) {
+          throw new Error(
+            "E-Hentai gallery index did not contain image pages."
+          );
+        }
+        return references;
+      }
     });
-    if (!response.ok) {
-      throw new Error(`E-Hentai gallery index returned ${response.status}.`);
-    }
-
-    const references = parseGalleryImagePages(
-      await response.text(),
-      this.options.reference.pageUrl,
-      this.options.reference.galleryId
-    );
-    if (references.size === 0) {
-      throw new Error("E-Hentai gallery index did not contain image pages.");
+    entry.brokerTask = task;
+    let references: Map<number, EHentaiImagePageReference>;
+    try {
+      references = await task.result;
+    } finally {
+      if (entry.brokerTask === task) entry.brokerTask = null;
     }
     for (const [pageNumber, reference] of references) {
-      if (this.isValidPage(pageNumber)) this.pages.set(pageNumber, reference);
+      if (this.isValidPage(pageNumber)) {
+        this.pages.set(pageNumber, reference);
+      }
     }
   }
 
@@ -195,11 +293,14 @@ export class EHentaiGallerySession {
   }
 
   private cacheKey(page: EHentaiImagePageReference): string {
-    return `${this.options.reference.galleryId}:${page.pageToken}:${page.pageNumber}`;
+    return (
+      `e-hentai:image:${this.options.reference.galleryId}:` +
+      `${page.pageToken}:${page.pageNumber}`
+    );
   }
 
   private thumbnailCacheKey(thumbnailUrl: string): string {
-    return `thumbnail:${thumbnailUrl}`;
+    return `e-hentai:thumbnail:${thumbnailUrl}`;
   }
 }
 
@@ -209,9 +310,18 @@ const EMPTY_GIF = Uint8Array.from([
   0, 59
 ]);
 
-function emptyThumbnailResponse(): Response {
-  return cachedResourceResponse({
-    bytes: EMPTY_GIF,
-    contentType: "image/gif"
+function bytesResponse(bytes: Uint8Array, contentType: string): Response {
+  return new Response(Uint8Array.from(bytes).buffer, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Content-Length": String(bytes.byteLength),
+      "Content-Type": contentType,
+      "Cross-Origin-Resource-Policy": "cross-origin"
+    }
   });
+}
+
+function emptyThumbnailResponse(): Response {
+  return bytesResponse(EMPTY_GIF, "image/gif");
 }

@@ -1,6 +1,5 @@
 import type { AppBuildInfo } from "./appBuild";
 import type {
-  DownloadMediaResult,
   MediaCollection,
   OpenSourceError,
   OpenSourceRequest
@@ -33,7 +32,6 @@ export type PixvittaApi = {
   removeRecentSource(location: string): Promise<RecentSource[]>;
   getSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings): Promise<AppSettings>;
-  downloadMedia(mediaId: string): Promise<DownloadMediaResult>;
   showMediaContextMenu(mediaId: string): Promise<boolean>;
   saveMediaThumbnail(thumbnailReference: string, dataUrl: string): Promise<boolean>;
   openPreferences(): Promise<void>;

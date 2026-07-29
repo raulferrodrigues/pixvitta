@@ -53,10 +53,14 @@ function streamBody(filePath: string, range?: ByteRange): BodyInit {
   return Readable.toWeb(stream) as BodyInit;
 }
 
-export async function createMediaFileResponse(filePath: string, headers: Headers): Promise<Response> {
+export async function createMediaFileResponse(
+  filePath: string,
+  headers: Headers,
+  explicitContentType?: string
+): Promise<Response> {
   const details = await stat(filePath);
   const size = details.size;
-  const contentType = mediaContentTypeFor(filePath);
+  const contentType = explicitContentType ?? mediaContentTypeFor(filePath);
   const commonHeaders = {
     "Accept-Ranges": "bytes",
     "Access-Control-Allow-Origin": "*",

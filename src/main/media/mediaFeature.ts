@@ -1,19 +1,23 @@
 import { app, BrowserWindow, ipcMain, protocol } from "electron";
-import path from "node:path";
-import type { DownloadMediaResult } from "../../shared/media";
 import { resolveMediaId, resolveMediaUrl } from "../library";
 import {
   showLocalMediaContextMenu,
   showRemoteMediaContextMenu
 } from "./mediaContextMenu";
-import { downloadMediaResource } from "./mediaDownload";
+import type { RequestPriority } from "../requestBroker";
+
+function priorityFor(request: Request): RequestPriority {
+  const url = new URL(request.url);
+  if (url.hostname === "thumbnail") return "normal";
+  return url.searchParams.get("intent") === "prefetch" ? "low" : "high";
+}
 
 async function createMediaResponse(request: Request): Promise<Response> {
   const resource = resolveMediaUrl(request.url);
   if (!resource) return new Response(null, { status: 404 });
 
   try {
-    return await resource.respond(request);
+    return await resource.respond(request, priorityFor(request));
   } catch (error) {
     console.error(error);
     return new Response(null, { status: 500 });
@@ -29,35 +33,11 @@ function showMediaContextMenu(window: BrowserWindow, mediaId: unknown): boolean 
     showLocalMediaContextMenu(window, item.localPath);
     return true;
   }
-  if (item.downloadable && item.externalUrl) {
-    showRemoteMediaContextMenu(window, item.externalUrl, async () => {
-      const result = await downloadMedia(mediaId);
-      if (!result.ok) throw new Error("Pixvitta could not download this file.");
-    });
+  if (item.externalUrl) {
+    showRemoteMediaContextMenu(window, item.externalUrl);
     return true;
   }
   return false;
-}
-
-async function downloadMedia(mediaId: unknown): Promise<DownloadMediaResult> {
-  if (typeof mediaId !== "string") return { ok: false };
-
-  const item = resolveMediaId(mediaId);
-  if (!item?.downloadable) return { ok: false };
-
-  try {
-    const downloadsDirectory =
-      process.env.PIXVITTA_TEST_DOWNLOADS_PATH ?? app.getPath("downloads");
-    const downloadPath = await downloadMediaResource(
-      downloadsDirectory,
-      item.downloadName ?? item.name,
-      item.media
-    );
-    return { ok: true, fileName: path.basename(downloadPath) };
-  } catch (error) {
-    console.error(error);
-    return { ok: false };
-  }
 }
 
 function registerMediaProtocolScheme(): void {
@@ -79,9 +59,6 @@ function registerMediaIpcHandler(): void {
   ipcMain.handle("media:show-context-menu", (event, mediaId: unknown) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     return window ? showMediaContextMenu(window, mediaId) : false;
-  });
-  ipcMain.handle("media:download", (_event, mediaId: unknown) => {
-    return downloadMedia(mediaId);
   });
 }
 

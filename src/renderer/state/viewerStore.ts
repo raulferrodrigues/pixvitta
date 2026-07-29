@@ -15,7 +15,6 @@ import { createVideoController, type VideoController } from "./videoController";
 import { selectCurrentItem } from "./viewerSelectors";
 
 export type ViewerLoadState = "idle" | "loading" | "ready" | "empty" | "error";
-export type MediaDownloadState = "idle" | "downloading" | "downloaded" | "error";
 
 export const DEFAULT_FILMSTRIP_WIDTH = 168;
 export const MIN_FILMSTRIP_WIDTH = 128;
@@ -38,8 +37,6 @@ export type ViewerState = {
   filmstripWidth: number;
   isFilmstripVisible: boolean;
   sourceOpenError: OpenSourceError | null;
-  downloadState: MediaDownloadState;
-  downloadedFileName: string | null;
 };
 
 export type ViewerActions = {
@@ -52,7 +49,6 @@ export type ViewerActions = {
   setSourceLoading(isLoading: boolean): void;
   showSourceError(error: OpenSourceError): void;
   refreshSource(): Promise<void>;
-  downloadCurrentMedia(): Promise<void>;
   refreshRecentSources(): Promise<void>;
   applyRecentSources(sources: RecentSource[]): void;
   loadSettings(): Promise<void>;
@@ -94,8 +90,6 @@ function applyCollection(collection: MediaCollection): Partial<ViewerState> {
     imagePanX: 0,
     imagePanY: 0,
     sourceOpenError: null,
-    downloadState: "idle",
-    downloadedFileName: null,
     loadState: collection.items.length > 0 ? "ready" : "empty"
   };
 }
@@ -108,7 +102,6 @@ export function createViewerStore(
   api: PixvittaApi,
   videoController: VideoController = createVideoController()
 ): ViewerStoreApi {
-  let downloadRequestId = 0;
   let settingsSaveRevision = 0;
   let recentSourcesRevision = 0;
 
@@ -129,7 +122,6 @@ export function createViewerStore(
     };
 
     const applyOpenedCollection = (collection: MediaCollection) => {
-      downloadRequestId += 1;
       set(applyCollection(collection));
     };
 
@@ -163,8 +155,6 @@ export function createViewerStore(
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
       isFilmstripVisible: true,
       sourceOpenError: null,
-      downloadState: "idle",
-      downloadedFileName: null,
 
       async initialize() {
         await Promise.all([get().loadSettings(), get().refreshRecentSources()]);
@@ -227,46 +217,6 @@ export function createViewerStore(
         } catch (error) {
           console.error(error);
           set({ isSourceLoading: false, sourceOpenError: "unavailable" });
-        }
-      },
-
-      async downloadCurrentMedia() {
-        const state = get();
-        const item = selectCurrentItem(state);
-        if (
-          !item ||
-          !state.source?.capabilities.canDownload ||
-          state.downloadState === "downloading"
-        ) {
-          return;
-        }
-
-        const requestId = ++downloadRequestId;
-        set({ downloadState: "downloading", downloadedFileName: null });
-        try {
-          const result = await api.downloadMedia(item.id);
-          if (
-            requestId !== downloadRequestId ||
-            selectCurrentItem(get())?.id !== item.id
-          ) {
-            return;
-          }
-          set(
-            result.ok
-              ? {
-                  downloadState: "downloaded",
-                  downloadedFileName: result.fileName
-                }
-              : { downloadState: "error", downloadedFileName: null }
-          );
-        } catch (error) {
-          console.error(error);
-          if (
-            requestId === downloadRequestId &&
-            selectCurrentItem(get())?.id === item.id
-          ) {
-            set({ downloadState: "error", downloadedFileName: null });
-          }
         }
       },
 
@@ -336,12 +286,9 @@ export function createViewerStore(
         set((state) => {
           const index = nextIndex(state.index, state.items.length, state.settings.wrapNavigation);
           if (index === state.index) return state;
-          downloadRequestId += 1;
           return {
             index,
             isVideoPlaying: false,
-            downloadState: "idle",
-            downloadedFileName: null,
             imageZoom: MIN_IMAGE_ZOOM,
             imagePanX: 0,
             imagePanY: 0
@@ -353,12 +300,9 @@ export function createViewerStore(
         set((state) => {
           const index = previousIndex(state.index, state.items.length, state.settings.wrapNavigation);
           if (index === state.index) return state;
-          downloadRequestId += 1;
           return {
             index,
             isVideoPlaying: false,
-            downloadState: "idle",
-            downloadedFileName: null,
             imageZoom: MIN_IMAGE_ZOOM,
             imagePanX: 0,
             imagePanY: 0
@@ -369,12 +313,9 @@ export function createViewerStore(
       selectMedia(index: number) {
         set((state) => {
           if (index === state.index) return state;
-          downloadRequestId += 1;
           return {
             index,
             isVideoPlaying: false,
-            downloadState: "idle",
-            downloadedFileName: null,
             imageZoom: MIN_IMAGE_ZOOM,
             imagePanX: 0,
             imagePanY: 0

@@ -3,8 +3,7 @@ import { configureAppIdentity } from "./app/buildInfo";
 import { createAppMenu } from "./menus";
 import { registerIpcHandlers } from "./ipc";
 import {
-  openFileAsCollection,
-  prepareSessionMediaCache
+  openFileAsCollection
 } from "./library";
 import "./media";
 import { startAutomaticUpdates } from "./updates";
@@ -90,7 +89,6 @@ app.on("open-file", (event, filePath) => {
 // here instead of at module load time.
 void app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;
-  await prepareSessionMediaCache();
 
   // Menus are global/native in Electron. Creating the application menu here
   // wires macOS menu items to either native actions or renderer commands.

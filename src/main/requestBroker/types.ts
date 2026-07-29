@@ -23,17 +23,3 @@ export type BrokerRequestOptions<T> = Readonly<{
   request: Request;
   handleResponse(response: Response): Promise<T>;
 }>;
-
-export type QueuedTask = BrokerTask<unknown> & {
-  priority: RequestPriority;
-  reject(error: unknown): void;
-};
-
-export type RequestQueue = {
-  delayMs: number;
-  high: QueuedTask[];
-  normal: QueuedTask[];
-  low: QueuedTask[];
-  active: QueuedTask | null;
-  running: boolean;
-};
