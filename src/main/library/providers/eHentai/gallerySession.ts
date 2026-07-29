@@ -1,26 +1,26 @@
-import type { EHentaiGalleryReference } from ".";
+import type { EHentaiGalleryReference } from "./galleryReference";
 import {
   type EHentaiImagePageReference,
   parseGalleryImagePages
 } from "./html";
 import {
-  cachedResourceResponse,
-  EHentaiImagePipeline,
+  type EHentaiImagePipeline,
   ImageRequestSupersededError
 } from "./imagePipeline";
+import {
+  createCachedResourceResponse,
+  EHENTAI_CONTROL_REQUEST_TIMEOUT_MS,
+  EHENTAI_USER_AGENT
+} from "./network";
 import { renderSpriteThumbnail } from "./spriteThumbnail";
-import { EHentaiThumbnailPipeline } from "./thumbnailPipeline";
+import type { EHentaiThumbnailPipeline } from "./thumbnailPipeline";
 
 const INDEX_PAGE_SIZE = 20;
 const PREFETCH_COUNT = 5;
-const REQUEST_TIMEOUT_MS = 15_000;
-const USER_AGENT =
-  "Pixvitta media viewer (+https://github.com/raulferrodrigues/pixvitta)";
-
 type GallerySessionOptions = {
   reference: EHentaiGalleryReference;
   fileCount: number;
-  pipeline: Pick<EHentaiImagePipeline, "get">;
+  imagePipeline: Pick<EHentaiImagePipeline, "get">;
   thumbnailPipeline: Pick<EHentaiThumbnailPipeline, "get">;
   fetchImpl?: typeof fetch;
 };
@@ -44,7 +44,7 @@ export class EHentaiGallerySession {
 
     try {
       const page = await this.resolvePage(pageNumber);
-      const selected = this.options.pipeline.get(
+      const selected = this.options.imagePipeline.get(
         this.cacheKey(page),
         page.pageUrl,
         () => this.desiredPages.has(pageNumber)
@@ -53,7 +53,7 @@ export class EHentaiGallerySession {
       if (revision === this.demandRevision) {
         void this.prefetch(pageNumber, revision);
       }
-      return cachedResourceResponse(resource);
+      return createCachedResourceResponse(resource);
     } catch (error) {
       if (error instanceof ImageRequestSupersededError) {
         return new Response(null, { status: 409 });
@@ -72,7 +72,7 @@ export class EHentaiGallerySession {
         this.thumbnailCacheKey(page.thumbnail.url),
         page.thumbnail.url
       );
-      return cachedResourceResponse(
+      return createCachedResourceResponse(
         page.thumbnail.kind === "sprite"
           ? renderSpriteThumbnail(resource, page.thumbnail.crop)
           : resource
@@ -91,7 +91,7 @@ export class EHentaiGallerySession {
       try {
         const page = await this.resolvePage(pageNumber);
         if (revision !== this.demandRevision) return;
-        await this.options.pipeline.get(
+        await this.options.imagePipeline.get(
           this.cacheKey(page),
           page.pageUrl,
           () => this.desiredPages.has(pageNumber)
@@ -144,10 +144,10 @@ export class EHentaiGallerySession {
       method: "GET",
       headers: {
         Accept: "text/html",
-        "User-Agent": USER_AGENT
+        "User-Agent": EHENTAI_USER_AGENT
       },
       redirect: "error",
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+      signal: AbortSignal.timeout(EHENTAI_CONTROL_REQUEST_TIMEOUT_MS)
     });
     if (!response.ok) {
       throw new Error(`E-Hentai gallery index returned ${response.status}.`);
@@ -210,7 +210,7 @@ const EMPTY_GIF = Uint8Array.from([
 ]);
 
 function emptyThumbnailResponse(): Response {
-  return cachedResourceResponse({
+  return createCachedResourceResponse({
     bytes: EMPTY_GIF,
     contentType: "image/gif"
   });

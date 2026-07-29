@@ -3,18 +3,14 @@ import type {
   ResourceCache
 } from "../../../resourceCache/diskResourceCache";
 import { parseDisplayedImageUrl } from "./html";
-import { mediaFileTypes } from "../../../utils/mediaTypes";
+import {
+  EHENTAI_CONTROL_REQUEST_TIMEOUT_MS,
+  EHENTAI_USER_AGENT,
+  readImageResource
+} from "./network";
 
-const USER_AGENT =
-  "Pixvitta media viewer (+https://github.com/raulferrodrigues/pixvitta)";
 const DEFAULT_INTERVAL_MS = 2_000;
-const PAGE_TIMEOUT_MS = 15_000;
 const IMAGE_TIMEOUT_MS = 60_000;
-const SUPPORTED_IMAGE_CONTENT_TYPES = new Set<string>(
-  mediaFileTypes
-    .filter((fileType) => fileType.kind === "image")
-    .map((fileType) => fileType.mimeType)
-);
 
 type ImagePipelineOptions = {
   fetchImpl?: typeof fetch;
@@ -44,19 +40,6 @@ function isApprovedDeliveryUrl(rawUrl: string): boolean {
   }
 }
 
-export function cachedResourceResponse(resource: CachedResource): Response {
-  const body = Uint8Array.from(resource.bytes).buffer;
-  return new Response(body, {
-    status: 200,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Content-Length": String(resource.bytes.byteLength),
-      "Content-Type": resource.contentType,
-      "Cross-Origin-Resource-Policy": "cross-origin"
-    }
-  });
-}
-
 /**
  * The only E-Hentai component allowed to resolve and transfer displayed image
  * bytes. Cache hits bypass the gate; every miss is serialized through it.
@@ -78,7 +61,8 @@ export class EHentaiImagePipeline {
     this.now = options.now ?? Date.now;
     this.wait =
       options.wait ??
-      ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
+      ((milliseconds) =>
+        new Promise((resolve) => setTimeout(resolve, milliseconds)));
     this.intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
   }
 
@@ -150,10 +134,10 @@ export class EHentaiImagePipeline {
       method: "GET",
       headers: {
         Accept: "text/html",
-        "User-Agent": USER_AGENT
+        "User-Agent": EHENTAI_USER_AGENT
       },
       redirect: "error",
-      signal: AbortSignal.timeout(PAGE_TIMEOUT_MS)
+      signal: AbortSignal.timeout(EHENTAI_CONTROL_REQUEST_TIMEOUT_MS)
     });
     if (!pageResponse.ok) {
       throw new Error(`The E-Hentai image page returned ${pageResponse.status}.`);
@@ -178,7 +162,7 @@ export class EHentaiImagePipeline {
       headers: {
         Accept: "image/*",
         Referer: imagePageUrl,
-        "User-Agent": USER_AGENT
+        "User-Agent": EHENTAI_USER_AGENT
       },
       redirect: "error",
       signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS)
@@ -187,17 +171,6 @@ export class EHentaiImagePipeline {
       throw new Error(`The E-Hentai image server returned ${imageResponse.status}.`);
     }
 
-    const contentType = imageResponse.headers.get("Content-Type")?.split(";")[0].trim();
-    if (!contentType || !SUPPORTED_IMAGE_CONTENT_TYPES.has(contentType)) {
-      throw new Error(
-        `E-Hentai returned an unsupported image type: ${contentType ?? "unknown"}.`
-      );
-    }
-
-    const bytes = new Uint8Array(await imageResponse.arrayBuffer());
-    if (bytes.byteLength === 0) {
-      throw new Error("The E-Hentai image server returned an empty image.");
-    }
-    return { bytes, contentType };
+    return readImageResource(imageResponse, "The E-Hentai image server");
   }
 }
