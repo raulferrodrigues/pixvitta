@@ -1,5 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import * as Tooltip from "@radix-ui/react-tooltip";
 import { GTProvider } from "gt-react";
 import gtConfig from "../../gt.config.json";
 import { App } from "./App";
@@ -22,7 +23,9 @@ async function renderApp() {
 
   createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
-      <GTProvider config={gtConfig} loadTranslations={loadTranslations}>{root}</GTProvider>
+      <Tooltip.Provider delayDuration={500} skipDelayDuration={250}>
+        <GTProvider config={gtConfig} loadTranslations={loadTranslations}>{root}</GTProvider>
+      </Tooltip.Provider>
     </React.StrictMode>
   );
 }
