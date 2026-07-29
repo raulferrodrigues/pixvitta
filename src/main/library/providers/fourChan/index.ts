@@ -21,6 +21,7 @@ const FOURCHAN_API_HOST = "a.4cdn.org";
 const FOURCHAN_MEDIA_HOST = "i.4cdn.org";
 const FOURCHAN_THREAD_HOSTS = new Set(["boards.4chan.org", "boards.4channel.org"]);
 const THREAD_REFRESH_MS = 10_000;
+const PREFETCH_COUNT = 5;
 const API_TIMEOUT_MS = 15_000;
 const MEDIA_TIMEOUT_MS = 60_000;
 const USER_AGENT =
@@ -318,6 +319,7 @@ export class FourChanProvider implements MediaProvider {
         "The thread does not contain supported media."
       );
     }
+    this.installMediaPrefetch(items, reference.pageUrl);
 
     const firstPost = posts[0];
     const subject =
@@ -413,6 +415,79 @@ export class FourChanProvider implements MediaProvider {
         }
       }
     };
+  }
+
+  private installMediaPrefetch(
+    items: ProviderMediaItem[],
+    pageUrl: string
+  ): void {
+    let selectedIndex: number | null = null;
+    let demandRevision = 0;
+
+    const prefetchOrderFrom = (index: number): number[] => {
+      const forward = Array.from(
+        {
+          length: Math.min(items.length, index + PREFETCH_COUNT + 1) - index - 1
+        },
+        (_, offset) => index + offset + 1
+      );
+      const backward = Array.from(
+        { length: Math.min(PREFETCH_COUNT, index) },
+        (_, offset) => index - offset - 1
+      );
+      return [...forward, ...backward];
+    };
+
+    const prefetch = async (
+      index: number,
+      revision: number
+    ): Promise<void> => {
+      for (const prefetchIndex of prefetchOrderFrom(index)) {
+        if (revision !== demandRevision) return;
+        const item = items[prefetchIndex];
+        if (!item?.externalUrl) continue;
+
+        try {
+          await this.getCachedFile(
+            `four-chan:media:${item.externalUrl}`,
+            item.externalUrl,
+            pageUrl,
+            item.kind === "image" ? "image/*" : "video/*",
+            item.kind === "image"
+              ? supportedImageContentTypes
+              : supportedVideoContentTypes,
+            "low"
+          );
+        } catch (error) {
+          console.error(
+            `[4chan] Could not prefetch media item ${prefetchIndex + 1}.`,
+            error
+          );
+          return;
+        }
+      }
+    };
+
+    items.forEach((item, index) => {
+      const respond = item.media.respond;
+      item.media = {
+        respond: async (request, priority) => {
+          const startsNewDemand =
+            priority === "high" && selectedIndex !== index;
+          let revision: number | null = null;
+          if (startsNewDemand) {
+            selectedIndex = index;
+            revision = ++demandRevision;
+          }
+
+          const response = await respond(request, priority);
+          if (revision !== null && revision === demandRevision) {
+            void prefetch(index, revision);
+          }
+          return response;
+        }
+      };
+    });
   }
 
   private respondWithCachedFile(

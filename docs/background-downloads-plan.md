@@ -138,6 +138,12 @@ The approved foundation work:
 9. Creates no replacement automated tests; the resulting behavior is manually
    tested.
 
+Both remote providers prefetch up to five following items and then five
+preceding items after the selected file is fully committed. Prefetch is
+sequential and low priority. A selection change prevents the old sequence from
+submitting another item; broker work that has already started is not
+interrupted.
+
 ## Decision log
 
 - 2026-07-27: Restarted from `dev`; no abandoned download code was reused.

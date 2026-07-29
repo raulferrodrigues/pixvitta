@@ -320,6 +320,13 @@ is not forwarded upstream on a cache miss. After the full file is committed,
 the provider serves the requested range from the local cached file. Multiple
 range requests arriving during acquisition join the same full-file promise.
 
+After a selected 4chan or E-Hentai item is committed, its provider prefetches
+up to five following items and then up to five preceding items, one at a time
+at low priority. A selection change stops that sequence from submitting more
+work. Work already active is allowed to complete, while a selected request for
+the same queued resource joins its provider acquisition and promotes the
+broker task.
+
 ## Request policies
 
 A provider may need to use endpoints governed by different usage limits. The
