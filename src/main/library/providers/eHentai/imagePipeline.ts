@@ -190,9 +190,10 @@ export class EHentaiImagePipeline {
         method: "GET",
         headers: {
           Accept: "image/*",
-          Referer: imagePageUrl,
           "User-Agent": USER_AGENT
         },
+        referrer: imagePageUrl,
+        referrerPolicy: "unsafe-url",
         redirect: "error",
         signal: AbortSignal.any([
           AbortSignal.timeout(IMAGE_TIMEOUT_MS),

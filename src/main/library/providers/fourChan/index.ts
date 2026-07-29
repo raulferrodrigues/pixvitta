@@ -502,9 +502,10 @@ export class FourChanProvider implements MediaProvider {
         method: "GET",
         headers: {
           Accept: accept,
-          Referer: pageUrl,
           "User-Agent": USER_AGENT
         },
+        referrer: pageUrl,
+        referrerPolicy: "unsafe-url",
         redirect: "error",
         signal: AbortSignal.timeout(MEDIA_TIMEOUT_MS)
       }),
