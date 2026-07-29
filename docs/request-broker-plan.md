@@ -2,7 +2,7 @@
 
 ## Status
 
-Planning and scaffolding. Public signatures and the per-policy queue-loop shape
+Implementation approved. Public signatures and the per-policy queue-loop shape
 exist, but provider networking has not been migrated and the broker and cache
 do not perform work yet.
 
@@ -33,8 +33,32 @@ The broker exposes two operations:
 The broker does not expose cancellation, retry, pause, resume, policy
 registration, direct queue mutation, or manual recovery operations.
 
-The initial signatures live in `src/main/requestBroker`. They may still be
-refined while the broker is implemented.
+The signatures live in `src/main/requestBroker`:
+
+```ts
+type RequestPriority = "high" | "normal" | "low";
+
+type RequestPolicy = Readonly<{
+  id: string;
+  delayMs: number;
+}>;
+
+type BrokerTask<T> = Readonly<{
+  result: Promise<T>;
+}>;
+
+type BrokerRequestOptions<T> = Readonly<{
+  policy: RequestPolicy;
+  priority: RequestPriority;
+  request: Request;
+  handleResponse(response: Response): Promise<T>;
+}>;
+```
+
+The process-wide `broker` singleton exposes `request` and `promote`. The
+generic response handler consumes or cancels the complete response body before
+settling. For media, it streams the complete body into the cache and does not
+settle until the cache entry is atomically committed.
 
 ## Enforcement
 
@@ -123,7 +147,7 @@ the raw local path or a `file://` URL is not exposed directly to the renderer.
 
 ### Cache storage API
 
-The persistent cache is one process-wide singleton with a small
+The session cache is one process-wide singleton with a small
 provider-facing API:
 
 ```ts
@@ -174,6 +198,18 @@ globally unique cache keys that include their provider and resource identity.
 The cache API does not construct responses, open read streams, or otherwise
 wrap ordinary Node filesystem access. The provider decides how to consume the
 file represented by `CachedFile`.
+
+The cache root is `<userData>/resource-cache/v1`. At app readiness one shared
+preparation promise removes that root and the legacy `<userData>/media-cache`
+tree, then recreates the new root. Every cache operation awaits the same
+preparation. Entries are immutable for the remainder of the app session and
+are not retained across restarts.
+
+Each cache key is hashed to one entry directory containing `file` and
+`metadata.json`. A write is completed in a unique temporary directory and
+becomes visible through one atomic directory rename. The metadata records the
+content type and completed byte length. Empty, malformed, or length-mismatched
+entries are invalid.
 
 ### Joining acquisition of the same resource
 
@@ -226,11 +262,14 @@ function getResource(cacheKey, requestedPriority) {
 
   inFlight[cacheKey] = entry;
 
-  entry.promise = acquireResource(cacheKey, entry).finally(() => {
+  entry.promise = acquireResource(cacheKey, entry);
+
+  const cleanup = () => {
     if (inFlight[cacheKey] === entry) {
       delete inFlight[cacheKey];
     }
-  });
+  };
+  void entry.promise.then(cleanup, cleanup);
 
   return entry.promise;
 }
@@ -238,8 +277,8 @@ function getResource(cacheKey, requestedPriority) {
 
 `acquireResource` covers the cache lookup, brokered network work, streamed
 write, and cache commit. Returning its promise lets every caller await the same
-complete operation. The `finally` cleanup is part of that promise and runs
-after success or failure.
+complete operation. Using both fulfillment and rejection cleanup handlers
+avoids creating an ignored rejected promise through `finally`.
 
 The cache remains unaware of callers and request priorities.
 
@@ -260,9 +299,26 @@ are still appropriate.
 The local-filesystem provider does not perform remote requests and does not
 need to enter the broker.
 
-The provider-facing media request path must eventually carry request priority
-to the provider so it can submit the corresponding broker request. The exact
-shape of that API has not been designed.
+The provider-facing media request path carries priority explicitly:
+
+```ts
+type MediaResource = {
+  respond(
+    request: Request,
+    priority: RequestPriority
+  ): Promise<Response>;
+};
+```
+
+Media protocol requests default to high priority, thumbnail requests use
+normal priority, and filmstrip fallback media marked with
+`intent=prefetch` uses low priority.
+
+Every remote image, thumbnail, and video is downloaded and committed in full
+before the provider returns a response to Chromium. An incoming browser range
+is not forwarded upstream on a cache miss. After the full file is committed,
+the provider serves the requested range from the local cached file. Multiple
+range requests arriving during acquisition join the same full-file promise.
 
 ## Request policies
 
@@ -281,6 +337,20 @@ Policies are ordinary provider-owned objects with globally unique, stable
 string IDs. The broker indexes process-lifetime queue state by that ID, so
 provider recreation cannot reset a pacing boundary. Reusing an ID with a
 different delay is a programming error.
+
+The initial policies are:
+
+| Policy ID | Delay after response handling |
+| --- | ---: |
+| `four-chan:api` | 1000 ms |
+| `four-chan:media` | 1000 ms |
+| `e-hentai:api` | 5000 ms |
+| `e-hentai:pages` | 1000 ms |
+| `e-hentai:images` | 2000 ms |
+| `e-hentai:thumbnails` | 200 ms |
+
+The delay begins only after the provider response handler completes. A media
+handler includes the complete disk write and atomic cache commit.
 
 ## Independent policy queues
 
@@ -364,7 +434,7 @@ can admit more work.
 ### Caller priorities
 
 The currently selected media uses high priority. Thumbnail requests use normal
-priority. Media prefetch and background downloads use low priority.
+priority. Media prefetch and future background downloads use low priority.
 
 These priorities affect ordering only among requests waiting in the same
 policy queue. They do not create ordering between independent policies.
@@ -408,14 +478,15 @@ Halting the broker:
 - rejects every queued provider request across every policy;
 - rejects all future provider requests;
 - prevents any policy from resuming independently;
-- sends a simple IPC notification to the renderer;
-- causes the renderer to show a non-dismissible modal explaining that the app
-  was throttled and cannot continue making provider requests.
+- shows one native Electron error dialog explaining that Pixvitta was
+  rate-limited and must quit;
+- exposes only a `Quit Pixvitta` action and quits when the dialog closes.
 
 Restarting the app creates a new broker session. There is no automatic retry,
 cooldown, probing, or in-session recovery after a terminal halt.
 
-The user must close the app and return later.
+The dialog closes the app; the user may return later by starting a new
+process.
 
 ## Ordinary failures
 

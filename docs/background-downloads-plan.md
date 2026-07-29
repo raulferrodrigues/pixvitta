@@ -2,7 +2,7 @@
 
 ## Status
 
-Planning. This document belongs to draft PR #15.
+Foundation implementation approved. This document belongs to draft PR #15.
 
 The download implementation abandoned before this PR is not a starting point.
 Its code and detailed product decisions are deliberately excluded. Draft PR #4
@@ -11,14 +11,12 @@ broker concept described below.
 
 ## Goal
 
-Design downloads as main-process work that can continue independently of the
-currently selected media while remaining subject to every provider's request,
-quota, authorization, and resource-validation rules.
+First implement the shared broker and full-file session cache that viewing and
+future downloads will use. Actual download jobs remain deferred.
 
-The first implementation scope is not decided yet. In particular, this plan
-does not yet assume collection downloads, persistence across restarts, a cache
-architecture, a destination layout, a concurrency level, or a particular
-downloads UI.
+Future downloads will be main-process work that can continue independently of
+the currently selected media while remaining subject to every provider's
+request, quota, authorization, and resource-validation rules.
 
 ## Retained architectural idea
 
@@ -34,10 +32,10 @@ The useful broker idea is:
   receiving a short-lived media URL cannot reset a pacing boundary;
 - callers describe the intent of queued work so interactive requests can be
   admitted before speculative or bulk background work;
-- queued requests can be canceled without consuming a request slot, and
-  cancellation of active work reaches the network transport;
-- rate-limit and quota signals can suspend the relevant queued work instead of
-  allowing a bulk job to keep probing the provider;
+- queued matching acquisitions can be promoted when a higher-priority caller
+  joins them;
+- a broker-wide HTTP 429 condition terminally stops provider traffic for the
+  current process;
 - download jobs ask a provider for authorized work, while the provider remains
   authoritative about whether and when its network request may start.
 
@@ -46,13 +44,13 @@ implementation or its exact policy model.
 
 ## Broker boundary
 
-The broker may own:
+The broker owns:
 
 - request admission time;
-- policy-scoped concurrency;
+- one serial worker per policy;
 - ordering between waiting request intents;
-- cancellation before and after admission;
-- policy suspension and resumption;
+- promotion of queued work;
+- terminal abort after HTTP 429;
 - enough state to prevent provider recreation from bypassing a limit.
 
 The broker must not own:
@@ -65,18 +63,21 @@ The broker must not own:
 - download job lifecycle or renderer presentation;
 - provider-specific interpretation of quota and throttle responses.
 
-A provider may translate a response such as HTTP 429 or E-Hentai HTTP 509 into
-a typed policy signal. The broker can enforce the resulting suspension, but it
-must not invent the provider's recovery policy.
+HTTP 429 has broker-wide terminal meaning. E-Hentai HTTP 509 remains
+provider-specific: it blocks later uncached full-image work for the rest of the
+session while cached images, metadata, and thumbnails remain usable.
 
 ## Existing provider constraints to preserve while planning
 
 These are current Pixvitta rules, not newly chosen broker defaults:
 
-- 4chan API calls are serialized and start no faster than one every 1.1
-  seconds; a thread is not refreshed more often than every 10 seconds.
+- 4chan API and full-media calls use independent serial policies with a
+  one-second delay after complete response handling; a thread is not refreshed
+  more often than every 10 seconds.
 - E-Hentai normal displayed-image transfers are serialized with at least two
-  seconds between starts.
+  seconds after complete response handling.
+- E-Hentai gallery and image-page requests use a one-second delay, and
+  thumbnail requests use a 200-millisecond delay.
 - E-Hentai original and force-reload paths must not be used implicitly.
 - E-Hentai HTTP 509 must stop automatic background full-image work rather than
   trigger retries.
@@ -90,42 +91,50 @@ discover an unpublished threshold.
 
 ## Product decisions
 
-The following decisions must be made before the download architecture is
-treated as settled:
+The deferred first download release will:
 
-1. Is the first release for individual downloads only, or individual and whole
-   collection downloads together?
-2. Should active downloads survive source navigation, closing the viewer
-   window, application exit, or some subset of those events?
-3. Which actions are required in the first UI: progress, cancel, retry, reveal,
-   clear, pause, or none?
-4. Is the OS Downloads directory always the destination, and do collections
-   receive their own folders?
-5. What constitutes the same completed download: provider identity, remote
-   resource identity, destination path, content identity, or a combination?
+- support individual downloads only;
+- keep active work alive across source navigation, but not app restart;
+- use the operating system Downloads directory;
+- reserve collision-free numbered filenames;
+- join duplicate active work;
+- create a numbered copy when the user downloads the same completed item
+  again;
+- add no download-manager UI.
+
+The current download button, IPC, renderer state, provider capability, and
+context-menu download action are removed during the foundation implementation.
+The later download design starts from the broker and cache rather than keeping
+the old implementation dormant.
+
+Every remote image, thumbnail, and video is downloaded to the session cache in
+full before a provider returns it to Chromium. Videos begin playing only after
+the complete file is committed and then seek through local byte-range
+responses. A future explicit download joins an in-progress full-file
+acquisition or copies the already committed cache file.
 ## Broker design decisions
 
 Detailed broker decisions are maintained in
-`docs/request-broker-plan.md`. The remaining open broker question is:
+`docs/request-broker-plan.md`. Diagnostics are deferred and are not part of
+the foundation implementation.
 
-- what diagnostics are necessary to explain why a request is waiting without
-  leaking browsing history, local paths, credentials, or media URLs.
+## Foundation implementation
 
-## Investigation before implementation
+The approved foundation work:
 
-1. Inventory every current provider network entry point and the request policy
-   it is supposed to follow.
-2. Verify the current 4chan and E-Hentai rules against their authoritative
-   sources without generating test traffic.
-3. Describe the download user experience and lifecycle independently of the
-   broker.
-4. Define a small provider-to-broker contract and a separate
-   provider-to-download contract.
-5. Specify cancellation, throttling, and shutdown state transitions.
-6. Decide which contracts are durable enough to deserve focused automated
-   tests.
-7. Implement one narrow vertical slice before adding collection scheduling,
-   persistence, or richer recovery.
+1. Implements the process-wide request broker with `request` and `promote`.
+2. Implements the process-wide session cache with `find`, `writeStream`, and
+   `writeFile`.
+3. Gives 4chan policies of 1000 ms for API work and 1000 ms for full media.
+4. Gives E-Hentai policies of 5000 ms for metadata, 1000 ms for pages, 2000 ms
+   for full images, and 200 ms for thumbnails.
+5. Migrates every 4chan and E-Hentai request to the broker.
+6. Fully caches remote images, thumbnails, and videos before use.
+7. Propagates high selected-media, normal thumbnail, and low prefetch
+   priorities.
+8. Removes the existing download feature and its dormant contracts.
+9. Creates no replacement automated tests; the resulting behavior is manually
+   tested.
 
 ## Decision log
 
@@ -143,3 +152,10 @@ Detailed broker decisions are maintained in
 - 2026-07-29: Chose globally unique string policy IDs whose queue state lasts
   for the main-process session. Added initial broker and cache signatures and
   the per-policy queue-loop scaffold.
+- 2026-07-29: Chose a session-only full-file cache. A provider returns remote
+  media only after the complete file is committed; cached videos then use
+  local range responses.
+- 2026-07-29: Finalized policy delays: 4chan API and media 1000 ms; E-Hentai
+  metadata 5000 ms, pages 1000 ms, images 2000 ms, and thumbnails 200 ms.
+- 2026-07-29: Deferred actual download jobs and chose to remove the existing
+  download UI and contracts before implementing the broker/cache foundation.
