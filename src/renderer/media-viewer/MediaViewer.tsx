@@ -1,6 +1,7 @@
 import { FolderOpen, StepForward } from "lucide-react";
 import { T, useGT } from "gt-react";
 import { WebSourceDialog } from "../controls/WebSourceDialog";
+import { DownloadActivityIndicator } from "../downloads/DownloadActivityIndicator";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { selectCurrentItem, selectIsCurrentItemBroken } from "../state/viewerSelectors";
 import { PrimaryButton } from "../ui/PrimaryButton";
@@ -17,6 +18,11 @@ export function MediaViewer() {
   const isCurrentItemBroken = useViewerStore(selectIsCurrentItemBroken);
   const openFolder = useViewerStore((state) => state.openFolder);
   const goNext = useViewerStore((state) => state.goNext);
+  const downloadActivityState = useViewerStore((state) =>
+    currentItem
+      ? state.downloadActivity.itemStates[currentItem.id]
+      : undefined
+  );
 
   return (
     <section className="media-viewer" aria-live="polite">
@@ -45,6 +51,11 @@ export function MediaViewer() {
         ) : currentItem.kind === "image" ? <ImageViewer item={currentItem} /> : <VideoViewer item={currentItem} />
       )}
       {loadState === "ready" && currentItem ? <MediaFilenameOverlay /> : null}
+      {loadState === "ready" && currentItem ? (
+        <div className="media-download-activity">
+          <DownloadActivityIndicator state={downloadActivityState} />
+        </div>
+      ) : null}
     </section>
   );
 }

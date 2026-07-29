@@ -37,6 +37,11 @@ const MEDIA_POLICY = {
   delayMs: 1_000
 } satisfies RequestPolicy;
 
+const THUMBNAIL_POLICY = {
+  id: "four-chan:thumbnails",
+  delayMs: 200
+} satisfies RequestPolicy;
+
 const supportedAttachmentKinds = new Map<string, MediaKind>([
   [".jpg", "image"],
   [".jpeg", "image"],
@@ -410,7 +415,8 @@ export class FourChanProvider implements MediaProvider {
               "image/*",
               supportedImageContentTypes,
               request,
-              priority
+              priority,
+              THUMBNAIL_POLICY
             )
         }
       }
@@ -497,7 +503,8 @@ export class FourChanProvider implements MediaProvider {
     accept: string,
     supportedTypes: ReadonlySet<string>,
     request: Request,
-    priority: RequestPriority
+    priority: RequestPriority,
+    policy: RequestPolicy = MEDIA_POLICY
   ): Promise<Response> {
     return this.getCachedFile(
       cacheKey,
@@ -505,7 +512,8 @@ export class FourChanProvider implements MediaProvider {
       pageUrl,
       accept,
       supportedTypes,
-      priority
+      priority,
+      policy
     ).then((file) =>
       createMediaFileResponse(
         file.filePath,
@@ -521,7 +529,8 @@ export class FourChanProvider implements MediaProvider {
     pageUrl: string,
     accept: string,
     supportedTypes: ReadonlySet<string>,
-    priority: RequestPriority
+    priority: RequestPriority,
+    policy: RequestPolicy = MEDIA_POLICY
   ): Promise<CachedFile> {
     const existing = this.inFlight[cacheKey];
     if (existing) {
@@ -547,7 +556,8 @@ export class FourChanProvider implements MediaProvider {
       pageUrl,
       accept,
       supportedTypes,
-      entry
+      entry,
+      policy
     );
     entry.promise = operation;
     const cleanup = () => {
@@ -565,13 +575,14 @@ export class FourChanProvider implements MediaProvider {
     pageUrl: string,
     accept: string,
     supportedTypes: ReadonlySet<string>,
-    entry: InFlightEntry
+    entry: InFlightEntry,
+    policy: RequestPolicy
   ): Promise<CachedFile> {
     const cached = await cache.find(cacheKey);
     if (cached) return cached;
 
     const task = broker.request<CachedFile>({
-      policy: MEDIA_POLICY,
+      policy,
       priority: entry.priority,
       request: new Request(remoteUrl, {
         method: "GET",

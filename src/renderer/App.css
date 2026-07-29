@@ -3,7 +3,10 @@
   width: 100vw;
   height: 100vh;
   min-width: 0;
-  grid-template-columns: var(--filmstrip-width, 0px) minmax(0, 1fr);
+  grid-template-columns:
+    var(--filmstrip-width, 0px)
+    minmax(0, 1fr)
+    var(--download-panel-width, 0px);
   grid-template-rows: 0 minmax(0, 1fr);
   overflow: hidden;
   background: var(--pix-bg);
@@ -15,9 +18,11 @@
 .app-shell .viewer-controls { grid-column: 2; grid-row: 1; }
 .app-shell .filmstrip { grid-column: 1; grid-row: 2; }
 .app-shell .media-viewer { grid-column: 2; grid-row: 2; }
+.app-shell .download-panel { grid-column: 3; grid-row: 2; }
 
 .app-shell.has-unobtrusive-controls .filmstrip,
-.app-shell.has-unobtrusive-controls .media-viewer { grid-row: 1 / -1; }
+.app-shell.has-unobtrusive-controls .media-viewer,
+.app-shell.has-unobtrusive-controls .download-panel { grid-row: 1 / -1; }
 
 .app-shell.has-unobtrusive-controls .topbar,
 .app-shell.has-unobtrusive-controls .viewer-controls { opacity: 0; }

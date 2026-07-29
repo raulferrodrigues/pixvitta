@@ -1,4 +1,4 @@
-import { Eye, EyeOff, FolderOpen, Maximize, Pause, Play, RefreshCw, Repeat, Repeat1, StepBack, StepForward } from "lucide-react";
+import { Check, CircleAlert, Download, Eye, EyeOff, FolderDown, FolderOpen, LoaderCircle, Maximize, Pause, Play, RefreshCw, Repeat, Repeat1, StepBack, StepForward } from "lucide-react";
 import { useGT } from "gt-react";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { selectCurrentItem, selectHasMedia } from "../state/viewerSelectors";
@@ -26,11 +26,36 @@ export function Controls() {
   const toggleVideoLoop = useViewerStore((state) => state.toggleVideoLoop);
   const toggleFullscreen = useViewerStore((state) => state.toggleFullscreen);
   const toggleUnobtrusiveControls = useViewerStore((state) => state.toggleUnobtrusiveControls);
+  const downloadCurrentMedia = useViewerStore(
+    (state) => state.downloadCurrentMedia
+  );
+  const downloadCollection = useViewerStore(
+    (state) => state.downloadCollection
+  );
+  const isCollectionDownloadActive = useViewerStore(
+    (state) => state.downloadActivity.collectionActive
+  );
+  const downloadActivityState = useViewerStore((state) =>
+    currentItem
+      ? state.downloadActivity.itemStates[currentItem.id]
+      : undefined
+  );
 
   if (!hasMedia) return null;
   const isVideo = currentItem?.kind === "video";
   const loopLabel = isVideoLooping ? gt("Disable video loop") : gt("Enable video loop");
   const unobtrusiveLabel = settings.unobtrusiveViewerControls ? gt("Disable unobtrusive controls") : gt("Enable unobtrusive controls");
+  const isDownloadActive =
+    downloadActivityState === "queued" ||
+    downloadActivityState === "active";
+  const downloadLabel =
+    isDownloadActive
+      ? gt("Downloading media")
+      : downloadActivityState === "complete"
+        ? gt("Download complete")
+        : downloadActivityState === "failed"
+          ? gt("Download failed. Try again")
+          : gt("Download media to Downloads");
 
   return (
     <div className="viewer-controls pointer-events-none px-3 max-[420px]:px-2" role="toolbar" aria-label={gt("Viewer controls")}>
@@ -72,6 +97,34 @@ export function Controls() {
               <IconButton label={gt("Enable video loop")} className="video-control-placeholder" disabled data-testid="video-loop-placeholder"><Repeat1 size={18} aria-hidden /></IconButton>
             )}
           </span>
+          {source?.capabilities.canOpenOrigin ? (
+            <IconButton
+              label={downloadLabel}
+              disabled={isDownloadActive}
+              data-testid="download-media"
+              onClick={() => void downloadCurrentMedia()}
+            >
+              {isDownloadActive ? (
+                <LoaderCircle className="animate-spin" size={17} aria-hidden />
+              ) : downloadActivityState === "complete" ? (
+                <Check size={17} aria-hidden />
+              ) : downloadActivityState === "failed" ? (
+                <CircleAlert size={17} aria-hidden />
+              ) : (
+                <Download size={17} aria-hidden />
+              )}
+            </IconButton>
+          ) : null}
+          {source?.capabilities.canOpenOrigin ? (
+            <IconButton
+              label={gt("Download collection")}
+              disabled={isCollectionDownloadActive}
+              data-testid="download-collection"
+              onClick={() => void downloadCollection()}
+            >
+              <FolderDown size={17} aria-hidden />
+            </IconButton>
+          ) : null}
           <IconButton label={gt("Toggle fullscreen")} onClick={() => void toggleFullscreen()}><Maximize size={17} aria-hidden /></IconButton>
           <IconButton label={unobtrusiveLabel} aria-pressed={settings.unobtrusiveViewerControls} data-testid="unobtrusive-controls-toggle" onClick={() => void toggleUnobtrusiveControls()}>
             {settings.unobtrusiveViewerControls ? <Eye size={17} aria-hidden /> : <EyeOff size={17} aria-hidden />}

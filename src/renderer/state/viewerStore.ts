@@ -1,5 +1,6 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type {
+  DownloadActivitySnapshot,
   MediaCollection,
   MediaItem,
   MediaSource,
@@ -37,6 +38,8 @@ export type ViewerState = {
   filmstripWidth: number;
   isFilmstripVisible: boolean;
   sourceOpenError: OpenSourceError | null;
+  downloadActivity: DownloadActivitySnapshot;
+  isDownloadPanelOpen: boolean;
 };
 
 export type ViewerActions = {
@@ -49,6 +52,10 @@ export type ViewerActions = {
   setSourceLoading(isLoading: boolean): void;
   showSourceError(error: OpenSourceError): void;
   refreshSource(): Promise<void>;
+  downloadCurrentMedia(): Promise<void>;
+  downloadCollection(): Promise<void>;
+  loadDownloadActivity(): Promise<void>;
+  applyDownloadActivity(snapshot: DownloadActivitySnapshot): void;
   refreshRecentSources(): Promise<void>;
   applyRecentSources(sources: RecentSource[]): void;
   loadSettings(): Promise<void>;
@@ -68,6 +75,7 @@ export type ViewerActions = {
   setImageView(zoom: number, panX: number, panY: number): void;
   resizeFilmstrip(width: number): void;
   toggleFilmstrip(): void;
+  toggleDownloadPanel(): void;
   toggleFullscreen(): Promise<void>;
   exitFullscreen(): Promise<void>;
 };
@@ -155,9 +163,20 @@ export function createViewerStore(
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
       isFilmstripVisible: true,
       sourceOpenError: null,
+      downloadActivity: {
+        revision: 0,
+        rows: [],
+        itemStates: {},
+        collectionActive: false
+      },
+      isDownloadPanelOpen: false,
 
       async initialize() {
-        await Promise.all([get().loadSettings(), get().refreshRecentSources()]);
+        await Promise.all([
+          get().loadSettings(),
+          get().refreshRecentSources(),
+          get().loadDownloadActivity()
+        ]);
       },
 
       async openFolder() {
@@ -218,6 +237,59 @@ export function createViewerStore(
           console.error(error);
           set({ isSourceLoading: false, sourceOpenError: "unavailable" });
         }
+      },
+
+      async downloadCurrentMedia() {
+        const state = get();
+        const item = selectCurrentItem(state);
+        if (!item || !state.source?.capabilities.canOpenOrigin) return;
+        try {
+          await api.downloadMedia(item.id);
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      async downloadCollection() {
+        const state = get();
+        if (
+          !state.source?.capabilities.canOpenOrigin ||
+          state.downloadActivity.collectionActive
+        ) {
+          return;
+        }
+        try {
+          await api.downloadCollection(
+            state.source.title,
+            state.items.map((item) => item.id)
+          );
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      async loadDownloadActivity() {
+        try {
+          get().applyDownloadActivity(await api.getDownloadActivity());
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      applyDownloadActivity(downloadActivity) {
+        set((state) => {
+          if (
+            downloadActivity.revision < state.downloadActivity.revision
+          ) {
+            return state;
+          }
+          return {
+            downloadActivity,
+            isDownloadPanelOpen:
+              downloadActivity.rows.length > 0 &&
+              state.isDownloadPanelOpen
+          };
+        });
       },
 
       async refreshRecentSources() {
@@ -384,6 +456,14 @@ export function createViewerStore(
 
       toggleFilmstrip() {
         set((state) => ({ isFilmstripVisible: !state.isFilmstripVisible }));
+      },
+
+      toggleDownloadPanel() {
+        set((state) => ({
+          isDownloadPanelOpen:
+            state.downloadActivity.rows.length > 0 &&
+            !state.isDownloadPanelOpen
+        }));
       },
 
       async toggleFullscreen() {

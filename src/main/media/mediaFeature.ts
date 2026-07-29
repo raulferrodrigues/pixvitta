@@ -5,6 +5,14 @@ import {
   showRemoteMediaContextMenu
 } from "./mediaContextMenu";
 import type { RequestPriority } from "../requestBroker";
+import { publishMainWindowDownloadActivity } from "../windows";
+import { DownloadManager } from "./downloadManager";
+
+const downloadManager = new DownloadManager({
+  downloadsDirectory: () =>
+    process.env.PIXVITTA_TEST_DOWNLOADS_PATH ?? app.getPath("downloads"),
+  publish: publishMainWindowDownloadActivity
+});
 
 function priorityFor(request: Request): RequestPriority {
   const url = new URL(request.url);
@@ -13,7 +21,9 @@ function priorityFor(request: Request): RequestPriority {
 }
 
 async function createMediaResponse(request: Request): Promise<Response> {
-  const resource = resolveMediaUrl(request.url);
+  const resource =
+    resolveMediaUrl(request.url) ??
+    downloadManager.resolveRetainedUrl(request.url);
   if (!resource) return new Response(null, { status: 404 });
 
   try {
@@ -34,10 +44,40 @@ function showMediaContextMenu(window: BrowserWindow, mediaId: unknown): boolean 
     return true;
   }
   if (item.externalUrl) {
-    showRemoteMediaContextMenu(window, item.externalUrl);
+    showRemoteMediaContextMenu(window, item.externalUrl, () => {
+      if (!downloadManager.start(item)) {
+        throw new Error("Pixvitta could not start this download.");
+      }
+    });
     return true;
   }
   return false;
+}
+
+function downloadMedia(mediaId: unknown): boolean {
+  if (typeof mediaId !== "string") return false;
+  const item = resolveMediaId(mediaId);
+  return item ? downloadManager.start(item) : false;
+}
+
+function downloadCollection(
+  collectionName: unknown,
+  mediaIds: unknown
+): boolean {
+  if (
+    typeof collectionName !== "string" ||
+    !collectionName.trim() ||
+    !Array.isArray(mediaIds) ||
+    mediaIds.length === 0
+  ) {
+    return false;
+  }
+  const items = mediaIds.flatMap((mediaId) => {
+    if (typeof mediaId !== "string") return [];
+    const item = resolveMediaId(mediaId);
+    return item ? [item] : [];
+  });
+  return downloadManager.startCollection(collectionName, items);
 }
 
 function registerMediaProtocolScheme(): void {
@@ -59,6 +99,21 @@ function registerMediaIpcHandler(): void {
   ipcMain.handle("media:show-context-menu", (event, mediaId: unknown) => {
     const window = BrowserWindow.fromWebContents(event.sender);
     return window ? showMediaContextMenu(window, mediaId) : false;
+  });
+  ipcMain.handle("media:download", (event, mediaId: unknown) => {
+    void event;
+    return downloadMedia(mediaId);
+  });
+  ipcMain.handle(
+    "media:download-collection",
+    (event, collectionName: unknown, mediaIds: unknown) => {
+      void event;
+      return downloadCollection(collectionName, mediaIds);
+    }
+  );
+  ipcMain.handle("media:get-download-activity", (event) => {
+    void event;
+    return downloadManager.getSnapshot();
   });
 }
 

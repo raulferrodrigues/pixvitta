@@ -2,6 +2,7 @@ import { Film } from "lucide-react";
 import { useGT } from "gt-react";
 import { type MouseEvent as ReactMouseEvent, type SyntheticEvent, useEffect, useRef, useState } from "react";
 import type { MediaItem } from "../../shared/media";
+import { DownloadActivityIndicator } from "../downloads/DownloadActivityIndicator";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { createMediaThumbnailDataUrl } from "./thumbnailCapture";
 
@@ -18,6 +19,9 @@ export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps)
   const gt = useGT();
   const hasMediaError = useViewerStore((state) => state.mediaErrors.has(item.id));
   const selectMedia = useViewerStore((state) => state.selectMedia);
+  const downloadActivityState = useViewerStore(
+    (state) => state.downloadActivity.itemStates[item.id]
+  );
   const [previewMode, setPreviewMode] = useState<PreviewMode>(
     item.thumbnailUrl ? "thumbnail" : "fallback"
   );
@@ -113,6 +117,9 @@ export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps)
           {item.kind === "video" && <span className="absolute bottom-[5px] right-[5px] inline-flex h-[22px] w-[22px] items-center justify-center rounded-full bg-pix-overlay text-pix-text" aria-hidden><Film size={14} /></span>}
         </>
       )}
+      <span className="download-thumbnail-activity">
+        <DownloadActivityIndicator state={downloadActivityState} compact />
+      </span>
     </button>
   );
 }

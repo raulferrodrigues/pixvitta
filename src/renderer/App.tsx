@@ -6,6 +6,7 @@ import { useAppLifecycle } from "./app/useAppLifecycle";
 import { useAutoHideControls } from "./app/useAutoHideControls";
 import { useKeyboardShortcuts } from "./app/useKeyboardShortcuts";
 import { Controls } from "./controls/Controls";
+import { DownloadPanel } from "./downloads/DownloadPanel";
 import { Filmstrip } from "./filmstrip/Filmstrip";
 import { SourceOpenError } from "./folder-picker/SourceOpenError";
 import { SourcePicker } from "./folder-picker/SourcePicker";
@@ -23,6 +24,12 @@ export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
   const hasMedia = useViewerStore(selectHasMedia);
   const filmstripWidth = useViewerStore((state) => state.filmstripWidth);
   const isFilmstripVisible = useViewerStore((state) => state.isFilmstripVisible);
+  const isDownloadPanelOpen = useViewerStore(
+    (state) => state.isDownloadPanelOpen
+  );
+  const hasDownloadActivity = useViewerStore(
+    (state) => state.downloadActivity.rows.length > 0
+  );
   const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
   const usesUnobtrusiveControls = useViewerStore((state) => state.settings.unobtrusiveViewerControls);
   const isControlsRevealed = useAutoHideControls(usesUnobtrusiveControls && hasMedia);
@@ -30,7 +37,11 @@ export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
   if (!source) return <SourcePicker buildInfo={buildInfo} />;
 
   const showFilmstrip = hasMedia && isFilmstripVisible;
-  const style = { "--filmstrip-width": showFilmstrip ? `${filmstripWidth}px` : "0px" } as CSSProperties;
+  const style = {
+    "--filmstrip-width": showFilmstrip ? `${filmstripWidth}px` : "0px",
+    "--download-panel-width":
+      isDownloadPanelOpen && hasDownloadActivity ? "248px" : "0px"
+  } as CSSProperties;
 
   return (
     <main
@@ -47,6 +58,9 @@ export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
       <Controls />
       {showFilmstrip ? <Filmstrip /> : null}
       <MediaViewer />
+      {isDownloadPanelOpen && hasDownloadActivity ? (
+        <DownloadPanel />
+      ) : null}
       {isSourceLoading ? (
         <div
           className="fixed left-1/2 top-[calc(var(--pix-topbar-height)+12px)] z-40 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-pix-border bg-pix-panel/95 px-4 py-2.5 text-sm text-pix-text shadow-xl"

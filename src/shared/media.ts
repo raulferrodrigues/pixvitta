@@ -44,3 +44,24 @@ export type OpenSourceError =
   | "unavailable"
   | "invalid-response"
   | "no-supported-media";
+
+export type DownloadActivityState =
+  | "queued"
+  | "active"
+  | "complete"
+  | "failed";
+
+export type DownloadActivityRow = {
+  id: string;
+  mediaId: string;
+  name: string;
+  thumbnailUrl: string | null;
+  state: DownloadActivityState;
+};
+
+export type DownloadActivitySnapshot = {
+  revision: number;
+  rows: DownloadActivityRow[];
+  itemStates: Record<string, DownloadActivityState>;
+  collectionActive: boolean;
+};

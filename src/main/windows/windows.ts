@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import type {
+  DownloadActivitySnapshot,
   MediaCollection,
   OpenSourceError
 } from "../../shared/media";
@@ -169,6 +170,22 @@ export function publishMainWindowSourceError(error: OpenSourceError): void {
     return;
   }
   pendingSourceError = error;
+}
+
+export function publishMainWindowDownloadActivity(
+  snapshot: DownloadActivitySnapshot
+): void {
+  if (
+    mainWindow &&
+    !mainWindow.isDestroyed() &&
+    mainWindowLoaded &&
+    mainWindowReady
+  ) {
+    mainWindow.webContents.send(
+      "media:download-activity-changed",
+      snapshot
+    );
+  }
 }
 
 export function publishMainWindowRecentSources(
