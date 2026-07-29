@@ -19,3 +19,5 @@ If the user doesn't explicit say that some new change should only be sent to dev
 # Special rules
 
 When doing work with web requests of any kind, check if there are rules to how many requests can be made and how fast they can be made. Always respect those limits.
+
+Never add _ before variables.

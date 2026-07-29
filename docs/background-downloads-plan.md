@@ -103,27 +103,11 @@ treated as settled:
    receive their own folders?
 5. What constitutes the same completed download: provider identity, remote
    resource identity, destination path, content identity, or a combination?
-6. Should viewing and downloading share stored bytes, or only share provider
-   admission and in-flight network work?
-
 ## Broker design decisions
 
-The following details from the abandoned implementation remain undecided:
+Detailed broker decisions are maintained in
+`docs/request-broker-plan.md`. The remaining open broker question is:
 
-- one process-wide broker versus a shared broker with provider-scoped
-  schedulers;
-- policy identifiers and their lifetime;
-- fixed priority tiers versus named request intents and provider-defined
-  ordering;
-- strict priority versus weighted fairness that prevents starvation;
-- whether queued work can be promoted when an interactive caller joins it;
-- minimum start intervals, concurrency limits, burst windows, and which
-  combinations the policy contract must express;
-- whether HTTP 429 suspends one policy, one provider, or all traffic;
-- how `Retry-After`, provider-specific cooldowns, and explicit recovery actions
-  resume a policy;
-- whether retries belong to the broker, the provider, the download job, or are
-  excluded initially;
 - what diagnostics are necessary to explain why a request is waiting without
   leaking browsing history, local paths, credentials, or media URLs.
 
@@ -148,3 +132,14 @@ The following details from the abandoned implementation remain undecided:
 - 2026-07-27: Restarted from `dev`; no abandoned download code was reused.
 - 2026-07-27: Retained the provider-governed request broker as an architectural
   direction, without retaining its implementation or exact policies.
+- 2026-07-29: Chose one main-process request-broker singleton with independent
+  provider-policy schedulers. Its public operations are `request` and
+  `promote`.
+- 2026-07-29: Chose strict high, normal, and low lanes within each policy.
+  Selected media is high, thumbnails are normal, and media prefetch and
+  background downloads are low. A caller can promote matching queued work.
+- 2026-07-29: Viewing and background downloads share completed cache entries
+  and in-progress provider acquisitions.
+- 2026-07-29: Chose globally unique string policy IDs whose queue state lasts
+  for the main-process session. Added initial broker and cache signatures and
+  the per-policy queue-loop scaffold.
