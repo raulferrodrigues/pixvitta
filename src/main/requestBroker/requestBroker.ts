@@ -11,6 +11,7 @@ type TaskState = "queued" | "active" | "completed";
 type QueuedTask = BrokerTask<unknown> & {
   priority: RequestPriority;
   request: Request;
+  timeoutMs: number | undefined;
   handleResponse(response: Response): Promise<unknown>;
   resolve(value: unknown): void;
   reject(error: unknown): void;
@@ -36,6 +37,10 @@ const queues: {
 let halted = false;
 let haltDialogShown = false;
 
+function debugBroker(message: string): void {
+  console.debug(`[request-broker ${new Date().toISOString()}] ${message}`);
+}
+
 class RequestBrokerHaltedError extends Error {
   constructor() {
     super("Provider requests are halted for the remainder of this app session.");
@@ -56,6 +61,7 @@ function getQueue(policy: RequestPolicy): RequestQueue {
   validatePolicy(policy);
   const existing = queues[policy.id];
   if (existing) {
+    // way too much defensive programming but whatever
     if (existing.delayMs !== policy.delayMs) {
       throw new Error(
         `Request policy "${policy.id}" was reused with a different delay.`
@@ -75,15 +81,6 @@ function getQueue(policy: RequestPolicy): RequestQueue {
   };
   queues[policy.id] = queue;
   return queue;
-}
-
-function takeNextTask(queue: RequestQueue): QueuedTask | null {
-  return (
-    queue.high.shift() ??
-    queue.normal.shift() ??
-    queue.low.shift() ??
-    null
-  );
 }
 
 function showHaltDialog(): void {
@@ -109,15 +106,6 @@ function showHaltDialog(): void {
     );
 }
 
-function rejectQueuedTasks(queue: RequestQueue, error: Error): void {
-  for (const lane of [queue.high, queue.normal, queue.low]) {
-    for (const task of lane.splice(0)) {
-      task.state = "completed";
-      task.reject(error);
-    }
-  }
-}
-
 function haltBroker(): RequestBrokerHaltedError {
   const error = new RequestBrokerHaltedError();
   if (halted) return error;
@@ -129,7 +117,13 @@ function haltBroker(): RequestBrokerHaltedError {
       queue.active.abortController?.abort(error);
       queue.active.reject(error);
     }
-    rejectQueuedTasks(queue, error);
+
+    for (const lane of [queue.high, queue.normal, queue.low]) {
+      for (const task of lane.splice(0)) {
+        task.state = "completed";
+        task.reject(error);
+      }
+    }
   }
   showHaltDialog();
   return error;
@@ -145,13 +139,17 @@ async function cancelBody(response: Response): Promise<void> {
 
 async function runTask(task: QueuedTask): Promise<void> {
   task.state = "active";
+  debugBroker(
+    `started policy=${task.queue.id} priority=${task.priority} timeoutMs=${task.timeoutMs ?? "none"}`
+  );
   const abortController = new AbortController();
   task.abortController = abortController;
+  const signals = [task.request.signal, abortController.signal];
+  if (task.timeoutMs !== undefined) {
+    signals.push(AbortSignal.timeout(task.timeoutMs));
+  }
   const request = new Request(task.request, {
-    signal: AbortSignal.any([
-      task.request.signal,
-      abortController.signal
-    ])
+    signal: AbortSignal.any(signals)
   });
 
   const response = await net.fetch(request);
@@ -162,10 +160,22 @@ async function runTask(task: QueuedTask): Promise<void> {
 
   const result = await task.handleResponse(response);
   task.resolve(result);
+  debugBroker(
+    `completed policy=${task.queue.id} priority=${task.priority} delayMs=${task.queue.delayMs}`
+  );
 }
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function takeNextTask(queue: RequestQueue): QueuedTask | null {
+  return (
+    queue.high.pop() ??
+    queue.normal.pop() ??
+    queue.low.shift() ??
+    null
+  );
 }
 
 async function runQueue(queue: RequestQueue): Promise<void> {
@@ -211,6 +221,12 @@ export const broker = {
    * Submits provider network work to the process-wide request broker.
    */
   request<T>(options: BrokerRequestOptions<T>): BrokerTask<T> {
+    if (
+      options.timeoutMs !== undefined &&
+      (!Number.isFinite(options.timeoutMs) || options.timeoutMs <= 0)
+    ) {
+      throw new Error("Request timeouts must be finite and positive.");
+    }
     const queue = getQueue(options.policy);
     let resolveResult!: (value: T | PromiseLike<T>) => void;
     let rejectResult!: (error: unknown) => void;
@@ -222,6 +238,7 @@ export const broker = {
       result,
       priority: options.priority,
       request: options.request,
+      timeoutMs: options.timeoutMs,
       handleResponse: options.handleResponse as (
         response: Response
       ) => Promise<unknown>,
@@ -256,6 +273,11 @@ export const broker = {
       !queuedTask.queue ||
       !queuedTask.priority
     ) {
+      if (queuedTask.queue && queuedTask.priority && queuedTask.state) {
+        debugBroker(
+          `promotion-skipped policy=${queuedTask.queue.id} current=${queuedTask.priority} requested=${priority} state=${queuedTask.state}`
+        );
+      }
       return;
     }
 
@@ -271,7 +293,11 @@ export const broker = {
     if (index < 0) return;
 
     lane.splice(index, 1);
+    const previousPriority = queuedTask.priority;
     queuedTask.priority = priority;
     queuedTask.queue[priority].push(queuedTask as QueuedTask);
+    debugBroker(
+      `promoted policy=${queuedTask.queue.id} priority=${previousPriority}->${priority}`
+    );
   }
 };

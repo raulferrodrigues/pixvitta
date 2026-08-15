@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   broker,
   type BrokerTask,
@@ -22,6 +23,7 @@ type InFlightEntry = {
   priority: RequestPriority;
   brokerTask: BrokerTask<unknown> | null;
   promise: Promise<CachedFile> | null;
+  shouldStart: () => boolean;
 };
 
 const priorityRanks: Record<RequestPriority, number> = {
@@ -29,6 +31,21 @@ const priorityRanks: Record<RequestPriority, number> = {
   normal: 1,
   high: 2
 };
+
+function acquisitionId(cacheKey: string): string {
+  return createHash("sha256").update(cacheKey).digest("hex").slice(0, 12);
+}
+
+function debugPriority(message: string): void {
+  console.debug(`[e-hentai-priority ${new Date().toISOString()}] ${message}`);
+}
+
+function isTimeoutError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.name === "TimeoutError"
+  );
+}
 
 export class ImageRequestSupersededError extends Error {
   constructor() {
@@ -88,17 +105,48 @@ export class EHentaiImagePipeline {
     cacheKey: string,
     imagePageUrl: string,
     priority: RequestPriority,
-    shouldStart: () => boolean = () => true
+    shouldStart: () => boolean = () => true,
+    retryJoinedTimeout = true
   ): Promise<CachedFile> {
+    const id = acquisitionId(cacheKey);
     const existing = this.inFlight[cacheKey];
     if (existing) {
-      if (priorityRanks[priority] > priorityRanks[existing.priority]) {
+      const joinedLowerPriority =
+        priorityRanks[priority] > priorityRanks[existing.priority];
+      const previousShouldStart = existing.shouldStart;
+      existing.shouldStart = () => previousShouldStart() || shouldStart();
+      if (joinedLowerPriority) {
+        const previousPriority = existing.priority;
         existing.priority = priority;
         if (existing.brokerTask) {
           broker.promote(existing.brokerTask, priority);
         }
+        debugPriority(
+          `joined id=${id} promoted=${previousPriority}->${priority} brokerTask=${existing.brokerTask ? "present" : "pending"}`
+        );
+      } else {
+        debugPriority(
+          `joined id=${id} requested=${priority} current=${existing.priority}`
+        );
       }
-      if (existing.promise) return existing.promise;
+      if (existing.promise) {
+        const shouldRetry =
+          retryJoinedTimeout &&
+          priority === "high" &&
+          joinedLowerPriority;
+        if (!shouldRetry) return existing.promise;
+        return existing.promise.catch((error) => {
+          if (!isTimeoutError(error) || !shouldStart()) throw error;
+          debugPriority(`retrying id=${id} priority=high after joined timeout`);
+          return this.get(
+            cacheKey,
+            imagePageUrl,
+            priority,
+            shouldStart,
+            false
+          );
+        });
+      }
       throw new Error(
         "An E-Hentai image acquisition was registered without a promise."
       );
@@ -107,14 +155,15 @@ export class EHentaiImagePipeline {
     const entry: InFlightEntry = {
       priority,
       brokerTask: null,
-      promise: null
+      promise: null,
+      shouldStart
     };
     this.inFlight[cacheKey] = entry;
+    debugPriority(`created id=${id} priority=${priority}`);
     const operation = this.acquire(
       cacheKey,
       imagePageUrl,
-      entry,
-      shouldStart
+      entry
     );
     entry.promise = operation;
     const cleanup = () => {
@@ -129,17 +178,20 @@ export class EHentaiImagePipeline {
   private async acquire(
     cacheKey: string,
     imagePageUrl: string,
-    entry: InFlightEntry,
-    shouldStart: () => boolean
+    entry: InFlightEntry
   ): Promise<CachedFile> {
     const cached = await cache.find(cacheKey);
     if (cached) return cached;
     if (this.imageLimitReached) throw new EHentaiImageLimitError();
-    if (!shouldStart()) throw new ImageRequestSupersededError();
+    if (!entry.shouldStart()) throw new ImageRequestSupersededError();
 
+    debugPriority(
+      `submitted id=${acquisitionId(cacheKey)} stage=image-page priority=${entry.priority}`
+    );
     const pageTask = broker.request<string>({
       policy: PAGES_POLICY,
       priority: entry.priority,
+      timeoutMs: PAGE_TIMEOUT_MS,
       request: new Request(imagePageUrl, {
         method: "GET",
         headers: {
@@ -147,10 +199,7 @@ export class EHentaiImagePipeline {
           "User-Agent": USER_AGENT
         },
         redirect: "error",
-        signal: AbortSignal.any([
-          AbortSignal.timeout(PAGE_TIMEOUT_MS),
-          this.imageLimitAbortController.signal
-        ])
+        signal: this.imageLimitAbortController.signal
       }),
       handleResponse: async (response) => {
         if (response.status === 509) {
@@ -181,11 +230,15 @@ export class EHentaiImagePipeline {
       );
     }
     if (this.imageLimitReached) throw new EHentaiImageLimitError();
-    if (!shouldStart()) throw new ImageRequestSupersededError();
+    if (!entry.shouldStart()) throw new ImageRequestSupersededError();
 
+    debugPriority(
+      `submitted id=${acquisitionId(cacheKey)} stage=image-file priority=${entry.priority}`
+    );
     const imageTask = broker.request<CachedFile>({
       policy: IMAGES_POLICY,
       priority: entry.priority,
+      timeoutMs: IMAGE_TIMEOUT_MS,
       request: new Request(deliveryUrl, {
         method: "GET",
         headers: {
@@ -195,10 +248,7 @@ export class EHentaiImagePipeline {
         referrer: imagePageUrl,
         referrerPolicy: "unsafe-url",
         redirect: "error",
-        signal: AbortSignal.any([
-          AbortSignal.timeout(IMAGE_TIMEOUT_MS),
-          this.imageLimitAbortController.signal
-        ])
+        signal: this.imageLimitAbortController.signal
       }),
       handleResponse: async (response) => {
         if (response.status === 509) {

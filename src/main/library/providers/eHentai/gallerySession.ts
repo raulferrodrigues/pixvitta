@@ -43,6 +43,10 @@ const priorityRanks: Record<RequestPriority, number> = {
   high: 2
 };
 
+function debugPriority(message: string): void {
+  console.debug(`[e-hentai-priority ${new Date().toISOString()}] ${message}`);
+}
+
 async function cancelResponse(response: Response): Promise<void> {
   try {
     await response.body?.cancel();
@@ -71,6 +75,7 @@ export class EHentaiGallerySession {
     }
 
     const isSelected = priority === "high";
+    debugPriority(`requested page=${pageNumber} priority=${priority}`);
     const revision = isSelected ? ++this.demandRevision : 0;
     if (isSelected) {
       this.desiredPages = new Set(this.windowFrom(pageNumber));
@@ -83,7 +88,9 @@ export class EHentaiGallerySession {
         page.pageUrl,
         priority,
         isSelected
-          ? () => this.desiredPages.has(pageNumber)
+          ? () =>
+              revision === this.demandRevision &&
+              !request.signal.aborted
           : () => true
       );
       if (isSelected && revision === this.demandRevision) {
@@ -147,12 +154,13 @@ export class EHentaiGallerySession {
     for (const pageNumber of this.prefetchOrderFrom(selectedPage)) {
       if (revision !== this.demandRevision) return;
       try {
-        const page = await this.resolvePage(pageNumber, "low");
+        debugPriority(`prefetch page=${pageNumber} priority=normal`);
+        const page = await this.resolvePage(pageNumber, "normal");
         if (revision !== this.demandRevision) return;
         await this.options.pipeline.get(
           this.cacheKey(page),
           page.pageUrl,
-          "low",
+          "normal",
           () =>
             revision === this.demandRevision &&
             this.desiredPages.has(pageNumber)
@@ -180,10 +188,14 @@ export class EHentaiGallerySession {
     let entry = this.indexRequests[key];
     if (entry) {
       if (priorityRanks[priority] > priorityRanks[entry.priority]) {
+        const previousPriority = entry.priority;
         entry.priority = priority;
         if (entry.brokerTask) {
           broker.promote(entry.brokerTask, priority);
         }
+        debugPriority(
+          `joined index=${indexPage} promoted=${previousPriority}->${priority} brokerTask=${entry.brokerTask ? "present" : "pending"}`
+        );
       }
     } else {
       entry = {
@@ -192,6 +204,7 @@ export class EHentaiGallerySession {
         promise: Promise.resolve()
       };
       this.indexRequests[key] = entry;
+      debugPriority(`created index=${indexPage} priority=${priority}`);
       entry.promise = this.loadIndexPage(indexPage, entry);
       const cleanup = () => {
         if (this.indexRequests[key] === entry) {
@@ -219,17 +232,20 @@ export class EHentaiGallerySession {
       indexPage === 0
         ? this.options.reference.pageUrl
         : `${this.options.reference.pageUrl}?p=${indexPage}`;
+    debugPriority(
+      `submitted index=${indexPage} stage=gallery-page priority=${entry.priority}`
+    );
     const task = broker.request<Map<number, EHentaiImagePageReference>>({
       policy: PAGES_POLICY,
       priority: entry.priority,
+      timeoutMs: REQUEST_TIMEOUT_MS,
       request: new Request(indexUrl, {
         method: "GET",
         headers: {
           Accept: "text/html",
           "User-Agent": USER_AGENT
         },
-        redirect: "error",
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+        redirect: "error"
       }),
       handleResponse: async (response) => {
         if (!response.ok) {

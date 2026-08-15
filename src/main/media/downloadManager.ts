@@ -13,6 +13,10 @@ import {
 
 const TERMINAL_STATE_VISIBLE_MS = 900;
 
+function debugDownload(message: string): void {
+  console.debug(`[download ${new Date().toISOString()}] ${message}`);
+}
+
 type DownloadJob = {
   id: string;
   key: string;
@@ -177,15 +181,22 @@ export class DownloadManager {
 
   private async perform(job: DownloadJob): Promise<void> {
     this.setState(job, "active");
+    const kind = job.key.startsWith("collection:")
+      ? "collection"
+      : "individual";
+    debugDownload(`started kind=${kind} name=${JSON.stringify(job.name)}`);
     try {
       const response = await job.item.media.respond(
         new Request(`pixvitta-media://media/${job.mediaId}?intent=download`),
         "low"
       );
-      await writeMediaDownload(
+      const downloadPath = await writeMediaDownload(
         job.directory,
         job.name,
         response
+      );
+      debugDownload(
+        `completed kind=${kind} file=${JSON.stringify(path.basename(downloadPath))} directory=${JSON.stringify(path.basename(path.dirname(downloadPath)))}`
       );
       this.setState(job, "complete");
     } catch (error) {

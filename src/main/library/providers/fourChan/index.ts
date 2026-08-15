@@ -223,11 +223,11 @@ export class FourChanProvider implements MediaProvider {
     }>({
       policy: API_POLICY,
       priority: "high",
+      timeoutMs: API_TIMEOUT_MS,
       request: new Request(reference.apiUrl, {
         method: "GET",
         headers,
-        redirect: "error",
-        signal: AbortSignal.timeout(API_TIMEOUT_MS)
+        redirect: "error"
       }),
       handleResponse: async (response) => {
         if (response.status === 304 && cached) {
@@ -462,7 +462,7 @@ export class FourChanProvider implements MediaProvider {
             item.kind === "image"
               ? supportedImageContentTypes
               : supportedVideoContentTypes,
-            "low"
+            "normal"
           );
         } catch (error) {
           console.error(
@@ -584,6 +584,7 @@ export class FourChanProvider implements MediaProvider {
     const task = broker.request<CachedFile>({
       policy,
       priority: entry.priority,
+      timeoutMs: MEDIA_TIMEOUT_MS,
       request: new Request(remoteUrl, {
         method: "GET",
         headers: {
@@ -592,8 +593,7 @@ export class FourChanProvider implements MediaProvider {
         },
         referrer: pageUrl,
         referrerPolicy: "unsafe-url",
-        redirect: "error",
-        signal: AbortSignal.timeout(MEDIA_TIMEOUT_MS)
+        redirect: "error"
       }),
       handleResponse: async (response) => {
         if (!response.ok) {

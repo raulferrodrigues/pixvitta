@@ -218,6 +218,7 @@ export class EHentaiProvider implements MediaProvider {
     const task = broker.request<GalleryMetadata>({
       policy: API_POLICY,
       priority: "high",
+      timeoutMs: REQUEST_TIMEOUT_MS,
       request: new Request(API_URL, {
         method: "POST",
         headers: {
@@ -232,8 +233,7 @@ export class EHentaiProvider implements MediaProvider {
           ],
           namespace: 1
         }),
-        redirect: "error",
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+        redirect: "error"
       }),
       handleResponse: async (response) => {
         if (response.status === 503) {

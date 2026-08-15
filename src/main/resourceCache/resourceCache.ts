@@ -60,8 +60,16 @@ function normalizedContentType(contentType: string): string {
   return normalized;
 }
 
+function cacheEntryId(cacheKey: string): string {
+  return createHash("sha256").update(cacheKey).digest("hex");
+}
+
+function debugCache(message: string): void {
+  console.debug(`[resource-cache ${new Date().toISOString()}] ${message}`);
+}
+
 function entryPaths(cacheKey: string): EntryPaths {
-  const hash = createHash("sha256").update(cacheKey).digest("hex");
+  const hash = cacheEntryId(cacheKey);
   const directory = path.join(cacheRoot(), hash);
   return {
     directory,
@@ -153,11 +161,15 @@ async function commitTemporaryEntry(
     throw error;
   }
 
-  return {
+  const file = {
     filePath: paths.file,
     contentType,
     byteLength
   };
+  debugCache(
+    `committed id=${cacheEntryId(cacheKey)} bytes=${byteLength} type=${contentType}`
+  );
+  return file;
 }
 
 async function writeEntry(
@@ -169,7 +181,7 @@ async function writeEntry(
   const normalizedType = normalizedContentType(contentType);
   await preparation;
 
-  const hash = createHash("sha256").update(cacheKey).digest("hex");
+  const hash = cacheEntryId(cacheKey);
   const temporaryDirectory = path.join(
     cacheRoot(),
     `.part-${hash}-${process.pid}-${randomUUID()}`
@@ -202,7 +214,13 @@ export const cache = {
   async find(cacheKey: string): Promise<CachedFile | null> {
     validateCacheKey(cacheKey);
     await preparation;
-    return findCompleted(cacheKey);
+    const file = await findCompleted(cacheKey);
+    debugCache(
+      file
+        ? `hit id=${cacheEntryId(cacheKey)} bytes=${file.byteLength} type=${file.contentType}`
+        : `miss id=${cacheEntryId(cacheKey)}`
+    );
+    return file;
   },
 
   /**

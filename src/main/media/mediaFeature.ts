@@ -17,7 +17,7 @@ const downloadManager = new DownloadManager({
 function priorityFor(request: Request): RequestPriority {
   const url = new URL(request.url);
   if (url.hostname === "thumbnail") return "normal";
-  return url.searchParams.get("intent") === "prefetch" ? "low" : "high";
+  return url.searchParams.get("intent") === "prefetch" ? "normal" : "high";
 }
 
 async function createMediaResponse(request: Request): Promise<Response> {

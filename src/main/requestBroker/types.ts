@@ -21,5 +21,6 @@ export type BrokerRequestOptions<T> = Readonly<{
   policy: RequestPolicy;
   priority: RequestPriority;
   request: Request;
+  timeoutMs?: number;
   handleResponse(response: Response): Promise<T>;
 }>;

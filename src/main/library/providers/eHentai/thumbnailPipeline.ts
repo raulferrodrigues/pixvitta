@@ -109,14 +109,14 @@ export class EHentaiThumbnailPipeline {
     const task = broker.request<CachedFile>({
       policy: THUMBNAILS_POLICY,
       priority: entry.priority,
+      timeoutMs: REQUEST_TIMEOUT_MS,
       request: new Request(thumbnailUrl, {
         method: "GET",
         headers: {
           Accept: "image/*",
           "User-Agent": USER_AGENT
         },
-        redirect: "error",
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+        redirect: "error"
       }),
       handleResponse: async (response) => {
         if (!response.ok) {
