@@ -35,6 +35,13 @@ function isMediaScaleMode(value: unknown): value is MediaScaleMode {
   return value === "native-or-smaller" || value === "fit-window";
 }
 
+function normalizeVideoVolume(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return defaultSettings.videoVolume;
+  }
+  return Math.min(1, Math.max(0, value));
+}
+
 // Treat settings loaded from disk, or received over IPC, as untrusted input. The
 // renderer gets back a complete AppSettings object even if the JSON file was
 // manually edited or came from an older Pixvitta build.
@@ -44,6 +51,8 @@ export function sanitizeSettings(value: unknown): AppSettings {
     videoAutoplay: typeof raw.videoAutoplay === "boolean" ? raw.videoAutoplay : defaultSettings.videoAutoplay,
     videoLoopByDefault:
       typeof raw.videoLoopByDefault === "boolean" ? raw.videoLoopByDefault : defaultSettings.videoLoopByDefault,
+    videoVolume: normalizeVideoVolume(raw.videoVolume),
+    videoMuted: typeof raw.videoMuted === "boolean" ? raw.videoMuted : defaultSettings.videoMuted,
     fileOrder: normalizeFileOrder(raw.fileOrder) ?? defaultSettings.fileOrder,
     wrapNavigation: typeof raw.wrapNavigation === "boolean" ? raw.wrapNavigation : defaultSettings.wrapNavigation,
     includeHidden: typeof raw.includeHidden === "boolean" ? raw.includeHidden : defaultSettings.includeHidden,

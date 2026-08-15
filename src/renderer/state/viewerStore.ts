@@ -20,6 +20,7 @@ export type ViewerLoadState = "idle" | "loading" | "ready" | "empty" | "error";
 export const DEFAULT_FILMSTRIP_WIDTH = 168;
 export const MIN_FILMSTRIP_WIDTH = 128;
 export const MAX_FILMSTRIP_WIDTH = 320;
+const VIDEO_AUDIO_SAVE_DELAY_MS = 250;
 
 export type ViewerState = {
   source: MediaSource | null;
@@ -70,6 +71,7 @@ export type ViewerActions = {
   toggleVideoPlayback(): Promise<void>;
   seekVideoBy(seconds: number): boolean;
   setVideoPlaying(isPlaying: boolean): void;
+  setVideoAudio(volume: number, muted: boolean): void;
   toggleVideoLoop(): void;
   zoomCurrentImage(multiplier: number): void;
   setImageView(zoom: number, panX: number, panY: number): void;
@@ -112,6 +114,7 @@ export function createViewerStore(
 ): ViewerStoreApi {
   let settingsSaveRevision = 0;
   let recentSourcesRevision = 0;
+  let videoAudioSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   return createStore<ViewerStore>((set, get) => {
     const applySettingsState = (settings: AppSettings) => {
@@ -320,6 +323,43 @@ export function createViewerStore(
       applySettings(settings: AppSettings) {
         settingsSaveRevision += 1;
         applySettingsState(settings);
+      },
+
+      setVideoAudio(volume: number, muted: boolean) {
+        const videoVolume = Math.min(1, Math.max(0, volume));
+        const currentSettings = get().settings;
+        if (
+          currentSettings.videoVolume === videoVolume &&
+          currentSettings.videoMuted === muted
+        ) {
+          return;
+        }
+
+        set({
+          settings: {
+            ...currentSettings,
+            videoVolume,
+            videoMuted: muted
+          }
+        });
+
+        if (videoAudioSaveTimer) clearTimeout(videoAudioSaveTimer);
+        videoAudioSaveTimer = setTimeout(() => {
+          videoAudioSaveTimer = null;
+          const settings = get().settings;
+          const revision = settingsSaveRevision + 1;
+          settingsSaveRevision = revision;
+          void api.saveSettings(settings).then(
+            (savedSettings) => {
+              if (revision === settingsSaveRevision) {
+                applySettingsState(savedSettings);
+              }
+            },
+            (error: unknown) => {
+              if (revision === settingsSaveRevision) console.error(error);
+            }
+          );
+        }, VIDEO_AUDIO_SAVE_DELAY_MS);
       },
 
       async setFileOrder(fileOrder: FileOrder) {
