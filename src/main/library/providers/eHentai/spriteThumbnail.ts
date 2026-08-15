@@ -1,5 +1,9 @@
-import type { CachedResource } from "../../../resourceCache/diskResourceCache";
 import type { EHentaiThumbnailReference } from "./html";
+
+type CachedBytes = {
+  bytes: Uint8Array;
+  contentType: string;
+};
 
 type SpriteCrop = Extract<
   EHentaiThumbnailReference,
@@ -86,9 +90,9 @@ function isValidCrop(crop: SpriteCrop, source: ImageSize): boolean {
  * Chromium apply the provider-owned crop without exposing the upstream URL.
  */
 export function renderSpriteThumbnail(
-  sprite: CachedResource,
+  sprite: CachedBytes,
   crop: SpriteCrop
-): CachedResource {
+): CachedBytes {
   if (sprite.contentType !== "image/webp") {
     throw new Error("E-Hentai returned a non-WebP thumbnail sprite.");
   }

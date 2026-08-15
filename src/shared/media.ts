@@ -1,7 +1,6 @@
 export type MediaKind = "image" | "video";
 
 export type MediaSourceCapabilities = {
-  canDownload: boolean;
   canRefresh: boolean;
   canSort: boolean;
   canOpenOrigin: boolean;
@@ -46,6 +45,23 @@ export type OpenSourceError =
   | "invalid-response"
   | "no-supported-media";
 
-export type DownloadMediaResult =
-  | { ok: true; fileName: string }
-  | { ok: false };
+export type DownloadActivityState =
+  | "queued"
+  | "active"
+  | "complete"
+  | "failed";
+
+export type DownloadActivityRow = {
+  id: string;
+  mediaId: string;
+  name: string;
+  thumbnailUrl: string | null;
+  state: DownloadActivityState;
+};
+
+export type DownloadActivitySnapshot = {
+  revision: number;
+  rows: DownloadActivityRow[];
+  itemStates: Record<string, DownloadActivityState>;
+  collectionActive: boolean;
+};

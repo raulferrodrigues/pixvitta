@@ -1,4 +1,4 @@
-import { Check, CircleAlert, Download, Eye, EyeOff, FolderOpen, LoaderCircle, Maximize, Pause, Play, RefreshCw, Repeat, Repeat1, StepBack, StepForward } from "lucide-react";
+import { Check, CircleAlert, Download, Eye, EyeOff, FolderDown, FolderOpen, LoaderCircle, Maximize, Pause, Play, RefreshCw, Repeat, Repeat1, StepBack, StepForward } from "lucide-react";
 import { useGT } from "gt-react";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { selectCurrentItem, selectHasMedia } from "../state/viewerSelectors";
@@ -16,8 +16,6 @@ export function Controls() {
   const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
   const isVideoPlaying = useViewerStore((state) => state.isVideoPlaying);
   const isVideoLooping = useViewerStore((state) => state.isVideoLooping);
-  const downloadState = useViewerStore((state) => state.downloadState);
-  const downloadedFileName = useViewerStore((state) => state.downloadedFileName);
   const settings = useViewerStore((state) => state.settings);
   const openFolder = useViewerStore((state) => state.openFolder);
   const refreshSource = useViewerStore((state) => state.refreshSource);
@@ -28,18 +26,34 @@ export function Controls() {
   const toggleVideoLoop = useViewerStore((state) => state.toggleVideoLoop);
   const toggleFullscreen = useViewerStore((state) => state.toggleFullscreen);
   const toggleUnobtrusiveControls = useViewerStore((state) => state.toggleUnobtrusiveControls);
-  const downloadCurrentMedia = useViewerStore((state) => state.downloadCurrentMedia);
+  const downloadCurrentMedia = useViewerStore(
+    (state) => state.downloadCurrentMedia
+  );
+  const downloadCollection = useViewerStore(
+    (state) => state.downloadCollection
+  );
+  const isCollectionDownloadActive = useViewerStore(
+    (state) => state.downloadActivity.collectionActive
+  );
+  const downloadActivityState = useViewerStore((state) =>
+    currentItem
+      ? state.downloadActivity.itemStates[currentItem.id]
+      : undefined
+  );
 
   if (!hasMedia) return null;
   const isVideo = currentItem?.kind === "video";
   const loopLabel = isVideoLooping ? gt("Disable video loop") : gt("Enable video loop");
   const unobtrusiveLabel = settings.unobtrusiveViewerControls ? gt("Disable unobtrusive controls") : gt("Enable unobtrusive controls");
+  const isDownloadActive =
+    downloadActivityState === "queued" ||
+    downloadActivityState === "active";
   const downloadLabel =
-    downloadState === "downloading"
+    isDownloadActive
       ? gt("Downloading media")
-      : downloadState === "downloaded" && downloadedFileName
-        ? gt("Downloaded {name} to Downloads", { name: downloadedFileName })
-        : downloadState === "error"
+      : downloadActivityState === "complete"
+        ? gt("Download complete")
+        : downloadActivityState === "failed"
           ? gt("Download failed. Try again")
           : gt("Download media to Downloads");
 
@@ -83,22 +97,32 @@ export function Controls() {
               <IconButton label={gt("Enable video loop")} className="video-control-placeholder" disabled data-testid="video-loop-placeholder"><Repeat1 size={18} aria-hidden /></IconButton>
             )}
           </span>
-          {source?.capabilities.canDownload ? (
+          {source?.capabilities.canOpenOrigin ? (
             <IconButton
               label={downloadLabel}
-              disabled={downloadState === "downloading"}
+              disabled={isDownloadActive}
               data-testid="download-media"
               onClick={() => void downloadCurrentMedia()}
             >
-              {downloadState === "downloading" ? (
+              {isDownloadActive ? (
                 <LoaderCircle className="animate-spin" size={17} aria-hidden />
-              ) : downloadState === "downloaded" ? (
+              ) : downloadActivityState === "complete" ? (
                 <Check size={17} aria-hidden />
-              ) : downloadState === "error" ? (
+              ) : downloadActivityState === "failed" ? (
                 <CircleAlert size={17} aria-hidden />
               ) : (
                 <Download size={17} aria-hidden />
               )}
+            </IconButton>
+          ) : null}
+          {source?.capabilities.canOpenOrigin ? (
+            <IconButton
+              label={gt("Download collection")}
+              disabled={isCollectionDownloadActive}
+              data-testid="download-collection"
+              onClick={() => void downloadCollection()}
+            >
+              <FolderDown size={17} aria-hidden />
             </IconButton>
           ) : null}
           <IconButton label={gt("Toggle fullscreen")} onClick={() => void toggleFullscreen()}><Maximize size={17} aria-hidden /></IconButton>

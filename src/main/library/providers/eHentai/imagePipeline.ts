@@ -1,13 +1,16 @@
-import type {
-  CachedResource,
-  ResourceCache
-} from "../../../resourceCache/diskResourceCache";
-import { parseDisplayedImageUrl } from "./html";
+import { createHash } from "node:crypto";
+import {
+  broker,
+  type BrokerTask,
+  type RequestPriority
+} from "../../../requestBroker";
+import { cache, type CachedFile } from "../../../resourceCache";
 import { mediaFileTypes } from "../../../utils/mediaTypes";
+import { parseDisplayedImageUrl } from "./html";
+import { IMAGES_POLICY, PAGES_POLICY } from "./requestPolicies";
 
 const USER_AGENT =
   "Pixvitta media viewer (+https://github.com/raulferrodrigues/pixvitta)";
-const DEFAULT_INTERVAL_MS = 2_000;
 const PAGE_TIMEOUT_MS = 15_000;
 const IMAGE_TIMEOUT_MS = 60_000;
 const SUPPORTED_IMAGE_CONTENT_TYPES = new Set<string>(
@@ -16,17 +19,45 @@ const SUPPORTED_IMAGE_CONTENT_TYPES = new Set<string>(
     .map((fileType) => fileType.mimeType)
 );
 
-type ImagePipelineOptions = {
-  fetchImpl?: typeof fetch;
-  now?: () => number;
-  wait?: (milliseconds: number) => Promise<void>;
-  intervalMs?: number;
+type InFlightEntry = {
+  priority: RequestPriority;
+  brokerTask: BrokerTask<unknown> | null;
+  promise: Promise<CachedFile> | null;
+  shouldStart: () => boolean;
 };
+
+const priorityRanks: Record<RequestPriority, number> = {
+  low: 0,
+  normal: 1,
+  high: 2
+};
+
+function acquisitionId(cacheKey: string): string {
+  return createHash("sha256").update(cacheKey).digest("hex").slice(0, 12);
+}
+
+function debugPriority(message: string): void {
+  console.debug(`[e-hentai-priority ${new Date().toISOString()}] ${message}`);
+}
+
+function isTimeoutError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.name === "TimeoutError"
+  );
+}
 
 export class ImageRequestSupersededError extends Error {
   constructor() {
     super("The image is no longer in the active demand window.");
     this.name = "ImageRequestSupersededError";
+  }
+}
+
+class EHentaiImageLimitError extends Error {
+  constructor() {
+    super("E-Hentai image viewing limits have been reached for this session.");
+    this.name = "EHentaiImageLimitError";
   }
 }
 
@@ -37,167 +68,229 @@ function isApprovedDeliveryUrl(rawUrl: string): boolean {
       url.protocol === "https:" &&
       !url.username &&
       !url.password &&
-      (url.hostname === "e-hentai.org" || url.hostname.endsWith(".hath.network"))
+      (url.hostname === "e-hentai.org" ||
+        url.hostname.endsWith(".hath.network"))
     );
   } catch {
     return false;
   }
 }
 
-export function cachedResourceResponse(resource: CachedResource): Response {
-  const body = Uint8Array.from(resource.bytes).buffer;
-  return new Response(body, {
-    status: 200,
-    headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Content-Length": String(resource.bytes.byteLength),
-      "Content-Type": resource.contentType,
-      "Cross-Origin-Resource-Policy": "cross-origin"
-    }
-  });
+async function cancelResponse(response: Response): Promise<void> {
+  try {
+    await response.body?.cancel();
+  } catch {
+    // The pipeline is already rejecting this response.
+  }
 }
 
-/**
- * The only E-Hentai component allowed to resolve and transfer displayed image
- * bytes. Cache hits bypass the gate; every miss is serialized through it.
- */
+function contentTypeFor(response: Response): string | null {
+  return (
+    response.headers
+      .get("Content-Type")
+      ?.split(";")[0]
+      .trim()
+      .toLowerCase() ?? null
+  );
+}
+
 export class EHentaiImagePipeline {
-  private readonly fetchImpl: typeof fetch;
-  private readonly now: () => number;
-  private readonly wait: (milliseconds: number) => Promise<void>;
-  private readonly intervalMs: number;
-  private readonly inFlight = new Map<string, Promise<CachedResource>>();
-  private queue: Promise<void> = Promise.resolve();
-  private lastTransferStartedAtMs: number | null = null;
+  private readonly inFlight: {
+    [cacheKey: string]: InFlightEntry | undefined;
+  } = {};
+  private imageLimitReached = false;
+  private readonly imageLimitAbortController = new AbortController();
 
-  constructor(
-    private readonly cache: ResourceCache,
-    options: ImagePipelineOptions = {}
-  ) {
-    this.fetchImpl = options.fetchImpl ?? fetch;
-    this.now = options.now ?? Date.now;
-    this.wait =
-      options.wait ??
-      ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds)));
-    this.intervalMs = options.intervalMs ?? DEFAULT_INTERVAL_MS;
-  }
-
-  async get(
+  get(
     cacheKey: string,
     imagePageUrl: string,
-    shouldStart: () => boolean = () => true
-  ): Promise<CachedResource> {
-    const cached = await this.cache.read(cacheKey);
-    if (cached) return cached;
-
-    const existing = this.inFlight.get(cacheKey);
-    if (existing) return existing;
-
-    const operation = this.enqueue(async () => {
-      const queuedCacheHit = await this.cache.read(cacheKey);
-      if (queuedCacheHit) return queuedCacheHit;
-
-      if (!shouldStart()) throw new ImageRequestSupersededError();
-      const deliveryUrl = await this.resolveDisplayedImageUrl(imagePageUrl);
-      await this.waitForTransferSlot(shouldStart);
-      const resource = await this.fetchDisplayedImage(
-        deliveryUrl,
-        imagePageUrl
+    priority: RequestPriority,
+    shouldStart: () => boolean = () => true,
+    retryJoinedTimeout = true
+  ): Promise<CachedFile> {
+    const id = acquisitionId(cacheKey);
+    const existing = this.inFlight[cacheKey];
+    if (existing) {
+      const joinedLowerPriority =
+        priorityRanks[priority] > priorityRanks[existing.priority];
+      const previousShouldStart = existing.shouldStart;
+      existing.shouldStart = () => previousShouldStart() || shouldStart();
+      if (joinedLowerPriority) {
+        const previousPriority = existing.priority;
+        existing.priority = priority;
+        if (existing.brokerTask) {
+          broker.promote(existing.brokerTask, priority);
+        }
+        debugPriority(
+          `joined id=${id} promoted=${previousPriority}->${priority} brokerTask=${existing.brokerTask ? "present" : "pending"}`
+        );
+      } else {
+        debugPriority(
+          `joined id=${id} requested=${priority} current=${existing.priority}`
+        );
+      }
+      if (existing.promise) {
+        const shouldRetry =
+          retryJoinedTimeout &&
+          priority === "high" &&
+          joinedLowerPriority;
+        if (!shouldRetry) return existing.promise;
+        return existing.promise.catch((error) => {
+          if (!isTimeoutError(error) || !shouldStart()) throw error;
+          debugPriority(`retrying id=${id} priority=high after joined timeout`);
+          return this.get(
+            cacheKey,
+            imagePageUrl,
+            priority,
+            shouldStart,
+            false
+          );
+        });
+      }
+      throw new Error(
+        "An E-Hentai image acquisition was registered without a promise."
       );
-      await this.cache.write(cacheKey, resource);
-      return resource;
-    });
-    this.inFlight.set(cacheKey, operation);
-    void operation.then(
-      () => this.clearInFlight(cacheKey, operation),
-      () => this.clearInFlight(cacheKey, operation)
+    }
+
+    const entry: InFlightEntry = {
+      priority,
+      brokerTask: null,
+      promise: null,
+      shouldStart
+    };
+    this.inFlight[cacheKey] = entry;
+    debugPriority(`created id=${id} priority=${priority}`);
+    const operation = this.acquire(
+      cacheKey,
+      imagePageUrl,
+      entry
     );
+    entry.promise = operation;
+    const cleanup = () => {
+      if (this.inFlight[cacheKey] === entry) {
+        delete this.inFlight[cacheKey];
+      }
+    };
+    void operation.then(cleanup, cleanup);
     return operation;
   }
 
-  private clearInFlight(
+  private async acquire(
     cacheKey: string,
-    operation: Promise<CachedResource>
-  ): void {
-    if (this.inFlight.get(cacheKey) === operation) {
-      this.inFlight.delete(cacheKey);
-    }
-  }
+    imagePageUrl: string,
+    entry: InFlightEntry
+  ): Promise<CachedFile> {
+    const cached = await cache.find(cacheKey);
+    if (cached) return cached;
+    if (this.imageLimitReached) throw new EHentaiImageLimitError();
+    if (!entry.shouldStart()) throw new ImageRequestSupersededError();
 
-  private enqueue<T>(operation: () => Promise<T>): Promise<T> {
-    const result = this.queue.then(operation);
-    this.queue = result.then(
-      () => undefined,
-      () => undefined
+    debugPriority(
+      `submitted id=${acquisitionId(cacheKey)} stage=image-page priority=${entry.priority}`
     );
-    return result;
-  }
-
-  private async waitForTransferSlot(shouldStart: () => boolean): Promise<void> {
-    if (this.lastTransferStartedAtMs !== null) {
-      const remaining =
-        this.intervalMs - (this.now() - this.lastTransferStartedAtMs);
-      if (remaining > 0) await this.wait(remaining);
-    }
-    if (!shouldStart()) throw new ImageRequestSupersededError();
-    this.lastTransferStartedAtMs = this.now();
-  }
-
-  private async resolveDisplayedImageUrl(
-    imagePageUrl: string
-  ): Promise<string> {
-    const pageResponse = await this.fetchImpl(imagePageUrl, {
-      method: "GET",
-      headers: {
-        Accept: "text/html",
-        "User-Agent": USER_AGENT
-      },
-      redirect: "error",
-      signal: AbortSignal.timeout(PAGE_TIMEOUT_MS)
+    const pageTask = broker.request<string>({
+      policy: PAGES_POLICY,
+      priority: entry.priority,
+      timeoutMs: PAGE_TIMEOUT_MS,
+      request: new Request(imagePageUrl, {
+        method: "GET",
+        headers: {
+          Accept: "text/html",
+          "User-Agent": USER_AGENT
+        },
+        redirect: "error",
+        signal: this.imageLimitAbortController.signal
+      }),
+      handleResponse: async (response) => {
+        if (response.status === 509) {
+          this.reachImageLimit();
+          await cancelResponse(response);
+          throw new EHentaiImageLimitError();
+        }
+        if (!response.ok) {
+          const status = response.status;
+          await cancelResponse(response);
+          throw new Error(`The E-Hentai image page returned ${status}.`);
+        }
+        return response.text();
+      }
     });
-    if (!pageResponse.ok) {
-      throw new Error(`The E-Hentai image page returned ${pageResponse.status}.`);
-    }
+    entry.brokerTask = pageTask;
 
-    const deliveryUrl = parseDisplayedImageUrl(
-      await pageResponse.text(),
-      imagePageUrl
-    );
+    let pageHtml: string;
+    try {
+      pageHtml = await pageTask.result;
+    } finally {
+      if (entry.brokerTask === pageTask) entry.brokerTask = null;
+    }
+    const deliveryUrl = parseDisplayedImageUrl(pageHtml, imagePageUrl);
     if (!deliveryUrl || !isApprovedDeliveryUrl(deliveryUrl)) {
-      throw new Error("The E-Hentai image page did not expose a safe image URL.");
-    }
-    return deliveryUrl;
-  }
-
-  private async fetchDisplayedImage(
-    deliveryUrl: string,
-    imagePageUrl: string
-  ): Promise<CachedResource> {
-    const imageResponse = await this.fetchImpl(deliveryUrl, {
-      method: "GET",
-      headers: {
-        Accept: "image/*",
-        Referer: imagePageUrl,
-        "User-Agent": USER_AGENT
-      },
-      redirect: "error",
-      signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS)
-    });
-    if (!imageResponse.ok) {
-      throw new Error(`The E-Hentai image server returned ${imageResponse.status}.`);
-    }
-
-    const contentType = imageResponse.headers.get("Content-Type")?.split(";")[0].trim();
-    if (!contentType || !SUPPORTED_IMAGE_CONTENT_TYPES.has(contentType)) {
       throw new Error(
-        `E-Hentai returned an unsupported image type: ${contentType ?? "unknown"}.`
+        "The E-Hentai image page did not expose a safe image URL."
       );
     }
+    if (this.imageLimitReached) throw new EHentaiImageLimitError();
+    if (!entry.shouldStart()) throw new ImageRequestSupersededError();
 
-    const bytes = new Uint8Array(await imageResponse.arrayBuffer());
-    if (bytes.byteLength === 0) {
-      throw new Error("The E-Hentai image server returned an empty image.");
+    debugPriority(
+      `submitted id=${acquisitionId(cacheKey)} stage=image-file priority=${entry.priority}`
+    );
+    const imageTask = broker.request<CachedFile>({
+      policy: IMAGES_POLICY,
+      priority: entry.priority,
+      timeoutMs: IMAGE_TIMEOUT_MS,
+      request: new Request(deliveryUrl, {
+        method: "GET",
+        headers: {
+          Accept: "image/*",
+          "User-Agent": USER_AGENT
+        },
+        referrer: imagePageUrl,
+        referrerPolicy: "unsafe-url",
+        redirect: "error",
+        signal: this.imageLimitAbortController.signal
+      }),
+      handleResponse: async (response) => {
+        if (response.status === 509) {
+          this.reachImageLimit();
+          await cancelResponse(response);
+          throw new EHentaiImageLimitError();
+        }
+        if (!response.ok) {
+          const status = response.status;
+          await cancelResponse(response);
+          throw new Error(`The E-Hentai image server returned ${status}.`);
+        }
+        const contentType = contentTypeFor(response);
+        if (
+          !contentType ||
+          !SUPPORTED_IMAGE_CONTENT_TYPES.has(contentType)
+        ) {
+          await cancelResponse(response);
+          throw new Error(
+            `E-Hentai returned an unsupported image type: ${contentType ?? "unknown"}.`
+          );
+        }
+        if (!response.body) {
+          throw new Error("The E-Hentai image server returned an empty image.");
+        }
+        return cache.writeStream(cacheKey, {
+          contentType,
+          stream: response.body
+        });
+      }
+    });
+    entry.brokerTask = imageTask;
+    try {
+      return await imageTask.result;
+    } finally {
+      if (entry.brokerTask === imageTask) entry.brokerTask = null;
     }
-    return { bytes, contentType };
+  }
+
+  private reachImageLimit(): void {
+    if (this.imageLimitReached) return;
+    this.imageLimitReached = true;
+    this.imageLimitAbortController.abort(new EHentaiImageLimitError());
   }
 }

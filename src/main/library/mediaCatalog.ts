@@ -30,8 +30,6 @@ export class MediaCatalog {
       registeredItems.push({
         id,
         name: item.name,
-        downloadName: item.downloadName,
-        downloadable: providerCollection.capabilities.canDownload,
         media: item.media,
         thumbnail:
           item.thumbnail.kind === "resource"
@@ -73,7 +71,6 @@ export class MediaCatalog {
         title: providerCollection.title,
         originLabel: providerCollection.origin?.label,
         capabilities: {
-          canDownload: providerCollection.capabilities.canDownload,
           canRefresh: providerCollection.capabilities.canRefresh,
           canSort: providerCollection.capabilities.canSort,
           canOpenOrigin: !!providerCollection.origin

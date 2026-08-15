@@ -3,19 +3,9 @@ import { FourChanProvider } from "./fourChan";
 import { LocalFolderProvider } from "./localFolder";
 import { ProviderRegistry } from "./providerRegistry";
 
-type ProviderRegistryOptions = {
-  cacheDirectory: () => string;
-  thumbnailFetchImpl?: typeof fetch;
-};
-
-export function createProviderRegistry(
-  options: ProviderRegistryOptions
-): ProviderRegistry {
+export function createProviderRegistry(): ProviderRegistry {
   return new ProviderRegistry([
-    new EHentaiProvider({
-      cacheDirectory: options.cacheDirectory,
-      thumbnailFetchImpl: options.thumbnailFetchImpl
-    }),
+    new EHentaiProvider(),
     new FourChanProvider(),
     new LocalFolderProvider()
   ]);

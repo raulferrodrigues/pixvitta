@@ -1,5 +1,6 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type {
+  DownloadActivitySnapshot,
   MediaCollection,
   MediaItem,
   MediaSource,
@@ -15,7 +16,6 @@ import { createVideoController, type VideoController } from "./videoController";
 import { selectCurrentItem } from "./viewerSelectors";
 
 export type ViewerLoadState = "idle" | "loading" | "ready" | "empty" | "error";
-export type MediaDownloadState = "idle" | "downloading" | "downloaded" | "error";
 
 export const DEFAULT_FILMSTRIP_WIDTH = 168;
 export const MIN_FILMSTRIP_WIDTH = 128;
@@ -38,8 +38,8 @@ export type ViewerState = {
   filmstripWidth: number;
   isFilmstripVisible: boolean;
   sourceOpenError: OpenSourceError | null;
-  downloadState: MediaDownloadState;
-  downloadedFileName: string | null;
+  downloadActivity: DownloadActivitySnapshot;
+  isDownloadPanelOpen: boolean;
 };
 
 export type ViewerActions = {
@@ -53,6 +53,9 @@ export type ViewerActions = {
   showSourceError(error: OpenSourceError): void;
   refreshSource(): Promise<void>;
   downloadCurrentMedia(): Promise<void>;
+  downloadCollection(): Promise<void>;
+  loadDownloadActivity(): Promise<void>;
+  applyDownloadActivity(snapshot: DownloadActivitySnapshot): void;
   refreshRecentSources(): Promise<void>;
   applyRecentSources(sources: RecentSource[]): void;
   loadSettings(): Promise<void>;
@@ -72,6 +75,7 @@ export type ViewerActions = {
   setImageView(zoom: number, panX: number, panY: number): void;
   resizeFilmstrip(width: number): void;
   toggleFilmstrip(): void;
+  toggleDownloadPanel(): void;
   toggleFullscreen(): Promise<void>;
   exitFullscreen(): Promise<void>;
 };
@@ -94,8 +98,6 @@ function applyCollection(collection: MediaCollection): Partial<ViewerState> {
     imagePanX: 0,
     imagePanY: 0,
     sourceOpenError: null,
-    downloadState: "idle",
-    downloadedFileName: null,
     loadState: collection.items.length > 0 ? "ready" : "empty"
   };
 }
@@ -108,7 +110,6 @@ export function createViewerStore(
   api: PixvittaApi,
   videoController: VideoController = createVideoController()
 ): ViewerStoreApi {
-  let downloadRequestId = 0;
   let settingsSaveRevision = 0;
   let recentSourcesRevision = 0;
 
@@ -129,7 +130,6 @@ export function createViewerStore(
     };
 
     const applyOpenedCollection = (collection: MediaCollection) => {
-      downloadRequestId += 1;
       set(applyCollection(collection));
     };
 
@@ -163,11 +163,20 @@ export function createViewerStore(
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
       isFilmstripVisible: true,
       sourceOpenError: null,
-      downloadState: "idle",
-      downloadedFileName: null,
+      downloadActivity: {
+        revision: 0,
+        rows: [],
+        itemStates: {},
+        collectionActive: false
+      },
+      isDownloadPanelOpen: false,
 
       async initialize() {
-        await Promise.all([get().loadSettings(), get().refreshRecentSources()]);
+        await Promise.all([
+          get().loadSettings(),
+          get().refreshRecentSources(),
+          get().loadDownloadActivity()
+        ]);
       },
 
       async openFolder() {
@@ -233,41 +242,54 @@ export function createViewerStore(
       async downloadCurrentMedia() {
         const state = get();
         const item = selectCurrentItem(state);
+        if (!item || !state.source?.capabilities.canOpenOrigin) return;
+        try {
+          await api.downloadMedia(item.id);
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      async downloadCollection() {
+        const state = get();
         if (
-          !item ||
-          !state.source?.capabilities.canDownload ||
-          state.downloadState === "downloading"
+          !state.source?.capabilities.canOpenOrigin ||
+          state.downloadActivity.collectionActive
         ) {
           return;
         }
-
-        const requestId = ++downloadRequestId;
-        set({ downloadState: "downloading", downloadedFileName: null });
         try {
-          const result = await api.downloadMedia(item.id);
-          if (
-            requestId !== downloadRequestId ||
-            selectCurrentItem(get())?.id !== item.id
-          ) {
-            return;
-          }
-          set(
-            result.ok
-              ? {
-                  downloadState: "downloaded",
-                  downloadedFileName: result.fileName
-                }
-              : { downloadState: "error", downloadedFileName: null }
+          await api.downloadCollection(
+            state.source.title,
+            state.items.map((item) => item.id)
           );
         } catch (error) {
           console.error(error);
-          if (
-            requestId === downloadRequestId &&
-            selectCurrentItem(get())?.id === item.id
-          ) {
-            set({ downloadState: "error", downloadedFileName: null });
-          }
         }
+      },
+
+      async loadDownloadActivity() {
+        try {
+          get().applyDownloadActivity(await api.getDownloadActivity());
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      applyDownloadActivity(downloadActivity) {
+        set((state) => {
+          if (
+            downloadActivity.revision < state.downloadActivity.revision
+          ) {
+            return state;
+          }
+          return {
+            downloadActivity,
+            isDownloadPanelOpen:
+              downloadActivity.rows.length > 0 &&
+              state.isDownloadPanelOpen
+          };
+        });
       },
 
       async refreshRecentSources() {
@@ -336,12 +358,9 @@ export function createViewerStore(
         set((state) => {
           const index = nextIndex(state.index, state.items.length, state.settings.wrapNavigation);
           if (index === state.index) return state;
-          downloadRequestId += 1;
           return {
             index,
             isVideoPlaying: false,
-            downloadState: "idle",
-            downloadedFileName: null,
             imageZoom: MIN_IMAGE_ZOOM,
             imagePanX: 0,
             imagePanY: 0
@@ -353,12 +372,9 @@ export function createViewerStore(
         set((state) => {
           const index = previousIndex(state.index, state.items.length, state.settings.wrapNavigation);
           if (index === state.index) return state;
-          downloadRequestId += 1;
           return {
             index,
             isVideoPlaying: false,
-            downloadState: "idle",
-            downloadedFileName: null,
             imageZoom: MIN_IMAGE_ZOOM,
             imagePanX: 0,
             imagePanY: 0
@@ -369,12 +385,9 @@ export function createViewerStore(
       selectMedia(index: number) {
         set((state) => {
           if (index === state.index) return state;
-          downloadRequestId += 1;
           return {
             index,
             isVideoPlaying: false,
-            downloadState: "idle",
-            downloadedFileName: null,
             imageZoom: MIN_IMAGE_ZOOM,
             imagePanX: 0,
             imagePanY: 0
@@ -443,6 +456,14 @@ export function createViewerStore(
 
       toggleFilmstrip() {
         set((state) => ({ isFilmstripVisible: !state.isFilmstripVisible }));
+      },
+
+      toggleDownloadPanel() {
+        set((state) => ({
+          isDownloadPanelOpen:
+            state.downloadActivity.rows.length > 0 &&
+            !state.isDownloadPanelOpen
+        }));
       },
 
       async toggleFullscreen() {

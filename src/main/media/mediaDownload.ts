@@ -1,15 +1,15 @@
+import { randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { mkdir, open, unlink } from "node:fs/promises";
+import { link, mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
-import type { MediaResource } from "../library/providers/provider";
 import { getMediaFileType, mediaFileTypes } from "../utils/mediaTypes";
 
 const MAX_FILENAME_ATTEMPTS = 10_000;
 
-function safeDownloadName(name: string): string {
+export function safeDownloadName(name: string): string {
   const leafName = path.basename(name.replace(/\\/g, "/"));
   const sanitized = leafName
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
@@ -17,6 +17,16 @@ function safeDownloadName(name: string): string {
   return sanitized && sanitized !== "." && sanitized !== ".."
     ? sanitized
     : "media";
+}
+
+export function safeDownloadDirectoryName(name: string): string {
+  const sanitized = name
+    .trim()
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
+    .replace(/[.\s]+$/g, "");
+  return sanitized && sanitized !== "." && sanitized !== ".."
+    ? sanitized
+    : "Pixvitta Collection";
 }
 
 function numberedName(fileName: string, attempt: number): string {
@@ -45,55 +55,45 @@ function responseDownloadName(name: string, response: Response): string {
   return `${stem}${responseType.extension}`;
 }
 
-async function reserveDownloadPath(
-  downloadsDirectory: string,
-  fileName: string
-): Promise<string> {
-  await mkdir(downloadsDirectory, { recursive: true });
-
-  for (let attempt = 0; attempt < MAX_FILENAME_ATTEMPTS; attempt += 1) {
-    const candidate = path.join(
-      downloadsDirectory,
-      numberedName(fileName, attempt)
-    );
-    try {
-      const file = await open(candidate, "wx");
-      await file.close();
-      return candidate;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-    }
-  }
-
-  throw new Error("Could not reserve a unique download filename.");
-}
-
-export async function downloadMediaResource(
+export async function writeMediaDownload(
   downloadsDirectory: string,
   name: string,
-  resource: MediaResource
+  response: Response
 ): Promise<string> {
-  const response = await resource.respond(
-    new Request("pixvitta-media://media/download")
-  );
   if (!response.ok || !response.body) {
+    await response.body?.cancel().catch(() => undefined);
     throw new Error(`Media download returned HTTP ${response.status}.`);
   }
 
-  const downloadPath = await reserveDownloadPath(
+  await mkdir(downloadsDirectory, { recursive: true });
+  const fileName = safeDownloadName(responseDownloadName(name, response));
+  const temporaryPath = path.join(
     downloadsDirectory,
-    safeDownloadName(responseDownloadName(name, response))
+    `.pixvitta-download-${process.pid}-${randomUUID()}.part`
   );
+
   try {
     await pipeline(
       Readable.fromWeb(
         response.body as unknown as NodeReadableStream<Uint8Array>
       ),
-      createWriteStream(downloadPath, { flags: "r+" })
+      createWriteStream(temporaryPath, { flags: "wx" })
     );
-    return downloadPath;
-  } catch (error) {
-    await unlink(downloadPath).catch(() => undefined);
-    throw error;
+
+    for (let attempt = 0; attempt < MAX_FILENAME_ATTEMPTS; attempt += 1) {
+      const downloadPath = path.join(
+        downloadsDirectory,
+        numberedName(fileName, attempt)
+      );
+      try {
+        await link(temporaryPath, downloadPath);
+        return downloadPath;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      }
+    }
+    throw new Error("Could not reserve a unique download filename.");
+  } finally {
+    await rm(temporaryPath, { force: true }).catch(() => undefined);
   }
 }

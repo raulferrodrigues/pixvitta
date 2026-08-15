@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { AppBuildInfo } from "../shared/appBuild";
 import type {
-  DownloadMediaResult,
+  DownloadActivitySnapshot,
   MediaCollection,
   OpenSourceError,
   OpenSourceRequest
@@ -38,8 +38,19 @@ const pixvittaApi = {
 
   // Media actions pass IDs or validated data across the bridge. The main process
   // resolves IDs to paths and decides whether anything should touch disk.
-  downloadMedia: (mediaId: string): Promise<DownloadMediaResult> =>
+  downloadMedia: (mediaId: string): Promise<boolean> =>
     ipcRenderer.invoke("media:download", mediaId),
+  downloadCollection: (
+    collectionName: string,
+    mediaIds: string[]
+  ): Promise<boolean> =>
+    ipcRenderer.invoke(
+      "media:download-collection",
+      collectionName,
+      mediaIds
+    ),
+  getDownloadActivity: (): Promise<DownloadActivitySnapshot> =>
+    ipcRenderer.invoke("media:get-download-activity"),
   showMediaContextMenu: (mediaId: string): Promise<boolean> => ipcRenderer.invoke("media:show-context-menu", mediaId),
   saveMediaThumbnail: (thumbnailReference: string, dataUrl: string): Promise<boolean> =>
     ipcRenderer.invoke("thumbnail:save-media", thumbnailReference, dataUrl),
@@ -84,6 +95,23 @@ const pixvittaApi = {
     const listener = (_event: Electron.IpcRendererEvent, error: OpenSourceError) => callback(error);
     ipcRenderer.on("library:source-error", listener);
     return () => ipcRenderer.removeListener("library:source-error", listener);
+  },
+  onDownloadActivityChanged: (
+    callback: (snapshot: DownloadActivitySnapshot) => void
+  ): (() => void) => {
+    const listener = (
+      event: Electron.IpcRendererEvent,
+      snapshot: DownloadActivitySnapshot
+    ) => {
+      void event;
+      callback(snapshot);
+    };
+    ipcRenderer.on("media:download-activity-changed", listener);
+    return () =>
+      ipcRenderer.removeListener(
+        "media:download-activity-changed",
+        listener
+      );
   },
   onRecentSourcesChanged: (callback: (sources: RecentSource[]) => void): (() => void) => {
     const listener = (

@@ -1,4 +1,10 @@
-import { ExternalLink, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import {
+  ExternalLink,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen
+} from "lucide-react";
 import { useGT } from "gt-react";
 import type { AppBuildInfo } from "../../shared/appBuild";
 import { useViewerStore } from "../state/ViewerStoreProvider";
@@ -15,6 +21,15 @@ export function TopBar({ buildInfo }: { buildInfo: AppBuildInfo }) {
   const source = useViewerStore((state) => state.source);
   const statusText = useViewerStore(selectStatusText);
   const toggleFilmstrip = useViewerStore((state) => state.toggleFilmstrip);
+  const hasDownloadActivity = useViewerStore(
+    (state) => state.downloadActivity.rows.length > 0
+  );
+  const isDownloadPanelOpen = useViewerStore(
+    (state) => state.isDownloadPanelOpen
+  );
+  const toggleDownloadPanel = useViewerStore(
+    (state) => state.toggleDownloadPanel
+  );
   useWindowChrome(window.pixvitta);
 
   if (!hasMedia) return null;
@@ -39,6 +54,25 @@ export function TopBar({ buildInfo }: { buildInfo: AppBuildInfo }) {
       ) : null}
       <div className="topbar-fill" aria-hidden />
       <div className="topbar-counter" data-testid="counter">{statusText}</div>
+      {hasDownloadActivity ? (
+        <IconButton
+          label={
+            isDownloadPanelOpen
+              ? gt("Hide downloads")
+              : gt("Show downloads")
+          }
+          aria-pressed={isDownloadPanelOpen}
+          className="topbar-download-toggle"
+          data-testid="download-panel-toggle"
+          onClick={toggleDownloadPanel}
+        >
+          {isDownloadPanelOpen ? (
+            <PanelRightClose size={17} aria-hidden />
+          ) : (
+            <PanelRightOpen size={17} aria-hidden />
+          )}
+        </IconButton>
+      ) : null}
     </header>
   );
 }

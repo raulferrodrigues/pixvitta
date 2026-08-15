@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, net, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import path from "node:path";
 import type { OpenSourceRequest } from "../../shared/media";
 import type { RecentSource } from "../../shared/recentSources";
@@ -22,24 +22,11 @@ import {
   createProviderRegistry,
   type MediaResource
 } from "./providers";
-import {
-  prepareSessionResourceCache,
-  sessionResourceCacheDirectory
-} from "../resourceCache/sessionResourceCache";
 
 let dialogResponses = parseDialogResponses();
 
-function userDataDirectory(): string {
-  return app.getPath("userData");
-}
-
 const mediaLibrary = new MediaLibrary({
-  providers: createProviderRegistry({
-    cacheDirectory: () =>
-      sessionResourceCacheDirectory(userDataDirectory()),
-    thumbnailFetchImpl: (input, init) =>
-      net.fetch(input instanceof URL ? input.href : input, init)
-  }),
+  providers: createProviderRegistry(),
   getSettings,
   remember: async (source) => {
     const sources = await saveRecentSource(source);
@@ -94,14 +81,9 @@ async function openSourceForWindow(
   request: OpenSourceRequest,
   window?: BrowserWindow | null
 ): Promise<boolean> {
-  await prepareSessionMediaCache();
   return request.kind === "pick-directory"
     ? mediaLibrary.openPickedLocation(() => chooseDirectory(window))
     : mediaLibrary.openLocation(request.location);
-}
-
-export function prepareSessionMediaCache(): Promise<void> {
-  return prepareSessionResourceCache(userDataDirectory());
 }
 
 export async function openSource(
@@ -111,7 +93,6 @@ export async function openSource(
 }
 
 export async function refreshSource(): Promise<boolean> {
-  await prepareSessionMediaCache();
   return mediaLibrary.refresh();
 }
 
@@ -126,7 +107,6 @@ export async function openFileAsCollection(
   filePath: string,
   baseDirectory = process.cwd()
 ): Promise<boolean> {
-  await prepareSessionMediaCache();
   return mediaLibrary.openLocation(path.resolve(baseDirectory, filePath));
 }
 

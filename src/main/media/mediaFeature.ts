@@ -1,19 +1,33 @@
 import { app, BrowserWindow, ipcMain, protocol } from "electron";
-import path from "node:path";
-import type { DownloadMediaResult } from "../../shared/media";
 import { resolveMediaId, resolveMediaUrl } from "../library";
 import {
   showLocalMediaContextMenu,
   showRemoteMediaContextMenu
 } from "./mediaContextMenu";
-import { downloadMediaResource } from "./mediaDownload";
+import type { RequestPriority } from "../requestBroker";
+import { publishMainWindowDownloadActivity } from "../windows";
+import { DownloadManager } from "./downloadManager";
+
+const downloadManager = new DownloadManager({
+  downloadsDirectory: () =>
+    process.env.PIXVITTA_TEST_DOWNLOADS_PATH ?? app.getPath("downloads"),
+  publish: publishMainWindowDownloadActivity
+});
+
+function priorityFor(request: Request): RequestPriority {
+  const url = new URL(request.url);
+  if (url.hostname === "thumbnail") return "normal";
+  return url.searchParams.get("intent") === "prefetch" ? "normal" : "high";
+}
 
 async function createMediaResponse(request: Request): Promise<Response> {
-  const resource = resolveMediaUrl(request.url);
+  const resource =
+    resolveMediaUrl(request.url) ??
+    downloadManager.resolveRetainedUrl(request.url);
   if (!resource) return new Response(null, { status: 404 });
 
   try {
-    return await resource.respond(request);
+    return await resource.respond(request, priorityFor(request));
   } catch (error) {
     console.error(error);
     return new Response(null, { status: 500 });
@@ -29,35 +43,41 @@ function showMediaContextMenu(window: BrowserWindow, mediaId: unknown): boolean 
     showLocalMediaContextMenu(window, item.localPath);
     return true;
   }
-  if (item.downloadable && item.externalUrl) {
-    showRemoteMediaContextMenu(window, item.externalUrl, async () => {
-      const result = await downloadMedia(mediaId);
-      if (!result.ok) throw new Error("Pixvitta could not download this file.");
+  if (item.externalUrl) {
+    showRemoteMediaContextMenu(window, item.externalUrl, () => {
+      if (!downloadManager.start(item)) {
+        throw new Error("Pixvitta could not start this download.");
+      }
     });
     return true;
   }
   return false;
 }
 
-async function downloadMedia(mediaId: unknown): Promise<DownloadMediaResult> {
-  if (typeof mediaId !== "string") return { ok: false };
-
+function downloadMedia(mediaId: unknown): boolean {
+  if (typeof mediaId !== "string") return false;
   const item = resolveMediaId(mediaId);
-  if (!item?.downloadable) return { ok: false };
+  return item ? downloadManager.start(item) : false;
+}
 
-  try {
-    const downloadsDirectory =
-      process.env.PIXVITTA_TEST_DOWNLOADS_PATH ?? app.getPath("downloads");
-    const downloadPath = await downloadMediaResource(
-      downloadsDirectory,
-      item.downloadName ?? item.name,
-      item.media
-    );
-    return { ok: true, fileName: path.basename(downloadPath) };
-  } catch (error) {
-    console.error(error);
-    return { ok: false };
+function downloadCollection(
+  collectionName: unknown,
+  mediaIds: unknown
+): boolean {
+  if (
+    typeof collectionName !== "string" ||
+    !collectionName.trim() ||
+    !Array.isArray(mediaIds) ||
+    mediaIds.length === 0
+  ) {
+    return false;
   }
+  const items = mediaIds.flatMap((mediaId) => {
+    if (typeof mediaId !== "string") return [];
+    const item = resolveMediaId(mediaId);
+    return item ? [item] : [];
+  });
+  return downloadManager.startCollection(collectionName, items);
 }
 
 function registerMediaProtocolScheme(): void {
@@ -80,8 +100,20 @@ function registerMediaIpcHandler(): void {
     const window = BrowserWindow.fromWebContents(event.sender);
     return window ? showMediaContextMenu(window, mediaId) : false;
   });
-  ipcMain.handle("media:download", (_event, mediaId: unknown) => {
+  ipcMain.handle("media:download", (event, mediaId: unknown) => {
+    void event;
     return downloadMedia(mediaId);
+  });
+  ipcMain.handle(
+    "media:download-collection",
+    (event, collectionName: unknown, mediaIds: unknown) => {
+      void event;
+      return downloadCollection(collectionName, mediaIds);
+    }
+  );
+  ipcMain.handle("media:get-download-activity", (event) => {
+    void event;
+    return downloadManager.getSnapshot();
   });
 }
 

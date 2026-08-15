@@ -9,6 +9,7 @@ type RendererModifier = {
 
 type RendererHotkey = {
   accelerator: string;
+  code?: string;
   key: string;
   keys: readonly string[];
   modifiers: readonly RendererModifier[];
@@ -17,6 +18,7 @@ type RendererHotkey = {
 type HotkeyDefinition = {
   modifiers: readonly RendererModifier[];
   key: string;
+  code?: string;
   aliases?: readonly string[];
 };
 
@@ -32,6 +34,7 @@ function hotkey(definition: HotkeyDefinition): RendererHotkey {
   const aliases = definition.aliases ?? [];
   return {
     accelerator: [...definition.modifiers.map((item) => item.accelerator), definition.key].join("+"),
+    code: definition.code,
     key: definition.key,
     keys: [definition.key, ...aliases],
     modifiers: definition.modifiers
@@ -41,6 +44,7 @@ function hotkey(definition: HotkeyDefinition): RendererHotkey {
 const CMD = modifier("cmd", "CommandOrControl", (event) => (isApplePlatform() ? event.metaKey : event.ctrlKey));
 
 export const RENDERER_HOTKEYS = {
+  downloadCurrentMedia: hotkey({ modifiers: [], key: "0", code: "Numpad0" }),
   imageZoomIn: hotkey({ modifiers: [CMD], key: "=", aliases: ["+"] }),
   imageZoomOut: hotkey({ modifiers: [CMD], key: "-", aliases: ["_"] })
 } as const;
@@ -65,5 +69,8 @@ function matchesModifiers(event: KeyboardEvent, hotkey: RendererHotkey): boolean
 }
 
 export function matchesRendererHotkey(event: KeyboardEvent, hotkey: RendererHotkey): boolean {
-  return hotkey.keys.includes(event.key) && matchesModifiers(event, hotkey);
+  const matchesKey = hotkey.code
+    ? event.code === hotkey.code
+    : hotkey.keys.includes(event.key);
+  return matchesKey && matchesModifiers(event, hotkey);
 }

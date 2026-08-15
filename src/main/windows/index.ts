@@ -11,6 +11,7 @@ export {
   createPreferencesWindow,
   isMainWindow,
   publishMainWindowCollection,
+  publishMainWindowDownloadActivity,
   publishMainWindowLoading,
   publishMainWindowRecentSources,
   publishMainWindowSourceError,

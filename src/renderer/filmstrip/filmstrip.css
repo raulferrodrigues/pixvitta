@@ -10,3 +10,4 @@
 .filmstrip-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .filmstrip-scrollbar::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: var(--pix-scrollbar-thumb); background-clip: padding-box; }
 .filmstrip-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--pix-scrollbar-thumb-hover); background-clip: padding-box; }
+.download-thumbnail-activity { position: absolute; top: 6px; right: 6px; z-index: 3; pointer-events: none; }
