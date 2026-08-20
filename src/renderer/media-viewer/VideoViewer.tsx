@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { MediaItem } from "../../shared/media";
 import { classNames } from "../ui/classNames";
 import { useViewerStore } from "../state/ViewerStoreProvider";
@@ -13,12 +13,24 @@ export function VideoViewer({ item }: { item: MediaItem }) {
   const attachVideoElement = useViewerStore((state) => state.attachVideoElement);
   const markMediaBroken = useViewerStore((state) => state.markMediaBroken);
   const setVideoPlaying = useViewerStore((state) => state.setVideoPlaying);
+  const setVideoAudio = useViewerStore((state) => state.setVideoAudio);
   const isLoaded = loadedItemId === item.id;
 
   const setVideoRef = useCallback((element: HTMLVideoElement | null) => {
     videoRef.current = element;
     attachVideoElement(element);
   }, [attachVideoElement]);
+
+  useLayoutEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (video.volume !== settings.videoVolume) {
+      video.volume = settings.videoVolume;
+    }
+    if (video.muted !== settings.videoMuted) {
+      video.muted = settings.videoMuted;
+    }
+  }, [item.id, settings.videoMuted, settings.videoVolume]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -54,6 +66,9 @@ export function VideoViewer({ item }: { item: MediaItem }) {
         onPlay={() => setVideoPlaying(true)}
         onPause={() => setVideoPlaying(false)}
         onEnded={() => setVideoPlaying(false)}
+        onVolumeChange={(event) => {
+          setVideoAudio(event.currentTarget.volume, event.currentTarget.muted);
+        }}
         onError={() => markMediaBroken(item.id)}
       />
     </div>
