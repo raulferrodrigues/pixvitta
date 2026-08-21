@@ -1,0 +1,35 @@
+.pix-tooltip {
+  z-index: 100;
+  max-width: min(260px, calc(100vw - 16px));
+  padding: 6px 8px;
+  border: 1px solid var(--pix-border);
+  border-radius: 6px;
+  background: rgb(20 24 27 / 98%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 45%);
+  color: var(--pix-text);
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: center;
+  user-select: none;
+  pointer-events: none;
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+  animation: pix-tooltip-enter 100ms ease-out;
+}
+
+@keyframes pix-tooltip-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pix-tooltip {
+    animation: none;
+  }
+}
