@@ -5,7 +5,7 @@ import {
   type BrokerTask,
   type RequestPriority
 } from "../../../requestBroker";
-import type { EHentaiGalleryReference } from ".";
+import type { EHentaiGalleryReference } from "./galleryUrl";
 import {
   type EHentaiImagePageReference,
   parseGalleryImagePages
@@ -17,6 +17,8 @@ import {
 import { PAGES_POLICY } from "./requestPolicies";
 import { renderSpriteThumbnail } from "./spriteThumbnail";
 import { EHentaiThumbnailPipeline } from "./thumbnailPipeline";
+import { galleryRequest, isAuthenticationResponse, type GallerySite } from "./gallerySite";
+import { ProviderError } from "../provider";
 
 const INDEX_PAGE_SIZE = 20;
 const PREFETCH_COUNT = 5;
@@ -25,6 +27,9 @@ const USER_AGENT =
   "Pixvitta media viewer (+https://github.com/raulferrodrigues/pixvitta)";
 
 type GallerySessionOptions = {
+  site: GallerySite;
+  cacheNamespace: string;
+  initialPages?: Map<number, EHentaiImagePageReference>;
   reference: EHentaiGalleryReference;
   fileCount: number;
   pipeline: Pick<EHentaiImagePipeline, "get">;
@@ -57,13 +62,21 @@ async function cancelResponse(response: Response): Promise<void> {
 
 export class EHentaiGallerySession {
   private readonly pages = new Map<number, EHentaiImagePageReference>();
+  private readonly indexPageSize: number;
   private readonly indexRequests: {
     [indexPage: string]: IndexRequestEntry | undefined;
   } = {};
   private desiredPages = new Set<number>();
   private demandRevision = 0;
 
-  constructor(private readonly options: GallerySessionOptions) {}
+  constructor(private readonly options: GallerySessionOptions) {
+    this.indexPageSize = options.initialPages?.size || INDEX_PAGE_SIZE;
+    if (options.initialPages) {
+      for (const [pageNumber, page] of options.initialPages) {
+        if (this.isValidPage(pageNumber)) this.pages.set(pageNumber, page);
+      }
+    }
+  }
 
   async respond(
     pageNumber: number,
@@ -183,7 +196,7 @@ export class EHentaiGallerySession {
     const existingPage = this.pages.get(pageNumber);
     if (existingPage) return existingPage;
 
-    const indexPage = Math.floor((pageNumber - 1) / INDEX_PAGE_SIZE);
+    const indexPage = Math.floor((pageNumber - 1) / this.indexPageSize);
     const key = String(indexPage);
     let entry = this.indexRequests[key];
     if (entry) {
@@ -239,7 +252,8 @@ export class EHentaiGallerySession {
       policy: PAGES_POLICY,
       priority: entry.priority,
       timeoutMs: REQUEST_TIMEOUT_MS,
-      request: new Request(indexUrl, {
+      fetch: this.options.site.fetch,
+      request: galleryRequest(this.options.site, indexUrl, {
         method: "GET",
         headers: {
           Accept: "text/html",
@@ -248,6 +262,10 @@ export class EHentaiGallerySession {
         redirect: "error"
       }),
       handleResponse: async (response) => {
+        if (this.options.site.authenticated && isAuthenticationResponse(response)) {
+          await cancelResponse(response);
+          throw new ProviderError("authentication-required", "Sign in to ExHentai again.");
+        }
         if (!response.ok) {
           const status = response.status;
           await cancelResponse(response);
@@ -256,9 +274,13 @@ export class EHentaiGallerySession {
         const references = parseGalleryImagePages(
           await response.text(),
           this.options.reference.pageUrl,
-          this.options.reference.galleryId
+          this.options.reference.galleryId,
+          this.options.site.origin
         );
         if (references.size === 0) {
+          if (this.options.site.authenticated) {
+            throw new ProviderError("authentication-required", "ExHentai did not accept the saved sign-in.");
+          }
           throw new Error(
             "E-Hentai gallery index did not contain image pages."
           );
@@ -310,13 +332,13 @@ export class EHentaiGallerySession {
 
   private cacheKey(page: EHentaiImagePageReference): string {
     return (
-      `e-hentai:image:${this.options.reference.galleryId}:` +
+      `${this.options.cacheNamespace}:image:${this.options.reference.galleryId}:` +
       `${page.pageToken}:${page.pageNumber}`
     );
   }
 
   private thumbnailCacheKey(thumbnailUrl: string): string {
-    return `e-hentai:thumbnail:${thumbnailUrl}`;
+    return `${this.options.cacheNamespace}:thumbnail:${thumbnailUrl}`;
   }
 }
 

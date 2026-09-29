@@ -1,11 +1,12 @@
 import { app, BrowserWindow, ipcMain, protocol } from "electron";
 import { resolveMediaId, resolveMediaUrl } from "../library";
+import { ProviderError } from "../library/providers";
 import {
   showLocalMediaContextMenu,
   showRemoteMediaContextMenu
 } from "./mediaContextMenu";
 import type { RequestPriority } from "../requestBroker";
-import { publishMainWindowDownloadActivity } from "../windows";
+import { publishMainWindowDownloadActivity, publishMainWindowSourceError } from "../windows";
 import { DownloadManager } from "./downloadManager";
 
 const downloadManager = new DownloadManager({
@@ -30,6 +31,9 @@ async function createMediaResponse(request: Request): Promise<Response> {
     return await resource.respond(request, priorityFor(request));
   } catch (error) {
     console.error(error);
+    if (error instanceof ProviderError && error.code === "authentication-required") {
+      publishMainWindowSourceError(error.code);
+    }
     return new Response(null, { status: 500 });
   }
 }

@@ -6,6 +6,7 @@ import {
 import { cache, type CachedFile } from "../../../resourceCache";
 import { mediaFileTypes } from "../../../utils/mediaTypes";
 import { THUMBNAILS_POLICY } from "./requestPolicies";
+import { eHentaiSite, galleryRequest, type GallerySite } from "./gallerySite";
 
 const USER_AGENT =
   "Pixvitta media viewer (+https://github.com/raulferrodrigues/pixvitta)";
@@ -28,7 +29,7 @@ const priorityRanks: Record<RequestPriority, number> = {
   high: 2
 };
 
-function isApprovedThumbnailUrl(rawUrl: string): boolean {
+function isApprovedThumbnailUrl(rawUrl: string, site: GallerySite): boolean {
   try {
     const url = new URL(rawUrl);
     return (
@@ -39,6 +40,7 @@ function isApprovedThumbnailUrl(rawUrl: string): boolean {
       !url.search &&
       !url.hash &&
       (url.hostname === "ehgt.org" ||
+        (site.authenticated && url.hostname === "s.exhentai.org") ||
         url.hostname.endsWith(".hath.network"))
     );
   } catch {
@@ -58,6 +60,8 @@ export class EHentaiThumbnailPipeline {
   private readonly inFlight: {
     [cacheKey: string]: InFlightEntry | undefined;
   } = {};
+
+  constructor(private readonly site: GallerySite = eHentaiSite) {}
 
   get(
     cacheKey: string,
@@ -102,7 +106,7 @@ export class EHentaiThumbnailPipeline {
   ): Promise<CachedFile> {
     const cached = await cache.find(cacheKey);
     if (cached) return cached;
-    if (!isApprovedThumbnailUrl(thumbnailUrl)) {
+    if (!isApprovedThumbnailUrl(thumbnailUrl, this.site)) {
       throw new Error("E-Hentai exposed an unsafe thumbnail URL.");
     }
 
@@ -110,7 +114,8 @@ export class EHentaiThumbnailPipeline {
       policy: THUMBNAILS_POLICY,
       priority: entry.priority,
       timeoutMs: REQUEST_TIMEOUT_MS,
-      request: new Request(thumbnailUrl, {
+      fetch: this.site.fetch,
+      request: galleryRequest(this.site, thumbnailUrl, {
         method: "GET",
         headers: {
           Accept: "image/*",

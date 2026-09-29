@@ -26,6 +26,8 @@ const pixvittaApi = {
     ipcRenderer.send("source:refresh"),
   openSourceOrigin: (sourceId: string): Promise<boolean> =>
     ipcRenderer.invoke("source:open-origin", sourceId),
+  signInExHentai: (): Promise<boolean> =>
+    ipcRenderer.invoke("exhentai:sign-in"),
 
   // Persistent app data also goes through main. The renderer gets plain objects,
   // not direct access to JSON files under Electron's userData directory.

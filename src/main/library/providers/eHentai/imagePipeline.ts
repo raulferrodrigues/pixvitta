@@ -8,6 +8,8 @@ import { cache, type CachedFile } from "../../../resourceCache";
 import { mediaFileTypes } from "../../../utils/mediaTypes";
 import { parseDisplayedImageUrl } from "./html";
 import { IMAGES_POLICY, PAGES_POLICY } from "./requestPolicies";
+import { eHentaiSite, galleryRequest, isAuthenticationResponse, type GallerySite } from "./gallerySite";
+import { ProviderError } from "../provider";
 
 const USER_AGENT =
   "Pixvitta media viewer (+https://github.com/raulferrodrigues/pixvitta)";
@@ -61,14 +63,15 @@ class EHentaiImageLimitError extends Error {
   }
 }
 
-function isApprovedDeliveryUrl(rawUrl: string): boolean {
+function isApprovedDeliveryUrl(rawUrl: string, site: GallerySite): boolean {
   try {
     const url = new URL(rawUrl);
     return (
       url.protocol === "https:" &&
       !url.username &&
       !url.password &&
-      (url.hostname === "e-hentai.org" ||
+      (url.origin === site.origin ||
+        (site.authenticated && url.origin === "https://s.exhentai.org") ||
         url.hostname.endsWith(".hath.network"))
     );
   } catch {
@@ -100,6 +103,8 @@ export class EHentaiImagePipeline {
   } = {};
   private imageLimitReached = false;
   private readonly imageLimitAbortController = new AbortController();
+
+  constructor(private readonly site: GallerySite = eHentaiSite) {}
 
   get(
     cacheKey: string,
@@ -192,7 +197,8 @@ export class EHentaiImagePipeline {
       policy: PAGES_POLICY,
       priority: entry.priority,
       timeoutMs: PAGE_TIMEOUT_MS,
-      request: new Request(imagePageUrl, {
+      fetch: this.site.fetch,
+      request: galleryRequest(this.site, imagePageUrl, {
         method: "GET",
         headers: {
           Accept: "text/html",
@@ -202,6 +208,10 @@ export class EHentaiImagePipeline {
         signal: this.imageLimitAbortController.signal
       }),
       handleResponse: async (response) => {
+        if (this.site.authenticated && isAuthenticationResponse(response)) {
+          await cancelResponse(response);
+          throw new ProviderError("authentication-required", "Sign in to ExHentai again.");
+        }
         if (response.status === 509) {
           this.reachImageLimit();
           await cancelResponse(response);
@@ -224,7 +234,10 @@ export class EHentaiImagePipeline {
       if (entry.brokerTask === pageTask) entry.brokerTask = null;
     }
     const deliveryUrl = parseDisplayedImageUrl(pageHtml, imagePageUrl);
-    if (!deliveryUrl || !isApprovedDeliveryUrl(deliveryUrl)) {
+    if (!deliveryUrl && this.site.authenticated) {
+      throw new ProviderError("authentication-required", "ExHentai did not accept the saved sign-in.");
+    }
+    if (!deliveryUrl || !isApprovedDeliveryUrl(deliveryUrl, this.site)) {
       throw new Error(
         "The E-Hentai image page did not expose a safe image URL."
       );
@@ -239,7 +252,8 @@ export class EHentaiImagePipeline {
       policy: IMAGES_POLICY,
       priority: entry.priority,
       timeoutMs: IMAGE_TIMEOUT_MS,
-      request: new Request(deliveryUrl, {
+      fetch: this.site.fetch,
+      request: galleryRequest(this.site, deliveryUrl, {
         method: "GET",
         headers: {
           Accept: "image/*",
@@ -251,6 +265,10 @@ export class EHentaiImagePipeline {
         signal: this.imageLimitAbortController.signal
       }),
       handleResponse: async (response) => {
+        if (this.site.authenticated && isAuthenticationResponse(response)) {
+          await cancelResponse(response);
+          throw new ProviderError("authentication-required", "Sign in to ExHentai again.");
+        }
         if (response.status === 509) {
           this.reachImageLimit();
           await cancelResponse(response);

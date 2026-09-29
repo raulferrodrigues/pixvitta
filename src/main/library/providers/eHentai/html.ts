@@ -59,7 +59,10 @@ function pixelValue(style: string, property: string): number | null {
   return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
-function thumbnailFrom(anchor: HtmlNode): EHentaiThumbnailReference | null {
+function thumbnailFrom(
+  anchor: HtmlNode,
+  galleryOrigin: string
+): EHentaiThumbnailReference | null {
   const thumbnail = findElement(anchor, (node) => {
     const style = attribute(node, "style");
     return !!style && /url\(/i.test(style);
@@ -80,7 +83,11 @@ function thumbnailFrom(anchor: HtmlNode): EHentaiThumbnailReference | null {
     ) {
       return null;
     }
-    if (url.hostname === "ehgt.org") {
+    if (
+      url.hostname === "ehgt.org" ||
+      (galleryOrigin === "https://exhentai.org" &&
+        url.hostname === "s.exhentai.org")
+    ) {
       return { kind: "direct", url: url.href };
     }
     if (!url.hostname.endsWith(".hath.network") || !style) return null;
@@ -119,7 +126,8 @@ function thumbnailFrom(anchor: HtmlNode): EHentaiThumbnailReference | null {
 export function parseGalleryImagePages(
   html: string,
   galleryUrl: string,
-  galleryId: string
+  galleryId: string,
+  galleryOrigin = "https://e-hentai.org"
 ): Map<number, EHentaiImagePageReference> {
   const references = new Map<number, EHentaiImagePageReference>();
   const document = parse(html) as unknown as HtmlNode;
@@ -134,7 +142,7 @@ export function parseGalleryImagePages(
             new RegExp(`^/s/([a-f0-9]+)/${galleryId}-([1-9]\\d*)/?$`, "i")
           );
           if (
-            url.origin === "https://e-hentai.org" &&
+            url.origin === galleryOrigin &&
             !url.username &&
             !url.password &&
             !url.search &&
@@ -147,7 +155,7 @@ export function parseGalleryImagePages(
                 pageNumber,
                 pageUrl: url.href.replace(/\/$/, ""),
                 pageToken: match[1].toLowerCase(),
-                thumbnail: thumbnailFrom(node)
+                thumbnail: thumbnailFrom(node, galleryOrigin)
               });
             }
           }

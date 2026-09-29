@@ -40,6 +40,7 @@ export type OpenSourceError =
   | "invalid-location"
   | "unsupported-location"
   | "not-found"
+  | "authentication-required"
   | "rate-limited"
   | "unavailable"
   | "invalid-response"

@@ -10,6 +10,7 @@ function errorMessage(
   if (error === "invalid-location") return gt("Enter a complete supported location.");
   if (error === "unsupported-location") return gt("No installed provider supports that location.");
   if (error === "not-found") return gt("That source could not be found.");
+  if (error === "authentication-required") return gt("Sign in to the E-Hentai forums to open ExHentai galleries. Close the sign-in window when finished.");
   if (error === "rate-limited") return gt("The provider asked Pixvitta to slow down. Try again shortly.");
   if (error === "invalid-response") return gt("The provider returned an unexpected response.");
   if (error === "no-supported-media") return gt("That source has no supported images or videos.");
@@ -23,7 +24,18 @@ export function SourceOpenError({
 }) {
   const gt = useGT();
   const sourceOpenError = useViewerStore((state) => state.sourceOpenError);
+  const signInExHentai = useViewerStore((state) => state.signInExHentai);
   if (!sourceOpenError) return null;
+
+  const signInButton = sourceOpenError === "authentication-required" ? (
+    <button
+      type="button"
+      className="shrink-0 rounded-md border border-current px-2 py-1 text-xs font-semibold"
+      onClick={() => void signInExHentai()}
+    >
+      {gt("Sign in")}
+    </button>
+  ) : null;
 
   if (presentation === "toast") {
     return (
@@ -34,13 +46,15 @@ export function SourceOpenError({
       >
         <AlertCircle className="mt-0.5 shrink-0" size={17} aria-hidden />
         <span>{errorMessage(sourceOpenError, gt)}</span>
+        {signInButton}
       </div>
     );
   }
 
   return (
-    <p className="m-0 text-sm text-red-300" role="alert">
-      {errorMessage(sourceOpenError, gt)}
-    </p>
+    <div className="flex items-center gap-2 text-sm text-red-300" role="alert">
+      <span>{errorMessage(sourceOpenError, gt)}</span>
+      {signInButton}
+    </div>
   );
 }

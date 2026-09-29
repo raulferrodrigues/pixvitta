@@ -39,6 +39,7 @@ export type ViewerState = {
   filmstripWidth: number;
   isFilmstripVisible: boolean;
   sourceOpenError: OpenSourceError | null;
+  pendingAuthenticationLocation: string | null;
   downloadActivity: DownloadActivitySnapshot;
   isDownloadPanelOpen: boolean;
 };
@@ -48,6 +49,7 @@ export type ViewerActions = {
   openFolder(): Promise<void>;
   openLocation(location: string): Promise<void>;
   openRecentSource(location: string): Promise<void>;
+  signInExHentai(): Promise<void>;
   removeRecentSource(location: string): Promise<void>;
   openCollection(collection: MediaCollection): void;
   setSourceLoading(isLoading: boolean): void;
@@ -108,6 +110,17 @@ function settingsRequireSourceRefresh(previousSettings: AppSettings, nextSetting
   return previousSettings.fileOrder !== nextSettings.fileOrder || previousSettings.includeHidden !== nextSettings.includeHidden;
 }
 
+function exHentaiLocation(request: OpenSourceRequest): string | null {
+  if (request.kind !== "location") return null;
+  try {
+    return new URL(request.location.trim()).hostname === "exhentai.org"
+      ? request.location
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function createViewerStore(
   api: PixvittaApi,
   videoController: VideoController = createVideoController()
@@ -138,6 +151,7 @@ export function createViewerStore(
 
     const openSourceRequest = async (request: OpenSourceRequest) => {
       try {
+        set({ pendingAuthenticationLocation: exHentaiLocation(request) });
         api.openSource(request);
       } catch (error) {
         console.error(error);
@@ -166,6 +180,7 @@ export function createViewerStore(
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
       isFilmstripVisible: true,
       sourceOpenError: null,
+      pendingAuthenticationLocation: null,
       downloadActivity: {
         revision: 0,
         rows: [],
@@ -192,6 +207,16 @@ export function createViewerStore(
 
       async openRecentSource(location: string) {
         await openSourceRequest({ kind: "location", location });
+      },
+
+      async signInExHentai() {
+        const location = get().pendingAuthenticationLocation;
+        try {
+          const signedIn = await api.signInExHentai();
+          if (signedIn && location) await openSourceRequest({ kind: "location", location });
+        } catch (error) {
+          console.error(error);
+        }
       },
 
       async removeRecentSource(location: string) {

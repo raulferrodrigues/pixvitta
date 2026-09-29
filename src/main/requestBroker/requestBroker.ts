@@ -11,6 +11,7 @@ type TaskState = "queued" | "active" | "completed";
 type QueuedTask = BrokerTask<unknown> & {
   priority: RequestPriority;
   request: Request;
+  fetch: (request: Request) => Promise<Response>;
   timeoutMs: number | undefined;
   handleResponse(response: Response): Promise<unknown>;
   resolve(value: unknown): void;
@@ -152,7 +153,7 @@ async function runTask(task: QueuedTask): Promise<void> {
     signal: AbortSignal.any(signals)
   });
 
-  const response = await net.fetch(request);
+  const response = await task.fetch(request);
   if (response.status === 429) {
     await cancelBody(response);
     throw haltBroker();
@@ -238,6 +239,7 @@ export const broker = {
       result,
       priority: options.priority,
       request: options.request,
+      fetch: options.fetch ?? ((request) => net.fetch(request)),
       timeoutMs: options.timeoutMs,
       handleResponse: options.handleResponse as (
         response: Response

@@ -22,6 +22,7 @@ import {
   createProviderRegistry,
   type MediaResource
 } from "./providers";
+import { openExHentaiSignIn } from "./providers/exHentai/auth";
 
 let dialogResponses = parseDialogResponses();
 
@@ -144,6 +145,11 @@ ipcMain.on("source:refresh", () => {
 
 ipcMain.handle("source:open-origin", (_event, sourceId: unknown) => {
   return typeof sourceId === "string" ? openSourceOrigin(sourceId) : false;
+});
+
+ipcMain.handle("exhentai:sign-in", (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  return isMainWindow(window) ? openExHentaiSignIn(window) : false;
 });
 
 ipcMain.on("library:renderer-stable", (event) => {
