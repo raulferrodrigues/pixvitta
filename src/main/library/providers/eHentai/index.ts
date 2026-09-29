@@ -178,7 +178,7 @@ export class EHentaiProvider implements MediaProvider {
         canRefresh: true,
         canSort: false
       },
-      remember: !this.site.authenticated,
+      remember: true,
       items,
       selectedKey: items[0]?.key ?? null
     };
