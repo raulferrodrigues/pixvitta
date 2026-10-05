@@ -13,6 +13,7 @@ import { eHentaiSite, galleryRequest, isAuthenticationResponse, type GallerySite
 import { parseGalleryImagePages, type EHentaiImagePageReference } from "./html";
 import { PAGES_POLICY } from "./requestPolicies";
 import { parseEHentaiGalleryUrl, type EHentaiGalleryReference } from "./galleryUrl";
+import type { GalleryAccess } from "./galleryAccess";
 
 export { parseEHentaiGalleryUrl } from "./galleryUrl";
 export type { EHentaiGalleryReference } from "./galleryUrl";
@@ -115,16 +116,18 @@ export class EHentaiProvider implements MediaProvider {
       );
     }
 
-    const accountId = this.site.prepare
+    const access = this.site.prepare
       ? await this.site.prepare()
-      : null;
-    const initialPages = this.site.authenticated
-      ? await this.fetchInitialIndex(reference)
       : undefined;
-    const metadata = await this.fetchMetadata(reference);
+    const initialPages = this.site.authenticated
+      ? await this.fetchInitialIndex(reference, access)
+      : undefined;
+    const metadata = await this.fetchMetadata(reference, access);
+    access?.assertCurrent();
     const session = new EHentaiGallerySession({
       site: this.site,
-      cacheNamespace: accountId ? `${this.site.id}:${accountId}` : this.site.id,
+      cacheNamespace: access ? `${this.site.id}:${access.accountId}` : this.site.id,
+      access,
       initialPages,
       reference,
       fileCount: metadata.fileCount,
@@ -185,13 +188,14 @@ export class EHentaiProvider implements MediaProvider {
   }
 
   private async fetchMetadata(
-    reference: EHentaiGalleryReference
+    reference: EHentaiGalleryReference,
+    access?: GalleryAccess
   ): Promise<GalleryMetadata> {
     const task = broker.request<GalleryMetadata>({
       policy: API_POLICY,
       priority: "high",
       timeoutMs: REQUEST_TIMEOUT_MS,
-      fetch: this.site.fetch,
+      fetch: access?.fetch,
       request: galleryRequest(this.site, this.site.apiUrl, {
         method: "POST",
         headers: {
@@ -254,13 +258,14 @@ export class EHentaiProvider implements MediaProvider {
   }
 
   private async fetchInitialIndex(
-    reference: EHentaiGalleryReference
+    reference: EHentaiGalleryReference,
+    access?: GalleryAccess
   ): Promise<Map<number, EHentaiImagePageReference>> {
     const task = broker.request<Map<number, EHentaiImagePageReference>>({
       policy: PAGES_POLICY,
       priority: "high",
       timeoutMs: REQUEST_TIMEOUT_MS,
-      fetch: this.site.fetch,
+      fetch: access?.fetch,
       request: galleryRequest(this.site, reference.pageUrl, {
         method: "GET",
         headers: { Accept: "text/html", "User-Agent": USER_AGENT },

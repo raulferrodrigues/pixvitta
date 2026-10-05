@@ -10,6 +10,7 @@ import { parseDisplayedImageUrl } from "./html";
 import { IMAGES_POLICY, PAGES_POLICY } from "./requestPolicies";
 import { eHentaiSite, galleryRequest, isAuthenticationResponse, type GallerySite } from "./gallerySite";
 import { ProviderError } from "../provider";
+import type { GalleryAccess } from "./galleryAccess";
 
 const USER_AGENT =
   "Pixvitta media viewer (+https://github.com/raulferrodrigues/pixvitta)";
@@ -26,6 +27,7 @@ type InFlightEntry = {
   brokerTask: BrokerTask<unknown> | null;
   promise: Promise<CachedFile> | null;
   shouldStart: () => boolean;
+  access?: GalleryAccess;
 };
 
 const priorityRanks: Record<RequestPriority, number> = {
@@ -111,10 +113,13 @@ export class EHentaiImagePipeline {
     imagePageUrl: string,
     priority: RequestPriority,
     shouldStart: () => boolean = () => true,
+    access?: GalleryAccess,
     retryJoinedTimeout = true
   ): Promise<CachedFile> {
+    access?.assertCurrent();
+    const acquisitionKey = access ? `${cacheKey}:session:${access.generation}` : cacheKey;
     const id = acquisitionId(cacheKey);
-    const existing = this.inFlight[cacheKey];
+    const existing = this.inFlight[acquisitionKey];
     if (existing) {
       const joinedLowerPriority =
         priorityRanks[priority] > priorityRanks[existing.priority];
@@ -148,6 +153,7 @@ export class EHentaiImagePipeline {
             imagePageUrl,
             priority,
             shouldStart,
+            access,
             false
           );
         });
@@ -161,19 +167,23 @@ export class EHentaiImagePipeline {
       priority,
       brokerTask: null,
       promise: null,
-      shouldStart
+      shouldStart,
+      access
     };
-    this.inFlight[cacheKey] = entry;
+    this.inFlight[acquisitionKey] = entry;
     debugPriority(`created id=${id} priority=${priority}`);
     const operation = this.acquire(
       cacheKey,
       imagePageUrl,
       entry
-    );
+    ).then((file) => {
+      access?.assertCurrent();
+      return file;
+    });
     entry.promise = operation;
     const cleanup = () => {
-      if (this.inFlight[cacheKey] === entry) {
-        delete this.inFlight[cacheKey];
+      if (this.inFlight[acquisitionKey] === entry) {
+        delete this.inFlight[acquisitionKey];
       }
     };
     void operation.then(cleanup, cleanup);
@@ -197,7 +207,7 @@ export class EHentaiImagePipeline {
       policy: PAGES_POLICY,
       priority: entry.priority,
       timeoutMs: PAGE_TIMEOUT_MS,
-      fetch: this.site.fetch,
+      fetch: entry.access?.fetch,
       request: galleryRequest(this.site, imagePageUrl, {
         method: "GET",
         headers: {
@@ -252,7 +262,7 @@ export class EHentaiImagePipeline {
       policy: IMAGES_POLICY,
       priority: entry.priority,
       timeoutMs: IMAGE_TIMEOUT_MS,
-      fetch: this.site.fetch,
+      fetch: entry.access?.fetch,
       request: galleryRequest(this.site, deliveryUrl, {
         method: "GET",
         headers: {

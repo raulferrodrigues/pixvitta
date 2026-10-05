@@ -7,6 +7,7 @@ import { cache, type CachedFile } from "../../../resourceCache";
 import { mediaFileTypes } from "../../../utils/mediaTypes";
 import { THUMBNAILS_POLICY } from "./requestPolicies";
 import { eHentaiSite, galleryRequest, type GallerySite } from "./gallerySite";
+import type { GalleryAccess } from "./galleryAccess";
 
 const USER_AGENT =
   "Pixvitta media viewer (+https://github.com/raulferrodrigues/pixvitta)";
@@ -21,6 +22,7 @@ type InFlightEntry = {
   priority: RequestPriority;
   brokerTask: BrokerTask<unknown> | null;
   promise: Promise<CachedFile> | null;
+  access?: GalleryAccess;
 };
 
 const priorityRanks: Record<RequestPriority, number> = {
@@ -66,9 +68,12 @@ export class EHentaiThumbnailPipeline {
   get(
     cacheKey: string,
     thumbnailUrl: string,
-    priority: RequestPriority
+    priority: RequestPriority,
+    access?: GalleryAccess
   ): Promise<CachedFile> {
-    const existing = this.inFlight[cacheKey];
+    access?.assertCurrent();
+    const acquisitionKey = access ? `${cacheKey}:session:${access.generation}` : cacheKey;
+    const existing = this.inFlight[acquisitionKey];
     if (existing) {
       if (priorityRanks[priority] > priorityRanks[existing.priority]) {
         existing.priority = priority;
@@ -85,14 +90,18 @@ export class EHentaiThumbnailPipeline {
     const entry: InFlightEntry = {
       priority,
       brokerTask: null,
-      promise: null
+      promise: null,
+      access
     };
-    this.inFlight[cacheKey] = entry;
-    const operation = this.acquire(cacheKey, thumbnailUrl, entry);
+    this.inFlight[acquisitionKey] = entry;
+    const operation = this.acquire(cacheKey, thumbnailUrl, entry).then((file) => {
+      access?.assertCurrent();
+      return file;
+    });
     entry.promise = operation;
     const cleanup = () => {
-      if (this.inFlight[cacheKey] === entry) {
-        delete this.inFlight[cacheKey];
+      if (this.inFlight[acquisitionKey] === entry) {
+        delete this.inFlight[acquisitionKey];
       }
     };
     void operation.then(cleanup, cleanup);
@@ -114,7 +123,7 @@ export class EHentaiThumbnailPipeline {
       policy: THUMBNAILS_POLICY,
       priority: entry.priority,
       timeoutMs: REQUEST_TIMEOUT_MS,
-      fetch: this.site.fetch,
+      fetch: entry.access?.fetch,
       request: galleryRequest(this.site, thumbnailUrl, {
         method: "GET",
         headers: {

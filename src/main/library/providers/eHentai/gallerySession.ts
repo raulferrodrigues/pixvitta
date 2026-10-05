@@ -19,6 +19,7 @@ import { renderSpriteThumbnail } from "./spriteThumbnail";
 import { EHentaiThumbnailPipeline } from "./thumbnailPipeline";
 import { galleryRequest, isAuthenticationResponse, type GallerySite } from "./gallerySite";
 import { ProviderError } from "../provider";
+import { GalleryAccessExpiredError, type GalleryAccess } from "./galleryAccess";
 
 const INDEX_PAGE_SIZE = 20;
 const PREFETCH_COUNT = 5;
@@ -29,6 +30,7 @@ const USER_AGENT =
 type GallerySessionOptions = {
   site: GallerySite;
   cacheNamespace: string;
+  access?: GalleryAccess;
   initialPages?: Map<number, EHentaiImagePageReference>;
   reference: EHentaiGalleryReference;
   fileCount: number;
@@ -95,6 +97,7 @@ export class EHentaiGallerySession {
     }
 
     try {
+      this.options.access?.assertCurrent();
       const page = await this.resolvePage(pageNumber, priority);
       const file = await this.options.pipeline.get(
         this.cacheKey(page),
@@ -104,8 +107,10 @@ export class EHentaiGallerySession {
           ? () =>
               revision === this.demandRevision &&
               !request.signal.aborted
-          : () => true
+          : () => true,
+        this.options.access
       );
+      this.options.access?.assertCurrent();
       if (isSelected && revision === this.demandRevision) {
         void this.prefetch(pageNumber, revision);
       }
@@ -115,7 +120,7 @@ export class EHentaiGallerySession {
         file.contentType
       );
     } catch (error) {
-      if (error instanceof ImageRequestSupersededError) {
+      if (error instanceof ImageRequestSupersededError || error instanceof GalleryAccessExpiredError) {
         return new Response(null, { status: 409 });
       }
       throw error;
@@ -132,13 +137,16 @@ export class EHentaiGallerySession {
     }
 
     try {
+      this.options.access?.assertCurrent();
       const page = await this.resolvePage(pageNumber, priority);
       if (!page.thumbnail) return emptyThumbnailResponse();
       const file = await this.options.thumbnailPipeline.get(
         this.thumbnailCacheKey(page.thumbnail.url),
         page.thumbnail.url,
-        priority
+        priority,
+        this.options.access
       );
+      this.options.access?.assertCurrent();
       if (page.thumbnail.kind === "direct") {
         return createMediaFileResponse(
           file.filePath,
@@ -154,6 +162,7 @@ export class EHentaiGallerySession {
         },
         page.thumbnail.crop
       );
+      this.options.access?.assertCurrent();
       return bytesResponse(rendered.bytes, rendered.contentType);
     } catch {
       return emptyThumbnailResponse();
@@ -176,10 +185,11 @@ export class EHentaiGallerySession {
           "normal",
           () =>
             revision === this.demandRevision &&
-            this.desiredPages.has(pageNumber)
+            this.desiredPages.has(pageNumber),
+          this.options.access
         );
       } catch (error) {
-        if (error instanceof ImageRequestSupersededError) return;
+        if (error instanceof ImageRequestSupersededError || error instanceof GalleryAccessExpiredError) return;
         console.error(
           `[e-hentai] Could not prefetch gallery page ${pageNumber}.`,
           error
@@ -193,6 +203,7 @@ export class EHentaiGallerySession {
     pageNumber: number,
     priority: RequestPriority
   ): Promise<EHentaiImagePageReference> {
+    this.options.access?.assertCurrent();
     const existingPage = this.pages.get(pageNumber);
     if (existingPage) return existingPage;
 
@@ -227,6 +238,7 @@ export class EHentaiGallerySession {
       void entry.promise.then(cleanup, cleanup);
     }
     await entry.promise;
+    this.options.access?.assertCurrent();
 
     const resolved = this.pages.get(pageNumber);
     if (!resolved) {
@@ -252,7 +264,7 @@ export class EHentaiGallerySession {
       policy: PAGES_POLICY,
       priority: entry.priority,
       timeoutMs: REQUEST_TIMEOUT_MS,
-      fetch: this.options.site.fetch,
+      fetch: this.options.access?.fetch,
       request: galleryRequest(this.options.site, indexUrl, {
         method: "GET",
         headers: {

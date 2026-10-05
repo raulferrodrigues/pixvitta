@@ -167,7 +167,8 @@ export function parseGalleryImagePages(
     for (const child of node.childNodes ?? []) visit(child);
   }
 
-  visit(document);
+  const grid = findElement(document, (node) => attribute(node, "id") === "gdt");
+  if (grid) visit(grid);
   return references;
 }
 

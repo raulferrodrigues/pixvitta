@@ -127,6 +127,7 @@ export function createViewerStore(
 ): ViewerStoreApi {
   let settingsSaveRevision = 0;
   let recentSourcesRevision = 0;
+  let sourceRequestRevision = 0;
   let videoAudioSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   return createStore<ViewerStore>((set, get) => {
@@ -146,10 +147,12 @@ export function createViewerStore(
     };
 
     const applyOpenedCollection = (collection: MediaCollection) => {
+      sourceRequestRevision += 1;
       set(applyCollection(collection));
     };
 
     const openSourceRequest = async (request: OpenSourceRequest) => {
+      sourceRequestRevision += 1;
       try {
         set({ pendingAuthenticationLocation: exHentaiLocation(request) });
         api.openSource(request);
@@ -211,9 +214,12 @@ export function createViewerStore(
 
       async signInExHentai() {
         const location = get().pendingAuthenticationLocation;
+        const revision = sourceRequestRevision;
         try {
           const signedIn = await api.signInExHentai();
-          if (signedIn && location) await openSourceRequest({ kind: "location", location });
+          if (signedIn && location && revision === sourceRequestRevision) {
+            await openSourceRequest({ kind: "location", location });
+          }
         } catch (error) {
           console.error(error);
         }
@@ -259,6 +265,7 @@ export function createViewerStore(
         const { source } = get();
         if (!source?.capabilities.canRefresh) return;
 
+        sourceRequestRevision += 1;
         try {
           api.refreshSource();
         } catch (error) {

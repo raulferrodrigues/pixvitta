@@ -1,5 +1,6 @@
 import { app, BrowserWindow, session } from "electron";
 import { ProviderError } from "../provider";
+import { GalleryAuthentication, type GalleryAccess } from "../eHentai/galleryAccess";
 
 const partition = "persist:exhentai";
 const forumUrl = "https://forums.e-hentai.org/";
@@ -7,6 +8,7 @@ const exHentaiUrl = "https://exhentai.org/";
 const accountCookieNames = ["ipb_member_id", "ipb_pass_hash"] as const;
 
 let signInWindow: BrowserWindow | null = null;
+const authentication = new GalleryAuthentication();
 
 export function getExHentaiSession(): Electron.Session {
   return session.fromPartition(partition);
@@ -25,41 +27,61 @@ function validLoginNavigation(rawUrl: string): boolean {
   }
 }
 
-export async function prepareExHentaiSession(): Promise<string> {
+export async function prepareExHentaiSession(): Promise<GalleryAccess> {
   await app.whenReady();
-  const cookies = getExHentaiSession().cookies;
+  if (signInWindow && !signInWindow.isDestroyed()) {
+    throw new ProviderError("authentication-required", "Finish signing in first.");
+  }
+  const browserSession = getExHentaiSession();
+  const fetch = (request: Request) => browserSession.fetch(request);
+  const preparation = authentication.capture("", fetch);
+  const cookies = browserSession.cookies;
   const forumCookies = await cookies.get({ url: forumUrl });
+  preparation.assertCurrent();
   const exCookies = await cookies.get({ url: exHentaiUrl });
+  preparation.assertCurrent();
+  const accountCookies = accountCookieNames.map((name) => {
+    const source = forumCookies.find((cookie) => cookie.name === name && cookie.value);
+    if (!source || source.value === "0" || source.value === "deleted") {
+      authentication.invalidate();
+      throw new ProviderError("authentication-required", "Sign in to the E-Hentai forums first.");
+    }
+    return source;
+  });
+  if (accountCookies.some((source) =>
+    exCookies.find((cookie) => cookie.name === source.name)?.value !== source.value
+  )) {
+    authentication.invalidate();
+  }
+  const accountId = accountCookies[0].value;
+  const access = authentication.capture(accountId, fetch);
   const forumAccount = forumCookies.find((cookie) => cookie.name === "ipb_member_id" && cookie.value);
   const exAccount = exCookies.find((cookie) => cookie.name === "ipb_member_id" && cookie.value);
   // The forum and gallery use different registrable domains. Copy only the
   // account cookies into ExHentai's dedicated session; the site sets igneous.
   if (forumAccount && exAccount && forumAccount.value !== exAccount.value) {
     await cookies.remove(exHentaiUrl, "igneous");
+    access.assertCurrent();
   }
 
-  let accountId = "";
-  for (const name of accountCookieNames) {
-    const source = forumCookies.find((cookie) => cookie.name === name && cookie.value);
-    const existing = exCookies.find((cookie) => cookie.name === name && cookie.value);
-    if (!source || source.value === "0" || source.value === "deleted") {
-      throw new ProviderError("authentication-required", "Sign in to the E-Hentai forums first.");
-    }
-    if (name === "ipb_member_id") accountId = source.value;
+  for (const source of accountCookies) {
+    const existing = exCookies.find((cookie) => cookie.name === source.name && cookie.value);
     if (existing?.value === source.value) continue;
     await cookies.set({
       url: exHentaiUrl,
       domain: ".exhentai.org",
       path: "/",
-      name,
+      name: source.name,
       value: source.value,
       secure: true,
       httpOnly: true,
       ...(source.expirationDate ? { expirationDate: source.expirationDate } : {})
     });
+    access.assertCurrent();
   }
   await cookies.flushStore();
-  return accountId;
+  access.assertCurrent();
+  return access;
 }
 
 export async function openExHentaiSignIn(parent: BrowserWindow | null): Promise<boolean> {
@@ -69,6 +91,7 @@ export async function openExHentaiSignIn(parent: BrowserWindow | null): Promise<
     return false;
   }
 
+  authentication.invalidate();
   const window = new BrowserWindow({
     width: 960,
     height: 760,

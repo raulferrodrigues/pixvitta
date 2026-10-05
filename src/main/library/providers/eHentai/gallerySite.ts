@@ -1,11 +1,12 @@
+import type { GalleryAccess } from "./galleryAccess";
+
 export type GallerySite = {
   id: "e-hentai" | "exhentai";
   name: string;
   origin: string;
   apiUrl: string;
   authenticated: boolean;
-  prepare?: () => Promise<string>;
-  fetch?: (request: globalThis.Request) => Promise<Response>;
+  prepare?: () => Promise<GalleryAccess>;
 };
 
 export const eHentaiSite: GallerySite = {
