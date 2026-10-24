@@ -7,10 +7,7 @@ import type {
   ProviderLoadRequest
 } from "../provider";
 import { ProviderError } from "../provider";
-import { EHentaiGallerySession } from "./gallerySession";
-import { EHentaiImagePipeline } from "./imagePipeline";
 import { API_POLICY } from "./requestPolicies";
-import { EHentaiThumbnailPipeline } from "./thumbnailPipeline";
 import { eHentaiSite, galleryRequest, isAuthenticationResponse, type GallerySite } from "./gallerySite";
 import { parseGalleryImagePages, type EHentaiImagePageReference } from "./html";
 import { PAGES_POLICY } from "./requestPolicies";
@@ -96,15 +93,11 @@ async function cancelResponse(response: Response): Promise<void> {
 export class EHentaiProvider implements MediaProvider {
   readonly id: string;
   readonly sourceKind = "web";
-  private readonly runtimeResources = new ResourceAcquisitions();
-  private readonly runtimeImageLimit: ImageLimit = { reached: false, controller: new AbortController() };
-  private readonly imagePipeline: EHentaiImagePipeline;
-  private readonly thumbnailPipeline: EHentaiThumbnailPipeline;
+  private readonly resources = new ResourceAcquisitions();
+  private readonly imageLimit: ImageLimit = { reached: false, controller: new AbortController() };
 
   constructor(private readonly site: GallerySite = eHentaiSite) {
     this.id = site.id;
-    this.imagePipeline = new EHentaiImagePipeline(site);
-    this.thumbnailPipeline = new EHentaiThumbnailPipeline(site);
   }
 
   matches(location: string): boolean {
@@ -128,23 +121,15 @@ export class EHentaiProvider implements MediaProvider {
       : undefined;
     const metadata = await this.fetchMetadata(reference, access);
     access?.assertCurrent();
-    const session = this.site.id === "e-hentai" ? new EHentaiRuntimeSession({
-      site: this.site,
-      cacheNamespace: access ? `${this.site.id}:${access.accountId}` : this.site.id,
-      access,
-      reference,
-      fileCount: metadata.fileCount,
-      resources: this.runtimeResources,
-      imageLimit: this.runtimeImageLimit
-    }) : new EHentaiGallerySession({
+    const session = new EHentaiRuntimeSession({
       site: this.site,
       cacheNamespace: access ? `${this.site.id}:${access.accountId}` : this.site.id,
       access,
       initialPages,
       reference,
       fileCount: metadata.fileCount,
-      pipeline: this.imagePipeline,
-      thumbnailPipeline: this.thumbnailPipeline
+      resources: this.resources,
+      imageLimit: this.imageLimit
     });
     const nameWidth = Math.max(3, String(metadata.fileCount).length);
     const items = Array.from({ length: metadata.fileCount }, (_, index) => {
@@ -183,7 +168,7 @@ export class EHentaiProvider implements MediaProvider {
     });
 
     return {
-      viewing: session instanceof EHentaiRuntimeSession ? session : undefined,
+      viewing: session,
       canonicalLocation: reference.pageUrl,
       title: metadata.title,
       origin: {

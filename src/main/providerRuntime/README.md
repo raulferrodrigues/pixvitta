@@ -1,8 +1,7 @@
 # Provider runtime contract
 
-E-Hentai is the first adapter using this runtime. ExHentai and 4chan retain
-their existing resource pipelines and five-forward, five-back prefetch loops.
-Source loading and metadata requests retain the existing provider contract.
+E-Hentai, ExHentai, and 4chan media and thumbnails use this runtime. Source
+loading and metadata requests retain the existing provider contract.
 
 ## Implementing an adapter
 
@@ -31,7 +30,7 @@ same account, provided the adapter validates access before serving them.
 The library establishes the initial selection on each collection commit and
 passes subsequent renderer selections to `viewing.select`. Refresh must
 establish selection again even when public media IDs remain unchanged.
-The E-Hentai adapter converts provider item keys to runtime item indices.
+Adapters convert provider item keys to runtime item indices.
 
 Protocol requests can arrive before their selection event. High-priority
 media requests wait for explicit selection, then recheck it before acquiring

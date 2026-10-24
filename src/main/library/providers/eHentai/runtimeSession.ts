@@ -14,6 +14,7 @@ import { renderSpriteThumbnail } from "./spriteThumbnail";
 
 const USER_AGENT = "Pixvitta media viewer (+https://github.com/raulferrodrigues/pixvitta)";
 const imageTypes = new Set<string>(mediaFileTypes.filter((type) => type.kind === "image").map((type) => type.mimeType));
+const INDEX_PAGE_SIZE = 20;
 
 export type ImageLimit = { reached: boolean; controller: AbortController };
 
@@ -23,6 +24,7 @@ type Options = {
   fileCount: number;
   cacheNamespace: string;
   access?: GalleryAccess;
+  initialPages?: Map<number, EHentaiImagePageReference>;
   resources: ResourceAcquisitions;
   imageLimit: ImageLimit;
 };
@@ -33,9 +35,16 @@ type Thumbnail = { file: CachedFile; reference: EHentaiThumbnailReference } | nu
 // common runtime owns selection, sharing, prefetch and broker task lifetime.
 export class EHentaiRuntimeSession {
   private readonly pages = new Map<number, EHentaiImagePageReference>();
+  private readonly indexPageSize: number;
   private readonly runtime: ProviderCollectionRuntime<Thumbnail>;
 
   constructor(private readonly options: Options) {
+    // Signed-in accounts can change thumbnails per index page, so the first
+    // index fetched during load decides how later index pages are addressed.
+    this.indexPageSize = options.initialPages?.size || INDEX_PAGE_SIZE;
+    for (const [number, page] of options.initialPages ?? []) {
+      if (number >= 1 && number <= options.fileCount) this.pages.set(number, page);
+    }
     this.runtime = new ProviderCollectionRuntime(options.resources, {
       itemCount: options.fileCount,
       mediaKey: (index) => `${this.sourceKey}:media:${index}`,
@@ -88,7 +97,7 @@ export class EHentaiRuntimeSession {
     this.options.access?.assertCurrent();
     const existing = this.pages.get(page);
     if (existing) return existing;
-    const index = Math.floor((page - 1) / 20);
+    const index = Math.floor((page - 1) / this.indexPageSize);
     const pages = await io.use(`${this.sourceKey}:index:${index}`, (indexIO) => indexIO.request({
       policy: PAGES_POLICY,
       timeoutMs: 15_000,
@@ -99,7 +108,10 @@ export class EHentaiRuntimeSession {
       handleResponse: async (response) => {
         await this.checkResponse(response);
         const references = parseGalleryImagePages(await response.text(), this.options.reference.pageUrl, this.options.reference.galleryId, this.options.site.origin);
-        if (references.size === 0) throw new Error("The gallery index did not contain image pages.");
+        if (references.size === 0) {
+          if (this.options.site.authenticated) throw new ProviderError("authentication-required", `${this.options.site.name} did not accept the saved sign-in.`);
+          throw new Error("The gallery index did not contain image pages.");
+        }
         return references;
       }
     }));
@@ -122,6 +134,7 @@ export class EHentaiRuntimeSession {
         handleResponse: async (response) => { await this.checkResponse(response, true); return response.text(); }
       });
       const delivery = parseDisplayedImageUrl(html, page.pageUrl);
+      if (!delivery && this.options.site.authenticated) throw new ProviderError("authentication-required", `${this.options.site.name} did not accept the saved sign-in.`);
       if (!delivery || !this.approvedUrl(delivery, false)) throw new Error("The image page did not expose a safe image URL.");
       return io.requestFile({
         cacheKey, policy: IMAGES_POLICY, timeoutMs: 60_000, fetch: this.options.access?.fetch,
@@ -149,27 +162,31 @@ export class EHentaiRuntimeSession {
   }
 
   private approvedUrl(raw: string, thumbnail: boolean): boolean {
-    const url = new URL(raw);
+    let url: URL;
+    try { url = new URL(raw); }
+    catch { return false; }
     if (url.protocol !== "https:" || url.username || url.password) return false;
     if (thumbnail && (url.port || url.search || url.hash)) return false;
-    return url.hostname.endsWith(".hath.network") || (thumbnail ? url.hostname === "ehgt.org" : url.origin === this.options.site.origin);
+    if (url.hostname.endsWith(".hath.network")) return true;
+    if (this.options.site.assetOrigin && url.origin === this.options.site.assetOrigin) return true;
+    return thumbnail ? url.hostname === "ehgt.org" : url.origin === this.options.site.origin;
   }
 
   private async checkResponse(response: Response, fullImage = false): Promise<void> {
     if (response.ok) return;
     await response.body?.cancel().catch(() => {});
-    if (this.options.site.authenticated && isAuthenticationResponse(response)) throw new ProviderError("authentication-required", "Sign in to ExHentai again.");
+    if (this.options.site.authenticated && isAuthenticationResponse(response)) throw new ProviderError("authentication-required", `Sign in to ${this.options.site.name} again.`);
     if (fullImage && response.status === 509) {
       this.options.imageLimit.reached = true;
       this.options.imageLimit.controller.abort(new Error("E-Hentai image viewing limits have been reached."));
     }
-    throw new Error(`E-Hentai returned ${response.status}.`);
+    throw new Error(`${this.options.site.name} returned ${response.status}.`);
   }
 
   private async validateImage(response: Response, fullImage: boolean): Promise<string> {
     await this.checkResponse(response, fullImage);
     const type = response.headers.get("Content-Type")?.split(";")[0].trim().toLowerCase();
-    if (!type || !imageTypes.has(type)) throw new Error(`E-Hentai returned an unsupported image type: ${type ?? "unknown"}.`);
+    if (!type || !imageTypes.has(type)) throw new Error(`${this.options.site.name} returned an unsupported image type: ${type ?? "unknown"}.`);
     return type;
   }
 }
