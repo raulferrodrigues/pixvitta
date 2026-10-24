@@ -68,6 +68,8 @@ const pixvittaApi = {
   // event subscriptions below. It prevents early file-open events from being
   // sent into the void during startup.
   markViewerReady: (): Promise<void> => ipcRenderer.invoke("viewer:ready"),
+  setSelectedMedia: (mediaId: string | null): void =>
+    ipcRenderer.send("library:select-media", mediaId),
   acknowledgeCollection: (): void =>
     ipcRenderer.send("library:renderer-stable"),
 

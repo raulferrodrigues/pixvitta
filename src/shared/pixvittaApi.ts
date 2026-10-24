@@ -48,6 +48,7 @@ export type PixvittaApi = {
   getWindowChromeState(): Promise<WindowChromeState>;
   markViewerReady(): Promise<void>;
   acknowledgeCollection(): void;
+  setSelectedMedia(mediaId: string | null): void;
   onWindowChromeChanged(callback: (state: WindowChromeState) => void): () => void;
   onCommand(callback: (command: PixvittaCommand) => void): () => void;
   onCollectionChanged(callback: (collection: MediaCollection) => void): () => void;

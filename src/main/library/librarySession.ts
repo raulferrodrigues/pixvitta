@@ -139,6 +139,11 @@ ipcMain.on("source:open", (event, request: unknown) => {
   );
 });
 
+ipcMain.on("library:select-media", (event, mediaId: unknown) => {
+  if (!isMainWindow(BrowserWindow.fromWebContents(event.sender))) return;
+  if (mediaId === null || typeof mediaId === "string") mediaLibrary.selectMedia(mediaId);
+});
+
 ipcMain.on("source:refresh", () => {
   void refreshSource();
 });

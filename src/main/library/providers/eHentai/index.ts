@@ -1,3 +1,5 @@
+import { ResourceAcquisitions } from "../../../providerRuntime";
+import { EHentaiRuntimeSession, type ImageLimit } from "./runtimeSession";
 import { broker, type RequestPriority } from "../../../requestBroker";
 import type {
   MediaProvider,
@@ -94,6 +96,8 @@ async function cancelResponse(response: Response): Promise<void> {
 export class EHentaiProvider implements MediaProvider {
   readonly id: string;
   readonly sourceKind = "web";
+  private readonly runtimeResources = new ResourceAcquisitions();
+  private readonly runtimeImageLimit: ImageLimit = { reached: false, controller: new AbortController() };
   private readonly imagePipeline: EHentaiImagePipeline;
   private readonly thumbnailPipeline: EHentaiThumbnailPipeline;
 
@@ -124,7 +128,15 @@ export class EHentaiProvider implements MediaProvider {
       : undefined;
     const metadata = await this.fetchMetadata(reference, access);
     access?.assertCurrent();
-    const session = new EHentaiGallerySession({
+    const session = this.site.id === "e-hentai" ? new EHentaiRuntimeSession({
+      site: this.site,
+      cacheNamespace: access ? `${this.site.id}:${access.accountId}` : this.site.id,
+      access,
+      reference,
+      fileCount: metadata.fileCount,
+      resources: this.runtimeResources,
+      imageLimit: this.runtimeImageLimit
+    }) : new EHentaiGallerySession({
       site: this.site,
       cacheNamespace: access ? `${this.site.id}:${access.accountId}` : this.site.id,
       access,
@@ -171,6 +183,7 @@ export class EHentaiProvider implements MediaProvider {
     });
 
     return {
+      viewing: session instanceof EHentaiRuntimeSession ? session : undefined,
       canonicalLocation: reference.pageUrl,
       title: metadata.title,
       origin: {

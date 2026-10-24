@@ -22,11 +22,15 @@ function createMediaUrl(kind: "media" | "thumbnail", id: string): string {
 export class MediaCatalog {
   readonly collection: MediaCollection;
   private readonly registry = new MediaRegistry();
+  private readonly providerKeys = new Map<string, string>();
+  private readonly viewing: ProviderCollection["viewing"];
 
   constructor(collectionId: string, providerCollection: ProviderCollection) {
+    this.viewing = providerCollection.viewing;
     const registeredItems: RegisteredMediaItem[] = [];
     const items: MediaItem[] = providerCollection.items.map((item) => {
       const id = createPublicMediaId(collectionId, item.key);
+      this.providerKeys.set(id, item.key);
       registeredItems.push({
         id,
         name: item.name,
@@ -83,6 +87,16 @@ export class MediaCatalog {
           : items[0]?.id ?? null
     };
   }
+
+  selectMedia(id: string | null): void {
+    if (id === null) this.viewing?.select(null);
+    else {
+      const key = this.providerKeys.get(id);
+      if (key !== undefined) this.viewing?.select(key);
+    }
+  }
+
+  deactivate(): void { this.viewing?.deactivate(); }
 
   resolveId(id: string): RegisteredMediaItem | null {
     return this.registry.resolveId(id);

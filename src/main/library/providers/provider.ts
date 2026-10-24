@@ -24,6 +24,10 @@ export type ProviderMediaItem = Omit<MediaItem, "id" | "url" | "thumbnailUrl"> &
 };
 
 export type ProviderCollection = {
+  viewing?: {
+    select(key: string | null): void;
+    deactivate(): void;
+  };
   canonicalLocation: string;
   title: string;
   origin?: {
