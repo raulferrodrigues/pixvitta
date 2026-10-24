@@ -13,6 +13,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
+import { debugLog } from "../utils/debugLog";
 import { CacheIndex } from "./cacheIndex";
 import type { CachedFile } from "./types";
 
@@ -76,7 +77,7 @@ function cacheEntryId(cacheKey: string): string {
 }
 
 function debugCache(message: string): void {
-  console.debug(`[resource-cache ${new Date().toISOString()}] ${message}`);
+  debugLog("resource-cache", message);
 }
 
 function entryPaths(cacheKey: string): EntryPaths {
