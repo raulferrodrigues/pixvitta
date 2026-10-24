@@ -1,4 +1,5 @@
 import { EHentaiProvider } from "./eHentai";
+import { ExHentaiProvider } from "./exHentai";
 import { FourChanProvider } from "./fourChan";
 import { LocalFolderProvider } from "./localFolder";
 import { ProviderRegistry } from "./providerRegistry";
@@ -6,6 +7,7 @@ import { ProviderRegistry } from "./providerRegistry";
 export function createProviderRegistry(): ProviderRegistry {
   return new ProviderRegistry([
     new EHentaiProvider(),
+    new ExHentaiProvider(),
     new FourChanProvider(),
     new LocalFolderProvider()
   ]);

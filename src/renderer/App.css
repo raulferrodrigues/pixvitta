@@ -27,6 +27,11 @@
 .app-shell.has-unobtrusive-controls .topbar,
 .app-shell.has-unobtrusive-controls .viewer-controls { opacity: 0; }
 
+/* Window dragging is handled by the drag region, not pointer events. Letting
+   other clicks through reaches the filmstrip scrollbar beneath the bar. */
+.app-shell.has-unobtrusive-controls .topbar { pointer-events: none; }
+.app-shell.has-unobtrusive-controls .topbar button { pointer-events: auto; }
+
 .app-shell.has-unobtrusive-controls.is-controls-revealed .topbar,
 .app-shell.has-unobtrusive-controls.is-controls-revealed .viewer-controls,
 .app-shell.has-unobtrusive-controls:has(.viewer-file-order-trigger[data-state="open"]) .topbar,

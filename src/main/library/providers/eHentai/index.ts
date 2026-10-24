@@ -1,3 +1,5 @@
+import { ResourceAcquisitions } from "../../../providerRuntime";
+import { EHentaiRuntimeSession, type ImageLimit } from "./runtimeSession";
 import { broker, type RequestPriority } from "../../../requestBroker";
 import type {
   MediaProvider,
@@ -9,17 +11,18 @@ import { EHentaiGallerySession } from "./gallerySession";
 import { EHentaiImagePipeline } from "./imagePipeline";
 import { API_POLICY } from "./requestPolicies";
 import { EHentaiThumbnailPipeline } from "./thumbnailPipeline";
+import { eHentaiSite, galleryRequest, isAuthenticationResponse, type GallerySite } from "./gallerySite";
+import { parseGalleryImagePages, type EHentaiImagePageReference } from "./html";
+import { PAGES_POLICY } from "./requestPolicies";
+import { parseEHentaiGalleryUrl, type EHentaiGalleryReference } from "./galleryUrl";
+import type { GalleryAccess } from "./galleryAccess";
 
-const API_URL = "https://api.e-hentai.org/api.php";
+export { parseEHentaiGalleryUrl } from "./galleryUrl";
+export type { EHentaiGalleryReference } from "./galleryUrl";
+
 const USER_AGENT =
   "Pixvitta media viewer (+https://github.com/raulferrodrigues/pixvitta)";
 const REQUEST_TIMEOUT_MS = 15_000;
-
-export type EHentaiGalleryReference = {
-  galleryId: string;
-  galleryToken: string;
-  pageUrl: string;
-};
 
 type GalleryMetadata = {
   title: string;
@@ -27,53 +30,9 @@ type GalleryMetadata = {
   fileCount: number;
 };
 
-export function parseEHentaiGalleryUrl(
-  input: string
-): EHentaiGalleryReference | null {
-  let url: URL;
+function isEHentaiLocation(input: string, site: GallerySite): boolean {
   try {
-    url = new URL(input.trim());
-  } catch {
-    return null;
-  }
-
-  if (
-    url.protocol !== "https:" ||
-    url.hostname !== "e-hentai.org" ||
-    url.port ||
-    url.username ||
-    url.password ||
-    url.search
-  ) {
-    return null;
-  }
-
-  const [route, galleryId, galleryToken, ...extra] = url.pathname
-    .split("/")
-    .filter(Boolean);
-  if (
-    route !== "g" ||
-    !galleryId ||
-    !/^[1-9]\d*$/.test(galleryId) ||
-    !galleryToken ||
-    !/^[a-f0-9]{10}$/i.test(galleryToken) ||
-    extra.length > 0
-  ) {
-    return null;
-  }
-
-  return {
-    galleryId,
-    galleryToken: galleryToken.toLowerCase(),
-    pageUrl:
-      `https://e-hentai.org/g/${galleryId}/` +
-      `${galleryToken.toLowerCase()}/`
-  };
-}
-
-function isEHentaiLocation(input: string): boolean {
-  try {
-    return new URL(input.trim()).hostname === "e-hentai.org";
+    return new URL(input.trim()).hostname === new URL(site.origin).hostname;
   } catch {
     return false;
   }
@@ -81,7 +40,8 @@ function isEHentaiLocation(input: string): boolean {
 
 function parseMetadata(
   payload: unknown,
-  reference: EHentaiGalleryReference
+  reference: EHentaiGalleryReference,
+  site: GallerySite
 ): GalleryMetadata {
   if (!payload || typeof payload !== "object") {
     throw new ProviderError(
@@ -105,7 +65,7 @@ function parseMetadata(
   const title =
     typeof metadata.title === "string" && metadata.title.trim()
       ? metadata.title.trim()
-      : `E-Hentai gallery ${reference.galleryId}`;
+      : `${site.name} gallery ${reference.galleryId}`;
   const fileCount = Number(metadata.filecount);
   const postedSeconds = Number(metadata.posted);
   if (!Number.isSafeInteger(fileCount) || fileCount < 1) {
@@ -134,26 +94,53 @@ async function cancelResponse(response: Response): Promise<void> {
 }
 
 export class EHentaiProvider implements MediaProvider {
-  readonly id = "e-hentai";
+  readonly id: string;
   readonly sourceKind = "web";
-  private readonly imagePipeline = new EHentaiImagePipeline();
-  private readonly thumbnailPipeline = new EHentaiThumbnailPipeline();
+  private readonly runtimeResources = new ResourceAcquisitions();
+  private readonly runtimeImageLimit: ImageLimit = { reached: false, controller: new AbortController() };
+  private readonly imagePipeline: EHentaiImagePipeline;
+  private readonly thumbnailPipeline: EHentaiThumbnailPipeline;
+
+  constructor(private readonly site: GallerySite = eHentaiSite) {
+    this.id = site.id;
+    this.imagePipeline = new EHentaiImagePipeline(site);
+    this.thumbnailPipeline = new EHentaiThumbnailPipeline(site);
+  }
 
   matches(location: string): boolean {
-    return isEHentaiLocation(location);
+    return isEHentaiLocation(location, this.site);
   }
 
   async load(request: ProviderLoadRequest): Promise<ProviderCollection> {
-    const reference = parseEHentaiGalleryUrl(request.location);
+    const reference = parseEHentaiGalleryUrl(request.location, this.site);
     if (!reference) {
       throw new ProviderError(
         "invalid-location",
-        "Enter a full public E-Hentai gallery URL."
+        `Enter a full ${this.site.name} gallery URL.`
       );
     }
 
-    const metadata = await this.fetchMetadata(reference);
-    const session = new EHentaiGallerySession({
+    const access = this.site.prepare
+      ? await this.site.prepare()
+      : undefined;
+    const initialPages = this.site.authenticated
+      ? await this.fetchInitialIndex(reference, access)
+      : undefined;
+    const metadata = await this.fetchMetadata(reference, access);
+    access?.assertCurrent();
+    const session = this.site.id === "e-hentai" ? new EHentaiRuntimeSession({
+      site: this.site,
+      cacheNamespace: access ? `${this.site.id}:${access.accountId}` : this.site.id,
+      access,
+      reference,
+      fileCount: metadata.fileCount,
+      resources: this.runtimeResources,
+      imageLimit: this.runtimeImageLimit
+    }) : new EHentaiGallerySession({
+      site: this.site,
+      cacheNamespace: access ? `${this.site.id}:${access.accountId}` : this.site.id,
+      access,
+      initialPages,
       reference,
       fileCount: metadata.fileCount,
       pipeline: this.imagePipeline,
@@ -196,10 +183,11 @@ export class EHentaiProvider implements MediaProvider {
     });
 
     return {
+      viewing: session instanceof EHentaiRuntimeSession ? session : undefined,
       canonicalLocation: reference.pageUrl,
       title: metadata.title,
       origin: {
-        label: `E-Hentai · ${metadata.fileCount} pages`,
+        label: `${this.site.name} · ${metadata.fileCount} pages`,
         url: reference.pageUrl
       },
       capabilities: {
@@ -213,13 +201,15 @@ export class EHentaiProvider implements MediaProvider {
   }
 
   private async fetchMetadata(
-    reference: EHentaiGalleryReference
+    reference: EHentaiGalleryReference,
+    access?: GalleryAccess
   ): Promise<GalleryMetadata> {
     const task = broker.request<GalleryMetadata>({
       policy: API_POLICY,
       priority: "high",
       timeoutMs: REQUEST_TIMEOUT_MS,
-      request: new Request(API_URL, {
+      fetch: access?.fetch,
+      request: galleryRequest(this.site, this.site.apiUrl, {
         method: "POST",
         headers: {
           Accept: "application/json",
@@ -236,11 +226,15 @@ export class EHentaiProvider implements MediaProvider {
         redirect: "error"
       }),
       handleResponse: async (response) => {
+        if (this.site.authenticated && isAuthenticationResponse(response)) {
+          await cancelResponse(response);
+          throw new ProviderError("authentication-required", "Sign in to ExHentai again.");
+        }
         if (response.status === 503) {
           await cancelResponse(response);
           throw new ProviderError(
             "rate-limited",
-            "E-Hentai asked the app to slow down."
+            `${this.site.name} asked the app to slow down.`
           );
         }
         if (!response.ok) {
@@ -248,7 +242,7 @@ export class EHentaiProvider implements MediaProvider {
           await cancelResponse(response);
           throw new ProviderError(
             "unavailable",
-            `The gallery API returned ${status}.`
+            `The ${this.site.name} gallery API returned ${status}.`
           );
         }
 
@@ -256,12 +250,15 @@ export class EHentaiProvider implements MediaProvider {
         try {
           payload = await response.json();
         } catch {
+          if (this.site.authenticated) {
+            throw new ProviderError("authentication-required", "ExHentai did not accept the saved sign-in.");
+          }
           throw new ProviderError(
             "invalid-response",
             "The gallery API returned invalid JSON."
           );
         }
-        return parseMetadata(payload, reference);
+        return parseMetadata(payload, reference, this.site);
       }
     });
 
@@ -269,7 +266,55 @@ export class EHentaiProvider implements MediaProvider {
       return await task.result;
     } catch (error) {
       if (error instanceof ProviderError) throw error;
-      throw new ProviderError("unavailable", "Could not reach E-Hentai.");
+      throw new ProviderError("unavailable", `Could not reach ${this.site.name}.`);
+    }
+  }
+
+  private async fetchInitialIndex(
+    reference: EHentaiGalleryReference,
+    access?: GalleryAccess
+  ): Promise<Map<number, EHentaiImagePageReference>> {
+    const task = broker.request<Map<number, EHentaiImagePageReference>>({
+      policy: PAGES_POLICY,
+      priority: "high",
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      fetch: access?.fetch,
+      request: galleryRequest(this.site, reference.pageUrl, {
+        method: "GET",
+        headers: { Accept: "text/html", "User-Agent": USER_AGENT },
+        redirect: "error"
+      }),
+      handleResponse: async (response) => {
+        if (isAuthenticationResponse(response)) {
+          await cancelResponse(response);
+          throw new ProviderError("authentication-required", "Sign in to ExHentai again.");
+        }
+        if (response.status === 404) {
+          await cancelResponse(response);
+          throw new ProviderError("not-found", "The ExHentai gallery was not found.");
+        }
+        if (!response.ok) {
+          const status = response.status;
+          await cancelResponse(response);
+          throw new ProviderError("unavailable", `ExHentai returned ${status}.`);
+        }
+        const pages = parseGalleryImagePages(
+          await response.text(),
+          reference.pageUrl,
+          reference.galleryId,
+          this.site.origin
+        );
+        if (pages.size === 0) {
+          throw new ProviderError("authentication-required", "ExHentai did not accept the saved sign-in.");
+        }
+        return pages;
+      }
+    });
+    try {
+      return await task.result;
+    } catch (error) {
+      if (error instanceof ProviderError) throw error;
+      throw new ProviderError("unavailable", "Could not reach ExHentai.");
     }
   }
 }

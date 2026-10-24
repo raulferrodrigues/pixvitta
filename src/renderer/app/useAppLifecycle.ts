@@ -1,11 +1,12 @@
 import { useEffect } from "react";
 import { flushSync } from "react-dom";
 import type { PixvittaApi } from "../../shared/pixvittaApi";
-import { useViewerStore } from "../state/ViewerStoreProvider";
+import { useViewerStore, useViewerStoreApi } from "../state/ViewerStoreProvider";
 
 const VIDEO_SEEK_SECONDS = 5;
 
 export function useAppLifecycle(api: PixvittaApi) {
+  const store = useViewerStoreApi();
   const initialize = useViewerStore((state) => state.initialize);
   const openFolder = useViewerStore((state) => state.openFolder);
   const refreshSource = useViewerStore((state) => state.refreshSource);
@@ -23,6 +24,20 @@ export function useAppLifecycle(api: PixvittaApi) {
   const applySettings = useViewerStore((state) => state.applySettings);
 
   useEffect(() => { void initialize(); }, [initialize]);
+
+  useEffect(() => {
+    // Navigation is an explicit library input, including cache-only revisits.
+    let previousId: string | null | undefined;
+    const publishSelection = (state: ReturnType<typeof store.getState>) => {
+      const mediaId = state.items[state.index]?.id ?? null;
+      if (mediaId === previousId) return;
+      previousId = mediaId;
+      // An already-running dev window may still have the previous preload.
+      api.setSelectedMedia?.(mediaId);
+    };
+    publishSelection(store.getState());
+    return store.subscribe(publishSelection);
+  }, [api, store]);
 
   useEffect(() => {
     const unsubscribeCommand = api.onCommand((command) => {

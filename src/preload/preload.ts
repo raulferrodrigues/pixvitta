@@ -26,6 +26,8 @@ const pixvittaApi = {
     ipcRenderer.send("source:refresh"),
   openSourceOrigin: (sourceId: string): Promise<boolean> =>
     ipcRenderer.invoke("source:open-origin", sourceId),
+  signInExHentai: (): Promise<boolean> =>
+    ipcRenderer.invoke("exhentai:sign-in"),
 
   // Persistent app data also goes through main. The renderer gets plain objects,
   // not direct access to JSON files under Electron's userData directory.
@@ -66,6 +68,8 @@ const pixvittaApi = {
   // event subscriptions below. It prevents early file-open events from being
   // sent into the void during startup.
   markViewerReady: (): Promise<void> => ipcRenderer.invoke("viewer:ready"),
+  setSelectedMedia: (mediaId: string | null): void =>
+    ipcRenderer.send("library:select-media", mediaId),
   acknowledgeCollection: (): void =>
     ipcRenderer.send("library:renderer-stable"),
 

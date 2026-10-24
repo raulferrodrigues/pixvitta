@@ -39,6 +39,7 @@ export type ViewerState = {
   filmstripWidth: number;
   isFilmstripVisible: boolean;
   sourceOpenError: OpenSourceError | null;
+  pendingAuthenticationLocation: string | null;
   downloadActivity: DownloadActivitySnapshot;
   isDownloadPanelOpen: boolean;
 };
@@ -48,6 +49,7 @@ export type ViewerActions = {
   openFolder(): Promise<void>;
   openLocation(location: string): Promise<void>;
   openRecentSource(location: string): Promise<void>;
+  signInExHentai(): Promise<void>;
   removeRecentSource(location: string): Promise<void>;
   openCollection(collection: MediaCollection): void;
   setSourceLoading(isLoading: boolean): void;
@@ -108,12 +110,24 @@ function settingsRequireSourceRefresh(previousSettings: AppSettings, nextSetting
   return previousSettings.fileOrder !== nextSettings.fileOrder || previousSettings.includeHidden !== nextSettings.includeHidden;
 }
 
+function exHentaiLocation(request: OpenSourceRequest): string | null {
+  if (request.kind !== "location") return null;
+  try {
+    return new URL(request.location.trim()).hostname === "exhentai.org"
+      ? request.location
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export function createViewerStore(
   api: PixvittaApi,
   videoController: VideoController = createVideoController()
 ): ViewerStoreApi {
   let settingsSaveRevision = 0;
   let recentSourcesRevision = 0;
+  let sourceRequestRevision = 0;
   let videoAudioSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   return createStore<ViewerStore>((set, get) => {
@@ -133,11 +147,14 @@ export function createViewerStore(
     };
 
     const applyOpenedCollection = (collection: MediaCollection) => {
+      sourceRequestRevision += 1;
       set(applyCollection(collection));
     };
 
     const openSourceRequest = async (request: OpenSourceRequest) => {
+      sourceRequestRevision += 1;
       try {
+        set({ pendingAuthenticationLocation: exHentaiLocation(request) });
         api.openSource(request);
       } catch (error) {
         console.error(error);
@@ -166,6 +183,7 @@ export function createViewerStore(
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
       isFilmstripVisible: true,
       sourceOpenError: null,
+      pendingAuthenticationLocation: null,
       downloadActivity: {
         revision: 0,
         rows: [],
@@ -192,6 +210,19 @@ export function createViewerStore(
 
       async openRecentSource(location: string) {
         await openSourceRequest({ kind: "location", location });
+      },
+
+      async signInExHentai() {
+        const location = get().pendingAuthenticationLocation;
+        const revision = sourceRequestRevision;
+        try {
+          const signedIn = await api.signInExHentai();
+          if (signedIn && location && revision === sourceRequestRevision) {
+            await openSourceRequest({ kind: "location", location });
+          }
+        } catch (error) {
+          console.error(error);
+        }
       },
 
       async removeRecentSource(location: string) {
@@ -234,6 +265,7 @@ export function createViewerStore(
         const { source } = get();
         if (!source?.capabilities.canRefresh) return;
 
+        sourceRequestRevision += 1;
         try {
           api.refreshSource();
         } catch (error) {
@@ -436,7 +468,11 @@ export function createViewerStore(
       },
 
       markMediaBroken(id: string) {
-        set((state) => ({ mediaErrors: new Set(state.mediaErrors).add(id) }));
+        set((state) => {
+          // An obsolete media request can fail after navigation cancels it.
+          if (selectCurrentItem(state)?.id !== id) return state;
+          return { mediaErrors: new Set(state.mediaErrors).add(id) };
+        });
       },
 
       attachVideoElement(element: HTMLVideoElement | null) {

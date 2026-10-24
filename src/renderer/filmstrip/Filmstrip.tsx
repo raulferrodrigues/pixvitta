@@ -80,6 +80,7 @@ export function Filmstrip() {
           })}
         </div>
       </div>
+      <div className="filmstrip-scrollbar-passage" aria-hidden />
       <FilmstripResizer />
     </aside>
   );

@@ -5,7 +5,7 @@ import {
   type BrokerTask,
   type RequestPriority
 } from "../../../requestBroker";
-import type { EHentaiGalleryReference } from ".";
+import type { EHentaiGalleryReference } from "./galleryUrl";
 import {
   type EHentaiImagePageReference,
   parseGalleryImagePages
@@ -17,6 +17,9 @@ import {
 import { PAGES_POLICY } from "./requestPolicies";
 import { renderSpriteThumbnail } from "./spriteThumbnail";
 import { EHentaiThumbnailPipeline } from "./thumbnailPipeline";
+import { galleryRequest, isAuthenticationResponse, type GallerySite } from "./gallerySite";
+import { ProviderError } from "../provider";
+import { GalleryAccessExpiredError, type GalleryAccess } from "./galleryAccess";
 
 const INDEX_PAGE_SIZE = 20;
 const PREFETCH_COUNT = 5;
@@ -25,6 +28,10 @@ const USER_AGENT =
   "Pixvitta media viewer (+https://github.com/raulferrodrigues/pixvitta)";
 
 type GallerySessionOptions = {
+  site: GallerySite;
+  cacheNamespace: string;
+  access?: GalleryAccess;
+  initialPages?: Map<number, EHentaiImagePageReference>;
   reference: EHentaiGalleryReference;
   fileCount: number;
   pipeline: Pick<EHentaiImagePipeline, "get">;
@@ -57,13 +64,21 @@ async function cancelResponse(response: Response): Promise<void> {
 
 export class EHentaiGallerySession {
   private readonly pages = new Map<number, EHentaiImagePageReference>();
+  private readonly indexPageSize: number;
   private readonly indexRequests: {
     [indexPage: string]: IndexRequestEntry | undefined;
   } = {};
   private desiredPages = new Set<number>();
   private demandRevision = 0;
 
-  constructor(private readonly options: GallerySessionOptions) {}
+  constructor(private readonly options: GallerySessionOptions) {
+    this.indexPageSize = options.initialPages?.size || INDEX_PAGE_SIZE;
+    if (options.initialPages) {
+      for (const [pageNumber, page] of options.initialPages) {
+        if (this.isValidPage(pageNumber)) this.pages.set(pageNumber, page);
+      }
+    }
+  }
 
   async respond(
     pageNumber: number,
@@ -82,6 +97,7 @@ export class EHentaiGallerySession {
     }
 
     try {
+      this.options.access?.assertCurrent();
       const page = await this.resolvePage(pageNumber, priority);
       const file = await this.options.pipeline.get(
         this.cacheKey(page),
@@ -91,8 +107,10 @@ export class EHentaiGallerySession {
           ? () =>
               revision === this.demandRevision &&
               !request.signal.aborted
-          : () => true
+          : () => true,
+        this.options.access
       );
+      this.options.access?.assertCurrent();
       if (isSelected && revision === this.demandRevision) {
         void this.prefetch(pageNumber, revision);
       }
@@ -102,7 +120,7 @@ export class EHentaiGallerySession {
         file.contentType
       );
     } catch (error) {
-      if (error instanceof ImageRequestSupersededError) {
+      if (error instanceof ImageRequestSupersededError || error instanceof GalleryAccessExpiredError) {
         return new Response(null, { status: 409 });
       }
       throw error;
@@ -119,13 +137,16 @@ export class EHentaiGallerySession {
     }
 
     try {
+      this.options.access?.assertCurrent();
       const page = await this.resolvePage(pageNumber, priority);
       if (!page.thumbnail) return emptyThumbnailResponse();
       const file = await this.options.thumbnailPipeline.get(
         this.thumbnailCacheKey(page.thumbnail.url),
         page.thumbnail.url,
-        priority
+        priority,
+        this.options.access
       );
+      this.options.access?.assertCurrent();
       if (page.thumbnail.kind === "direct") {
         return createMediaFileResponse(
           file.filePath,
@@ -141,6 +162,7 @@ export class EHentaiGallerySession {
         },
         page.thumbnail.crop
       );
+      this.options.access?.assertCurrent();
       return bytesResponse(rendered.bytes, rendered.contentType);
     } catch {
       return emptyThumbnailResponse();
@@ -163,10 +185,11 @@ export class EHentaiGallerySession {
           "normal",
           () =>
             revision === this.demandRevision &&
-            this.desiredPages.has(pageNumber)
+            this.desiredPages.has(pageNumber),
+          this.options.access
         );
       } catch (error) {
-        if (error instanceof ImageRequestSupersededError) return;
+        if (error instanceof ImageRequestSupersededError || error instanceof GalleryAccessExpiredError) return;
         console.error(
           `[e-hentai] Could not prefetch gallery page ${pageNumber}.`,
           error
@@ -180,10 +203,11 @@ export class EHentaiGallerySession {
     pageNumber: number,
     priority: RequestPriority
   ): Promise<EHentaiImagePageReference> {
+    this.options.access?.assertCurrent();
     const existingPage = this.pages.get(pageNumber);
     if (existingPage) return existingPage;
 
-    const indexPage = Math.floor((pageNumber - 1) / INDEX_PAGE_SIZE);
+    const indexPage = Math.floor((pageNumber - 1) / this.indexPageSize);
     const key = String(indexPage);
     let entry = this.indexRequests[key];
     if (entry) {
@@ -214,6 +238,7 @@ export class EHentaiGallerySession {
       void entry.promise.then(cleanup, cleanup);
     }
     await entry.promise;
+    this.options.access?.assertCurrent();
 
     const resolved = this.pages.get(pageNumber);
     if (!resolved) {
@@ -239,7 +264,8 @@ export class EHentaiGallerySession {
       policy: PAGES_POLICY,
       priority: entry.priority,
       timeoutMs: REQUEST_TIMEOUT_MS,
-      request: new Request(indexUrl, {
+      fetch: this.options.access?.fetch,
+      request: galleryRequest(this.options.site, indexUrl, {
         method: "GET",
         headers: {
           Accept: "text/html",
@@ -248,6 +274,10 @@ export class EHentaiGallerySession {
         redirect: "error"
       }),
       handleResponse: async (response) => {
+        if (this.options.site.authenticated && isAuthenticationResponse(response)) {
+          await cancelResponse(response);
+          throw new ProviderError("authentication-required", "Sign in to ExHentai again.");
+        }
         if (!response.ok) {
           const status = response.status;
           await cancelResponse(response);
@@ -256,9 +286,13 @@ export class EHentaiGallerySession {
         const references = parseGalleryImagePages(
           await response.text(),
           this.options.reference.pageUrl,
-          this.options.reference.galleryId
+          this.options.reference.galleryId,
+          this.options.site.origin
         );
         if (references.size === 0) {
+          if (this.options.site.authenticated) {
+            throw new ProviderError("authentication-required", "ExHentai did not accept the saved sign-in.");
+          }
           throw new Error(
             "E-Hentai gallery index did not contain image pages."
           );
@@ -310,13 +344,13 @@ export class EHentaiGallerySession {
 
   private cacheKey(page: EHentaiImagePageReference): string {
     return (
-      `e-hentai:image:${this.options.reference.galleryId}:` +
+      `${this.options.cacheNamespace}:image:${this.options.reference.galleryId}:` +
       `${page.pageToken}:${page.pageNumber}`
     );
   }
 
   private thumbnailCacheKey(thumbnailUrl: string): string {
-    return `e-hentai:thumbnail:${thumbnailUrl}`;
+    return `${this.options.cacheNamespace}:thumbnail:${thumbnailUrl}`;
   }
 }
 

@@ -3,5 +3,7 @@ export type {
   BrokerRequestOptions,
   BrokerTask,
   RequestPolicy,
+  RequestBroker,
   RequestPriority
 } from "./types";
+export { RequestCancelledError } from "./scheduler";

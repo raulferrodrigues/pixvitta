@@ -3,6 +3,7 @@ import type { MediaItem } from "../../shared/media";
 import { classNames } from "../ui/classNames";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { MediaLoadingOverlay } from "./MediaLoadingOverlay";
+import { useMediaSource } from "./useMediaSource";
 
 export function VideoViewer({ item }: { item: MediaItem }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -11,7 +12,7 @@ export function VideoViewer({ item }: { item: MediaItem }) {
   const mediaErrors = useViewerStore((state) => state.mediaErrors);
   const isVideoLooping = useViewerStore((state) => state.isVideoLooping);
   const attachVideoElement = useViewerStore((state) => state.attachVideoElement);
-  const markMediaBroken = useViewerStore((state) => state.markMediaBroken);
+  const source = useMediaSource(item);
   const setVideoPlaying = useViewerStore((state) => state.setVideoPlaying);
   const setVideoAudio = useViewerStore((state) => state.setVideoAudio);
   const isLoaded = loadedItemId === item.id;
@@ -57,7 +58,7 @@ export function VideoViewer({ item }: { item: MediaItem }) {
           !isLoaded && "is-media-loading"
         )}
         data-testid="video-media"
-        src={item.url}
+        src={source.src}
         controls={settings.showVideoControls}
         autoPlay={settings.videoAutoplay}
         loop={isVideoLooping}
@@ -69,7 +70,7 @@ export function VideoViewer({ item }: { item: MediaItem }) {
         onVolumeChange={(event) => {
           setVideoAudio(event.currentTarget.volume, event.currentTarget.muted);
         }}
-        onError={() => markMediaBroken(item.id)}
+        onError={source.handleError}
       />
     </div>
   );

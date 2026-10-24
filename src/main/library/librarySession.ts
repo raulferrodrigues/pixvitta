@@ -22,6 +22,7 @@ import {
   createProviderRegistry,
   type MediaResource
 } from "./providers";
+import { openExHentaiSignIn } from "./providers/exHentai/auth";
 
 let dialogResponses = parseDialogResponses();
 
@@ -138,12 +139,22 @@ ipcMain.on("source:open", (event, request: unknown) => {
   );
 });
 
+ipcMain.on("library:select-media", (event, mediaId: unknown) => {
+  if (!isMainWindow(BrowserWindow.fromWebContents(event.sender))) return;
+  if (mediaId === null || typeof mediaId === "string") mediaLibrary.selectMedia(mediaId);
+});
+
 ipcMain.on("source:refresh", () => {
   void refreshSource();
 });
 
 ipcMain.handle("source:open-origin", (_event, sourceId: unknown) => {
   return typeof sourceId === "string" ? openSourceOrigin(sourceId) : false;
+});
+
+ipcMain.handle("exhentai:sign-in", (event) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  return isMainWindow(window) ? openExHentaiSignIn(window) : false;
 });
 
 ipcMain.on("library:renderer-stable", (event) => {

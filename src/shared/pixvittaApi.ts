@@ -29,6 +29,7 @@ export type PixvittaApi = {
   openSource(request: OpenSourceRequest): void;
   refreshSource(): void;
   openSourceOrigin(sourceId: string): Promise<boolean>;
+  signInExHentai(): Promise<boolean>;
   getRecentSources(): Promise<RecentSource[]>;
   removeRecentSource(location: string): Promise<RecentSource[]>;
   getSettings(): Promise<AppSettings>;
@@ -47,6 +48,7 @@ export type PixvittaApi = {
   getWindowChromeState(): Promise<WindowChromeState>;
   markViewerReady(): Promise<void>;
   acknowledgeCollection(): void;
+  setSelectedMedia(mediaId: string | null): void;
   onWindowChromeChanged(callback: (state: WindowChromeState) => void): () => void;
   onCommand(callback: (command: PixvittaCommand) => void): () => void;
   onCollectionChanged(callback: (collection: MediaCollection) => void): () => void;

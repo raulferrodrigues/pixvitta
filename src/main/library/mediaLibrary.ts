@@ -10,7 +10,7 @@ import type {
   ProviderCollection,
   ProviderRegistry
 } from "./providers";
-import { ProviderError } from "./providers";
+import { ProviderError } from "./providers/provider";
 
 export type MediaLibraryPhase = "idle" | "loading" | "awaiting-renderer";
 
@@ -134,6 +134,10 @@ export class MediaLibrary {
     }
   }
 
+  selectMedia(mediaId: string | null): void {
+    this.active?.catalog.selectMedia(mediaId);
+  }
+
   originUrl(collectionId: string): string | null {
     if (this.active?.catalog.collection.source.id !== collectionId) return null;
     return this.active.originUrl ?? null;
@@ -218,6 +222,7 @@ export class MediaLibrary {
       candidate.providerCollection
     );
     const previousCatalog = this.active?.catalog ?? null;
+    previousCatalog?.deactivate();
 
     this.active = {
       provider: candidate.provider,
@@ -225,6 +230,9 @@ export class MediaLibrary {
       originUrl: candidate.providerCollection.origin?.url,
       catalog
     };
+    // Establish demand on every commit, including refreshes whose public item
+    // IDs are unchanged and therefore produce no renderer selection change.
+    catalog.selectMedia(catalog.collection.selectedId);
     this.previousCatalog = previousCatalog;
     this.pendingRecentSource = candidate.rememberAfterAcknowledgement
       ? {
