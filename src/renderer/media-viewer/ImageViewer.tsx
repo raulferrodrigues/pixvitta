@@ -3,12 +3,13 @@ import type { MediaItem } from "../../shared/media";
 import { classNames } from "../ui/classNames";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { MediaLoadingOverlay } from "./MediaLoadingOverlay";
+import { useMediaSource } from "./useMediaSource";
 import { useImageZoomInteractions } from "./useImageZoomInteractions";
 
 export function ImageViewer({ item }: { item: MediaItem }) {
   const [loadedItemId, setLoadedItemId] = useState<string | null>(null);
   const settings = useViewerStore((state) => state.settings);
-  const markMediaBroken = useViewerStore((state) => state.markMediaBroken);
+  const source = useMediaSource(item);
   const interactions = useImageZoomInteractions(true);
   const isLoaded = loadedItemId === item.id;
 
@@ -36,10 +37,10 @@ export function ImageViewer({ item }: { item: MediaItem }) {
         )}
         style={interactions.imageStyle}
         data-testid="image-media"
-        src={item.url}
+        src={source.src}
         alt={item.name}
         onLoad={() => setLoadedItemId(item.id)}
-        onError={() => markMediaBroken(item.id)}
+        onError={source.handleError}
       />
     </div>
   );

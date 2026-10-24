@@ -92,3 +92,18 @@ test("refreshing the current source while signing in prevents a stale retry", as
   await pending;
   assert.equal(requests.length, 1);
 });
+
+test("an obsolete media failure after navigation does not mark that page broken", () => {
+  const { store } = setup();
+  store.getState().openCollection({
+    source: { id: "source", title: "Gallery", capabilities: { canRefresh: true, canSort: false, canOpenOrigin: true } },
+    selectedId: "first",
+    items: ["first", "second"].map((id) => ({ id, name: id, url: `pixvitta-media://media/${id}`, thumbnailUrl: null,
+      kind: "image", sizeBytes: 1, lastOpenedMs: 0, addedMs: 0, modifiedMs: 0, createdMs: 0 }))
+  });
+  store.getState().selectMedia(1);
+  store.getState().markMediaBroken("first");
+  assert.equal(store.getState().mediaErrors.has("first"), false);
+  store.getState().markMediaBroken("second");
+  assert.equal(store.getState().mediaErrors.has("second"), true);
+});

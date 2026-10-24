@@ -468,7 +468,11 @@ export function createViewerStore(
       },
 
       markMediaBroken(id: string) {
-        set((state) => ({ mediaErrors: new Set(state.mediaErrors).add(id) }));
+        set((state) => {
+          // An obsolete media request can fail after navigation cancels it.
+          if (selectCurrentItem(state)?.id !== id) return state;
+          return { mediaErrors: new Set(state.mediaErrors).add(id) };
+        });
       },
 
       attachVideoElement(element: HTMLVideoElement | null) {
