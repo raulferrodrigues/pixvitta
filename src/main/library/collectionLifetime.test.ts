@@ -16,7 +16,7 @@ test("selection uses provider keys and only a committed replacement deactivates 
     async load({ location }: { location: string }): Promise<ProviderCollection> {
       if (location === "failure") throw new ProviderError("unavailable", "Cannot load.");
       return {
-        canonicalLocation: location, title: location, capabilities: { canRefresh: true, canSort: false }, remember: false,
+        canonicalLocation: location, title: location, capabilities: { canRefresh: true, canSort: false, canDownload: false }, remember: false,
         selectedKey: "page:1",
         viewing: { select: (key) => { selected.push(`${location}:${key}`); }, deactivate: () => { deactivated.push(location); } },
         items: [{ key: "page:1", name: "Page 1", kind: "image", sizeBytes: 1, lastOpenedMs: 0, addedMs: 0, modifiedMs: 0, createdMs: 0,

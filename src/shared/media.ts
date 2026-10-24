@@ -3,6 +3,7 @@ export type MediaKind = "image" | "video";
 export type MediaSourceCapabilities = {
   canRefresh: boolean;
   canSort: boolean;
+  canDownload: boolean;
   canOpenOrigin: boolean;
 };
 

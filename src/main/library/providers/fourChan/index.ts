@@ -481,7 +481,8 @@ export class FourChanProvider implements MediaProvider {
       },
       capabilities: {
         canRefresh: true,
-        canSort: false
+        canSort: false,
+        canDownload: true
       },
       remember: true,
       items,

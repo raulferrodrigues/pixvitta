@@ -97,7 +97,7 @@ export function Controls() {
               <IconButton label={gt("Enable video loop")} className="video-control-placeholder" disabled data-testid="video-loop-placeholder"><Repeat1 size={18} aria-hidden /></IconButton>
             )}
           </span>
-          {source?.capabilities.canOpenOrigin ? (
+          {source?.capabilities.canDownload ? (
             <IconButton
               label={downloadLabel}
               disabled={isDownloadActive}
@@ -115,7 +115,7 @@ export function Controls() {
               )}
             </IconButton>
           ) : null}
-          {source?.capabilities.canOpenOrigin ? (
+          {source?.capabilities.canDownload ? (
             <IconButton
               label={gt("Download collection")}
               disabled={isCollectionDownloadActive}
