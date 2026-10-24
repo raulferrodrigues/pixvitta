@@ -101,7 +101,9 @@ async function findCompleted(cacheKey: string): Promise<CachedFile | null> {
     rawMetadata = await readFile(paths.metadata, "utf8");
   } catch (error) {
     if (!isNodeError(error, "ENOENT")) throw error;
-    await removeEntry(paths.directory);
+    // Entries are committed by renaming a complete directory into place, so a
+    // missing metadata file is a plain miss. Removing the directory here could
+    // delete an entry committed after the read failed.
     return null;
   }
 
