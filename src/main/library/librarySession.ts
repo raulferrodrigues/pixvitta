@@ -132,11 +132,9 @@ export async function removeRecentSource(
 }
 
 ipcMain.on("source:open", (event, request: unknown) => {
-  if (!isOpenSourceRequest(request)) return;
-  void openSourceForWindow(
-    request,
-    BrowserWindow.fromWebContents(event.sender)
-  );
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!isMainWindow(window) || !isOpenSourceRequest(request)) return;
+  void openSourceForWindow(request, window);
 });
 
 ipcMain.on("library:select-media", (event, mediaId: unknown) => {
@@ -144,7 +142,8 @@ ipcMain.on("library:select-media", (event, mediaId: unknown) => {
   if (mediaId === null || typeof mediaId === "string") mediaLibrary.selectMedia(mediaId);
 });
 
-ipcMain.on("source:refresh", () => {
+ipcMain.on("source:refresh", (event) => {
+  if (!isMainWindow(BrowserWindow.fromWebContents(event.sender))) return;
   void refreshSource();
 });
 
