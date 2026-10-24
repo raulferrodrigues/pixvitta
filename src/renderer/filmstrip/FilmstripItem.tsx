@@ -94,7 +94,7 @@ export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps)
 
   return (
     <button
-      className="filmstrip-item relative aspect-square w-full flex-none cursor-pointer overflow-hidden rounded-lg border border-pix-tile-border bg-pix-panel p-0 text-pix-text hover:border-pix-tile-border-hover hover:bg-pix-panel-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pix-accent aria-current:border-pix-accent aria-current:shadow-[inset_0_0_0_2px_var(--pix-accent)]"
+      className="filmstrip-item relative aspect-square w-full flex-none cursor-pointer overflow-hidden rounded-lg border border-pix-tile-border bg-pix-panel p-0 text-pix-text hover:border-pix-tile-border-hover hover:bg-pix-panel-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pix-accent"
       type="button"
       aria-label={gt("Show {name}", { name: item.name })}
       aria-current={isActive ? "true" : undefined}
