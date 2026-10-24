@@ -22,7 +22,7 @@
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
     "build:electron": "esbuild src/main/main.ts src/preload/preload.ts --bundle --platform=node --external:electron --external:electron-updater --format=cjs --outdir=dist-electron",
     "electron:dev": "pnpm build:electron && concurrently -k \"pnpm dev\" \"wait-on tcp:5173 && env -u ELECTRON_RUN_AS_NODE PIXVITTA_BUILD_FLAVOR=dev VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
-    "test": "esbuild src/main/updates/updateStatus.test.ts src/main/library/providers/eHentai/html.test.ts src/main/library/providers/eHentai/galleryAccess.test.ts src/main/library/providers/eHentai/galleryAuthentication.test.ts src/renderer/state/viewerStore.test.ts src/main/requestBroker/scheduler.test.ts src/main/providerRuntime/acquisitions.test.ts src/main/providerRuntime/collectionRuntime.test.ts src/main/library/providers/eHentai/runtimeSession.test.ts src/main/library/collectionLifetime.test.ts src/main/resourceCache/cacheIndex.test.ts --bundle --platform=node --format=cjs --alias:electron=./src/main/testing/electron.ts --outdir=.tmp/tests --entry-names=[name] && node --test .tmp/tests/updateStatus.test.js .tmp/tests/html.test.js .tmp/tests/galleryAccess.test.js .tmp/tests/galleryAuthentication.test.js .tmp/tests/viewerStore.test.js .tmp/tests/scheduler.test.js .tmp/tests/acquisitions.test.js .tmp/tests/collectionRuntime.test.js .tmp/tests/runtimeSession.test.js .tmp/tests/collectionLifetime.test.js .tmp/tests/cacheIndex.test.js",
+    "test": "node scripts/run-tests.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "build": "vite build && pnpm build:electron",
     "validate": "pnpm test && pnpm typecheck && pnpm build",
