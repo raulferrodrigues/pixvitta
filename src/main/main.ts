@@ -2,7 +2,10 @@ import { app, BrowserWindow } from "electron";
 import { configureAppIdentity } from "./app/buildInfo";
 import { createAppMenu } from "./menus";
 import { registerIpcHandlers } from "./ipc";
-import { openFileAsFolder } from "./library";
+import {
+  openFileAsCollection
+} from "./library";
+import "./media";
 import { startAutomaticUpdates } from "./updates";
 import { createMainWindow, createPreferencesWindow } from "./windows";
 
@@ -11,11 +14,14 @@ function fileArguments(argv: string[]): string[] {
   return argv.slice(start).filter((argument) => argument.length > 0 && !argument.startsWith("-"));
 }
 
-async function openFileArgument(argv: string[]): Promise<boolean> {
+async function openFileArgument(
+  argv: string[],
+  baseDirectory = process.cwd()
+): Promise<boolean> {
   for (const filePath of fileArguments(argv)) {
-    const folder = await openFileAsFolder(filePath);
-    if (folder) {
-      createMainWindow(folder);
+    const opened = await openFileAsCollection(filePath, baseDirectory);
+    if (opened) {
+      createMainWindow();
       return true;
     }
   }
@@ -36,7 +42,7 @@ async function openFileArgument(argv: string[]): Promise<boolean> {
 
 // Configure product naming and per-flavor storage before taking Electron's
 // single-instance lock. This lets stable and development builds run together
-// without sharing settings, recent folders, thumbnails, or process locks.
+// without sharing settings, recent sources, thumbnails, or process locks.
 configureAppIdentity();
 
 // IPC handlers are registered before app readiness because they do not touch
@@ -51,10 +57,15 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
 } else {
-  app.on("second-instance", (_event, argv) => {
-    void app.whenReady().then(() => openFileArgument(argv)).then((opened) => {
-      if (!opened && BrowserWindow.getAllWindows().length === 0) createMainWindow();
-    });
+  app.on("second-instance", (_event, argv, workingDirectory) => {
+    void app
+      .whenReady()
+      .then(() => openFileArgument(argv, workingDirectory))
+      .then((opened) => {
+        if (!opened && BrowserWindow.getAllWindows().length === 0) {
+          createMainWindow();
+        }
+      });
   });
 }
 
@@ -63,11 +74,12 @@ if (!hasSingleInstanceLock) {
 // we handled the open request ourselves.
 app.on("open-file", (event, filePath) => {
   event.preventDefault();
+  if (!hasSingleInstanceLock) return;
   void app
     .whenReady()
-    .then(() => openFileAsFolder(filePath))
-    .then((folder) => {
-      if (folder) createMainWindow(folder);
+    .then(() => openFileAsCollection(filePath))
+    .then((opened) => {
+      if (opened) createMainWindow();
     })
     .catch((error: unknown) => console.error(error));
 });
@@ -76,6 +88,8 @@ app.on("open-file", (event, filePath) => {
 // that relies on OS integration, such as protocol handlers and windows, starts
 // here instead of at module load time.
 void app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) return;
+
   // Menus are global/native in Electron. Creating the application menu here
   // wires macOS menu items to either native actions or renderer commands.
   createAppMenu();

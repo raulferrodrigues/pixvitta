@@ -2,11 +2,12 @@ import { FolderOpen } from "lucide-react";
 import { T } from "gt-react";
 import type { AppBuildInfo } from "../../shared/appBuild";
 import { useViewerStore } from "../state/ViewerStoreProvider";
-import { DevBuildBadge } from "../ui/DevBuildBadge";
+import { BuildFlavorBadge } from "../ui/BuildFlavorBadge";
 import { PrimaryButton } from "../ui/PrimaryButton";
-import { RecentFolders } from "./RecentFolders";
+import { RecentSources } from "./RecentSources";
+import { LocationPicker } from "./LocationPicker";
 
-export function FolderPicker({ buildInfo }: { buildInfo: AppBuildInfo }) {
+export function SourcePicker({ buildInfo }: { buildInfo: AppBuildInfo }) {
   const loadState = useViewerStore((state) => state.loadState);
   const openFolder = useViewerStore((state) => state.openFolder);
 
@@ -29,13 +30,14 @@ export function FolderPicker({ buildInfo }: { buildInfo: AppBuildInfo }) {
         <div className="flex items-center justify-between gap-[18px]">
           <div className="flex items-center gap-3">
             <h1 className="m-0 text-[32px] leading-[1.1] text-pix-heading">{buildInfo.name}</h1>
-            <DevBuildBadge buildInfo={buildInfo} />
+            <BuildFlavorBadge buildInfo={buildInfo} />
           </div>
           <PrimaryButton data-testid="open-folder-empty" onClick={() => void openFolder()}>
             <FolderOpen size={20} aria-hidden /><span><T>Open Folder</T></span>
           </PrimaryButton>
         </div>
-        <RecentFolders />
+        <LocationPicker />
+        <RecentSources />
       </div>
     </main>
   );

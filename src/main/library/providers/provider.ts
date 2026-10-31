@@ -1,0 +1,68 @@
+import type { MediaItem, OpenSourceError } from "../../../shared/media";
+import type { RecentSourceKind } from "../../../shared/recentSources";
+import type { AppSettings } from "../../../shared/settings";
+import type { RequestPriority } from "../../requestBroker";
+
+export type MediaResource = {
+  respond(
+    request: Request,
+    priority: RequestPriority
+  ): Promise<Response>;
+};
+
+export type ProviderThumbnail =
+  | { kind: "direct"; url: string }
+  | { kind: "resource"; resource: MediaResource }
+  | { kind: "none" };
+
+export type ProviderMediaItem = Omit<MediaItem, "id" | "url" | "thumbnailUrl"> & {
+  key: string;
+  media: MediaResource;
+  thumbnail: ProviderThumbnail;
+  externalUrl?: string;
+  localPath?: string;
+};
+
+export type ProviderCollection = {
+  viewing?: {
+    select(key: string | null): void;
+    deactivate(): void;
+  };
+  canonicalLocation: string;
+  title: string;
+  origin?: {
+    label: string;
+    url: string;
+  };
+  capabilities: {
+    canRefresh: boolean;
+    canSort: boolean;
+    canDownload: boolean;
+  };
+  remember: boolean;
+  items: ProviderMediaItem[];
+  selectedKey: string | null;
+};
+
+export type ProviderLoadRequest = {
+  location: string;
+  refresh: boolean;
+  settings: AppSettings;
+};
+
+export interface MediaProvider {
+  readonly id: string;
+  readonly sourceKind: RecentSourceKind;
+  matches(location: string): boolean;
+  load(request: ProviderLoadRequest): Promise<ProviderCollection>;
+}
+
+export class ProviderError extends Error {
+  constructor(
+    readonly code: OpenSourceError,
+    message: string
+  ) {
+    super(message);
+    this.name = "ProviderError";
+  }
+}

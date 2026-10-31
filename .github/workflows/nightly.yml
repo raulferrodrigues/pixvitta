@@ -1,0 +1,102 @@
+name: Nightly
+
+# Every change that lands on dev gets its own patch version, then each platform builds
+# a Nightly from that exact commit. Platform builds live in their own reusable
+# workflows; add a new platform as another job that needs `version`.
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Bump version
+    runs-on: ubuntu-latest
+    # Changes landing on dev bump the patch (Z in X.Y.Z). The Stable workflow
+    # owns minor and major bumps. Commits pushed with GITHUB_TOKEN do not
+    # trigger workflows, so the bump commit cannot loop.
+    # No concurrency group: parallel runs each bump from the current tip and
+    # retry on a rejected push, so no bump is dropped.
+    outputs:
+      sha: ${{ steps.bump.outputs.sha }}
+      version: ${{ steps.bump.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Commit version bump
+        id: bump
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          trailer="Version-Bump-For: ${GITHUB_SHA}"
+
+          version_at() {
+            git show "$1:package.json" | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version"
+          }
+
+          for attempt in 1 2 3 4 5; do
+            git fetch origin dev
+            git reset --hard origin/dev
+
+            # A re-run must not bump a second time for the same push.
+            existing="$(git log origin/dev --format=%H --fixed-strings --grep="${trailer}" -n 1)"
+            if [ -n "$existing" ]; then
+              version="$(version_at "$existing")"
+              echo "Push ${GITHUB_SHA} was already bumped to ${version} in ${existing}."
+              echo "sha=${existing}" >> "$GITHUB_OUTPUT"
+              echo "version=${version}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            # Only CI owns the version. Bump from the last version CI committed
+            # on dev itself (a bump or a release sync), so a hand edit to
+            # package.json that slipped into dev is discarded.
+            last_bump="$(git log origin/dev --first-parent --format=%H --extended-regexp \
+              --grep='^Version-(Bump|Sync)-For: ' -n 1)"
+            current="$(node -p "require('./package.json').version")"
+            base="$current"
+            if [ -n "$last_bump" ]; then
+              base="$(version_at "$last_bump")"
+            fi
+            if [ "$current" != "$base" ]; then
+              echo "::warning::package.json version was changed by hand to ${current}. Discarding it and bumping from ${base}."
+            fi
+
+            version="$(node scripts/release-version.mjs next "$base" patch)"
+            npm version "$version" --no-git-tag-version --allow-same-version >/dev/null
+            git commit --all --quiet --message "Bump version to ${version}" --message "${trailer}"
+
+            if git push origin HEAD:dev; then
+              echo "Bumped dev to ${version}."
+              echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+              echo "version=${version}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            echo "Push attempt ${attempt} was rejected; retrying from the new tip."
+            sleep $((attempt * 3))
+          done
+
+          echo "Could not push the version bump to dev."
+          exit 1
+
+  linux:
+    name: Linux
+    needs: version
+    uses: ./.github/workflows/linux-nightly-release.yml
+    with:
+      sha: ${{ needs.version.outputs.sha }}

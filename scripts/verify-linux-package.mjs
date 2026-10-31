@@ -8,18 +8,21 @@ const execFileAsync = promisify(execFile);
 const flavor = process.argv[2];
 const packagePath = process.argv[3];
 
-if ((flavor !== "stable" && flavor !== "dev") || !packagePath) {
-  throw new Error("Usage: node scripts/verify-linux-package.mjs <stable|dev> <package.deb>");
+if ((flavor !== "stable" && flavor !== "nightly") || !packagePath) {
+  throw new Error(
+    "Usage: node scripts/verify-linux-package.mjs <stable|nightly> <package.deb>"
+  );
 }
 
-const expected = flavor === "dev"
+const expected = flavor === "nightly"
   ? {
-    packageName: "pixvitta-dev",
-    productName: "Pixvitta Dev",
-    executable: "pixvitta-dev",
-    desktopFile: "pixvitta-dev.desktop",
-    iconName: "pixvitta-dev",
-    updaterCache: "pixvitta-dev-updater"
+    packageName: "pixvitta-nightly",
+    productName: "Pixvitta Nightly",
+    executable: "pixvitta-nightly",
+    desktopFile: "pixvitta-nightly.desktop",
+    iconName: "pixvitta-nightly",
+    updaterCache: "pixvitta-nightly-updater",
+    updateChannel: "nightly"
   }
   : {
     packageName: "pixvitta",
@@ -64,6 +67,13 @@ try {
   requireMatch(desktopEntry, new RegExp(`^StartupWMClass=${expected.executable}$`, "m"), "window class");
   requireMatch(desktopEntry, /^MimeType=.*image\/jpeg.*video\/mp4/m, "MIME associations");
   requireMatch(updateConfig, new RegExp(`^updaterCacheDirName: ${expected.updaterCache}$`, "m"), "updater cache");
+  if ("updateChannel" in expected) {
+    requireMatch(
+      updateConfig,
+      new RegExp(`^channel: ${expected.updateChannel}$`, "m"),
+      "update channel"
+    );
+  }
   requireMatch(packageType, /^deb\s*$/, "package type marker");
 } finally {
   await rm(extractDir, { recursive: true, force: true });

@@ -1,8 +1,13 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { AppBuildInfo } from "../shared/appBuild";
-import type { Folder } from "../shared/media";
+import type {
+  DownloadActivitySnapshot,
+  MediaCollection,
+  OpenSourceError,
+  OpenSourceRequest
+} from "../shared/media";
 import type { PixvittaApi, PixvittaCommand, WindowChromeState } from "../shared/pixvittaApi";
-import type { RecentFolder } from "../shared/recentFolders";
+import type { RecentSource } from "../shared/recentSources";
 import type { AppSettings } from "../shared/settings";
 
 /*
@@ -15,29 +20,42 @@ import type { AppSettings } from "../shared/settings";
 
 const pixvittaApi = {
   getBuildInfo: (): Promise<AppBuildInfo> => ipcRenderer.invoke("app:get-build-info"),
-
-  // Folder actions are request/response IPC calls. From React's point of view
-  // these behave like async API calls; from Electron's point of view they cross
-  // into ipcMain handlers that can open dialogs and read the filesystem.
-  openFolder: (): Promise<Folder | null> => ipcRenderer.invoke("folder:open"),
-  openRecentFolder: (folderPath: string): Promise<Folder> =>
-    ipcRenderer.invoke("folder:open-recent", folderPath),
-  rescanFolder: (folderPath: string): Promise<Folder> =>
-    ipcRenderer.invoke("folder:rescan", folderPath),
+  openSource: (request: OpenSourceRequest): void =>
+    ipcRenderer.send("source:open", request),
+  refreshSource: (): void =>
+    ipcRenderer.send("source:refresh"),
+  openSourceOrigin: (sourceId: string): Promise<boolean> =>
+    ipcRenderer.invoke("source:open-origin", sourceId),
+  signInExHentai: (): Promise<boolean> =>
+    ipcRenderer.invoke("exhentai:sign-in"),
 
   // Persistent app data also goes through main. The renderer gets plain objects,
   // not direct access to JSON files under Electron's userData directory.
-  getRecentFolders: (): Promise<RecentFolder[]> => ipcRenderer.invoke("recent-folders:get"),
-  removeRecentFolder: (folderPath: string): Promise<RecentFolder[]> =>
-    ipcRenderer.invoke("recent-folders:remove", folderPath),
+  getRecentSources: (): Promise<RecentSource[]> =>
+    ipcRenderer.invoke("recent-sources:get"),
+  removeRecentSource: (location: string): Promise<RecentSource[]> =>
+    ipcRenderer.invoke("recent-sources:remove", location),
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings: AppSettings): Promise<AppSettings> => ipcRenderer.invoke("settings:save", settings),
 
   // Media actions pass IDs or validated data across the bridge. The main process
   // resolves IDs to paths and decides whether anything should touch disk.
+  downloadMedia: (mediaId: string): Promise<boolean> =>
+    ipcRenderer.invoke("media:download", mediaId),
+  downloadCollection: (
+    collectionName: string,
+    mediaIds: string[]
+  ): Promise<boolean> =>
+    ipcRenderer.invoke(
+      "media:download-collection",
+      collectionName,
+      mediaIds
+    ),
+  getDownloadActivity: (): Promise<DownloadActivitySnapshot> =>
+    ipcRenderer.invoke("media:get-download-activity"),
   showMediaContextMenu: (mediaId: string): Promise<boolean> => ipcRenderer.invoke("media:show-context-menu", mediaId),
-  saveMediaThumbnail: (mediaId: string, dataUrl: string): Promise<boolean> =>
-    ipcRenderer.invoke("thumbnail:save-media", mediaId, dataUrl),
+  saveMediaThumbnail: (thumbnailReference: string, dataUrl: string): Promise<boolean> =>
+    ipcRenderer.invoke("thumbnail:save-media", thumbnailReference, dataUrl),
 
   // Native window state belongs to BrowserWindow in the main process. These
   // methods give React controls without granting direct BrowserWindow access.
@@ -50,6 +68,10 @@ const pixvittaApi = {
   // event subscriptions below. It prevents early file-open events from being
   // sent into the void during startup.
   markViewerReady: (): Promise<void> => ipcRenderer.invoke("viewer:ready"),
+  setSelectedMedia: (mediaId: string | null): void =>
+    ipcRenderer.send("library:select-media", mediaId),
+  acknowledgeCollection: (): void =>
+    ipcRenderer.send("library:renderer-stable"),
 
   // Event subscriptions are push-style messages from main to renderer. Each one
   // returns an unsubscribe function so React effects can clean up listeners.
@@ -63,10 +85,45 @@ const pixvittaApi = {
     ipcRenderer.on("menu:command", listener);
     return () => ipcRenderer.removeListener("menu:command", listener);
   },
-  onOpenedFile: (callback: (folder: Folder) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, folder: Folder) => callback(folder);
-    ipcRenderer.on("file:opened", listener);
-    return () => ipcRenderer.removeListener("file:opened", listener);
+  onCollectionChanged: (callback: (collection: MediaCollection) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, collection: MediaCollection) => callback(collection);
+    ipcRenderer.on("library:collection-changed", listener);
+    return () => ipcRenderer.removeListener("library:collection-changed", listener);
+  },
+  onSourceLoadingChanged: (callback: (isLoading: boolean) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, isLoading: boolean) => callback(isLoading);
+    ipcRenderer.on("library:loading-changed", listener);
+    return () => ipcRenderer.removeListener("library:loading-changed", listener);
+  },
+  onSourceError: (callback: (error: OpenSourceError) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, error: OpenSourceError) => callback(error);
+    ipcRenderer.on("library:source-error", listener);
+    return () => ipcRenderer.removeListener("library:source-error", listener);
+  },
+  onDownloadActivityChanged: (
+    callback: (snapshot: DownloadActivitySnapshot) => void
+  ): (() => void) => {
+    const listener = (
+      event: Electron.IpcRendererEvent,
+      snapshot: DownloadActivitySnapshot
+    ) => {
+      void event;
+      callback(snapshot);
+    };
+    ipcRenderer.on("media:download-activity-changed", listener);
+    return () =>
+      ipcRenderer.removeListener(
+        "media:download-activity-changed",
+        listener
+      );
+  },
+  onRecentSourcesChanged: (callback: (sources: RecentSource[]) => void): (() => void) => {
+    const listener = (
+      _event: Electron.IpcRendererEvent,
+      sources: RecentSource[]
+    ) => callback(sources);
+    ipcRenderer.on("recent-sources:changed", listener);
+    return () => ipcRenderer.removeListener("recent-sources:changed", listener);
   },
   onSettingsChanged: (callback: (settings: AppSettings) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, settings: AppSettings) => callback(settings);

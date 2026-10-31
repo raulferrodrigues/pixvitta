@@ -2,23 +2,35 @@ import { Film } from "lucide-react";
 import { useGT } from "gt-react";
 import { type MouseEvent as ReactMouseEvent, type SyntheticEvent, useEffect, useRef, useState } from "react";
 import type { MediaItem } from "../../shared/media";
+import { DownloadActivityIndicator } from "../downloads/DownloadActivityIndicator";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { createMediaThumbnailDataUrl } from "./thumbnailCapture";
 
 type FilmstripItemProps = { item: MediaItem; itemIndex: number; isActive: boolean };
 type PreviewMode = "thumbnail" | "image-capture" | "video-capture" | "fallback";
 
+function prefetchUrl(rawUrl: string): string {
+  const url = new URL(rawUrl);
+  url.searchParams.set("intent", "prefetch");
+  return url.href;
+}
+
 export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps) {
   const gt = useGT();
   const hasMediaError = useViewerStore((state) => state.mediaErrors.has(item.id));
   const selectMedia = useViewerStore((state) => state.selectMedia);
-  const [previewMode, setPreviewMode] = useState<PreviewMode>("thumbnail");
+  const downloadActivityState = useViewerStore(
+    (state) => state.downloadActivity.itemStates[item.id]
+  );
+  const [previewMode, setPreviewMode] = useState<PreviewMode>(
+    item.thumbnailUrl ? "thumbnail" : "fallback"
+  );
   const [thumbnailSrc, setThumbnailSrc] = useState(item.thumbnailUrl);
   const isCapturingFrameRef = useRef(false);
   const hasRequestedSeekRef = useRef(false);
 
   useEffect(() => {
-    setPreviewMode("thumbnail");
+    setPreviewMode(item.thumbnailUrl ? "thumbnail" : "fallback");
     setThumbnailSrc(item.thumbnailUrl);
     isCapturingFrameRef.current = false;
     hasRequestedSeekRef.current = false;
@@ -35,11 +47,11 @@ export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps)
   }
 
   async function saveCapturedThumbnail(source: CanvasImageSource, sourceWidth: number, sourceHeight: number) {
-    if (isCapturingFrameRef.current) return;
+    if (isCapturingFrameRef.current || !item.thumbnailUrl) return;
     isCapturingFrameRef.current = true;
     try {
       const thumbnailDataUrl = createMediaThumbnailDataUrl(source, sourceWidth, sourceHeight);
-      if (!thumbnailDataUrl || !(await window.pixvitta.saveMediaThumbnail(item.id, thumbnailDataUrl))) {
+      if (!thumbnailDataUrl || !(await window.pixvitta.saveMediaThumbnail(item.thumbnailUrl, thumbnailDataUrl))) {
         setPreviewMode("fallback");
         return;
       }
@@ -78,10 +90,11 @@ export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps)
   const showFallback = hasMediaError || previewMode === "fallback";
   const showImageCapture = !showFallback && item.kind === "image" && previewMode === "image-capture";
   const showVideoCapture = !showFallback && item.kind === "video" && previewMode === "video-capture";
+  const mediaPreviewUrl = prefetchUrl(item.url);
 
   return (
     <button
-      className="filmstrip-item relative aspect-square w-full flex-none cursor-pointer overflow-hidden rounded-lg border border-pix-tile-border bg-pix-panel p-0 text-pix-text hover:border-pix-tile-border-hover hover:bg-pix-panel-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pix-accent aria-current:border-pix-accent aria-current:shadow-[inset_0_0_0_2px_var(--pix-accent)]"
+      className="filmstrip-item relative aspect-square w-full flex-none cursor-pointer overflow-hidden rounded-lg border border-pix-tile-border bg-pix-panel p-0 text-pix-text hover:border-pix-tile-border-hover hover:bg-pix-panel-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pix-accent"
       type="button"
       aria-label={gt("Show {name}", { name: item.name })}
       aria-current={isActive ? "true" : undefined}
@@ -95,15 +108,18 @@ export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps)
       ) : (
         <>
           {showImageCapture ? (
-            <img className="block h-full w-full min-w-0 object-cover" src={item.url} alt="" crossOrigin="anonymous" loading={isActive ? "eager" : "lazy"} fetchPriority={isActive ? "high" : "auto"} onLoad={(event) => saveImageThumbnail(event.currentTarget)} onError={() => setPreviewMode("fallback")} />
+            <img className="block h-full w-full min-w-0 object-cover" src={mediaPreviewUrl} alt="" crossOrigin="anonymous" loading={isActive ? "eager" : "lazy"} fetchPriority={isActive ? "high" : "auto"} onLoad={(event) => saveImageThumbnail(event.currentTarget)} onError={() => setPreviewMode("fallback")} />
           ) : showVideoCapture ? (
-            <video className="pointer-events-none block h-full w-full min-w-0 object-cover" src={item.url} crossOrigin="anonymous" muted playsInline preload="auto" aria-hidden tabIndex={-1} onLoadedMetadata={loadVideoCaptureFrame} onLoadedData={(event) => saveVideoFrame(event.currentTarget)} onSeeked={(event) => saveVideoFrame(event.currentTarget)} onError={() => setPreviewMode("fallback")} />
+            <video className="pointer-events-none block h-full w-full min-w-0 object-cover" src={mediaPreviewUrl} crossOrigin="anonymous" muted playsInline preload="auto" aria-hidden tabIndex={-1} onLoadedMetadata={loadVideoCaptureFrame} onLoadedData={(event) => saveVideoFrame(event.currentTarget)} onSeeked={(event) => saveVideoFrame(event.currentTarget)} onError={() => setPreviewMode("fallback")} />
           ) : (
-            <img className="block h-full w-full min-w-0 object-cover" src={thumbnailSrc} alt="" crossOrigin="anonymous" loading={isActive ? "eager" : "lazy"} fetchPriority={isActive ? "high" : "auto"} onError={handleThumbnailError} />
+            <img className="block h-full w-full min-w-0 object-cover" src={thumbnailSrc ?? undefined} alt="" crossOrigin="anonymous" loading={isActive ? "eager" : "lazy"} fetchPriority={isActive ? "high" : "auto"} onError={handleThumbnailError} />
           )}
           {item.kind === "video" && <span className="absolute bottom-[5px] right-[5px] inline-flex h-[22px] w-[22px] items-center justify-center rounded-full bg-pix-overlay text-pix-text" aria-hidden><Film size={14} /></span>}
         </>
       )}
+      <span className="download-thumbnail-activity">
+        <DownloadActivityIndicator state={downloadActivityState} compact />
+      </span>
     </button>
   );
 }

@@ -1,7 +1,14 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { Folder, MediaItem } from "../../shared/media";
+import type {
+  DownloadActivitySnapshot,
+  MediaCollection,
+  MediaItem,
+  MediaSource,
+  OpenSourceError,
+  OpenSourceRequest
+} from "../../shared/media";
 import type { PixvittaApi } from "../../shared/pixvittaApi";
-import type { RecentFolder } from "../../shared/recentFolders";
+import type { RecentSource } from "../../shared/recentSources";
 import { defaultSettings, type AppSettings, type FileOrder } from "../../shared/settings";
 import { clampImageZoom, MIN_IMAGE_ZOOM, roundImageTransformValue } from "./imageView";
 import { nextIndex, previousIndex } from "./navigation";
@@ -13,12 +20,14 @@ export type ViewerLoadState = "idle" | "loading" | "ready" | "empty" | "error";
 export const DEFAULT_FILMSTRIP_WIDTH = 168;
 export const MIN_FILMSTRIP_WIDTH = 128;
 export const MAX_FILMSTRIP_WIDTH = 320;
+const VIDEO_AUDIO_SAVE_DELAY_MS = 250;
 
 export type ViewerState = {
-  folderPath: string | null;
+  source: MediaSource | null;
   items: MediaItem[];
   index: number;
   loadState: ViewerLoadState;
+  isSourceLoading: boolean;
   mediaErrors: Set<string>;
   isVideoPlaying: boolean;
   isVideoLooping: boolean;
@@ -26,19 +35,32 @@ export type ViewerState = {
   imagePanX: number;
   imagePanY: number;
   settings: AppSettings;
-  recentFolders: RecentFolder[];
+  recentSources: RecentSource[];
   filmstripWidth: number;
   isFilmstripVisible: boolean;
+  sourceOpenError: OpenSourceError | null;
+  pendingAuthenticationLocation: string | null;
+  downloadActivity: DownloadActivitySnapshot;
+  isDownloadPanelOpen: boolean;
 };
 
 export type ViewerActions = {
   initialize(): Promise<void>;
   openFolder(): Promise<void>;
-  openRecentFolder(folderPath: string): Promise<void>;
-  removeRecentFolder(folderPath: string): Promise<void>;
-  openScannedFolder(folder: Folder): void;
-  rescanFolder(): Promise<void>;
-  refreshRecentFolders(): Promise<void>;
+  openLocation(location: string): Promise<void>;
+  openRecentSource(location: string): Promise<void>;
+  signInExHentai(): Promise<void>;
+  removeRecentSource(location: string): Promise<void>;
+  openCollection(collection: MediaCollection): void;
+  setSourceLoading(isLoading: boolean): void;
+  showSourceError(error: OpenSourceError): void;
+  refreshSource(): Promise<void>;
+  downloadCurrentMedia(): Promise<void>;
+  downloadCollection(): Promise<void>;
+  loadDownloadActivity(): Promise<void>;
+  applyDownloadActivity(snapshot: DownloadActivitySnapshot): void;
+  refreshRecentSources(): Promise<void>;
+  applyRecentSources(sources: RecentSource[]): void;
   loadSettings(): Promise<void>;
   applySettings(settings: AppSettings): void;
   setFileOrder(fileOrder: FileOrder): Promise<void>;
@@ -51,11 +73,13 @@ export type ViewerActions = {
   toggleVideoPlayback(): Promise<void>;
   seekVideoBy(seconds: number): boolean;
   setVideoPlaying(isPlaying: boolean): void;
+  setVideoAudio(volume: number, muted: boolean): void;
   toggleVideoLoop(): void;
   zoomCurrentImage(multiplier: number): void;
   setImageView(zoom: number, panX: number, panY: number): void;
   resizeFilmstrip(width: number): void;
   toggleFilmstrip(): void;
+  toggleDownloadPanel(): void;
   toggleFullscreen(): Promise<void>;
   exitFullscreen(): Promise<void>;
 };
@@ -63,42 +87,53 @@ export type ViewerActions = {
 export type ViewerStore = ViewerState & ViewerActions;
 export type ViewerStoreApi = StoreApi<ViewerStore>;
 
-function applyFolder(folder: Folder): Partial<ViewerState> {
-  const selectedIndex = folder.selectedId === null ? -1 : folder.items.findIndex((item) => item.id === folder.selectedId);
+function applyCollection(collection: MediaCollection): Partial<ViewerState> {
+  const selectedIndex = collection.selectedId === null
+    ? -1
+    : collection.items.findIndex((item) => item.id === collection.selectedId);
 
   return {
-    folderPath: folder.folderPath,
-    items: folder.items,
+    source: collection.source,
+    items: collection.items,
     index: selectedIndex >= 0 ? selectedIndex : 0,
     mediaErrors: new Set(),
     isVideoPlaying: false,
     imageZoom: MIN_IMAGE_ZOOM,
     imagePanX: 0,
     imagePanY: 0,
-    loadState: folder.items.length > 0 ? "ready" : "empty"
+    sourceOpenError: null,
+    loadState: collection.items.length > 0 ? "ready" : "empty"
   };
 }
 
-function settingsRequireFolderRescan(previousSettings: AppSettings, nextSettings: AppSettings): boolean {
+function settingsRequireSourceRefresh(previousSettings: AppSettings, nextSettings: AppSettings): boolean {
   return previousSettings.fileOrder !== nextSettings.fileOrder || previousSettings.includeHidden !== nextSettings.includeHidden;
+}
+
+function exHentaiLocation(request: OpenSourceRequest): string | null {
+  if (request.kind !== "location") return null;
+  try {
+    return new URL(request.location.trim()).hostname === "exhentai.org"
+      ? request.location
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 export function createViewerStore(
   api: PixvittaApi,
   videoController: VideoController = createVideoController()
 ): ViewerStoreApi {
-  let folderRequestId = 0;
   let settingsSaveRevision = 0;
-  const nextFolderRequestId = () => {
-    folderRequestId += 1;
-    return folderRequestId;
-  };
-  const isCurrentFolderRequest = (requestId: number) => requestId === folderRequestId;
+  let recentSourcesRevision = 0;
+  let sourceRequestRevision = 0;
+  let videoAudioSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   return createStore<ViewerStore>((set, get) => {
     const applySettingsState = (settings: AppSettings) => {
       const previousSettings = get().settings;
-      const shouldRescanFolder = settingsRequireFolderRescan(previousSettings, settings);
+      const shouldRefreshSource = settingsRequireSourceRefresh(previousSettings, settings);
       const shouldResetVideoLoop = previousSettings.videoLoopByDefault !== settings.videoLoopByDefault;
 
       set({
@@ -106,19 +141,37 @@ export function createViewerStore(
         ...(shouldResetVideoLoop ? { isVideoLooping: settings.videoLoopByDefault } : {})
       });
 
-      if (shouldRescanFolder && get().folderPath) void get().rescanFolder();
+      if (shouldRefreshSource && get().source?.capabilities.canSort) {
+        void get().refreshSource();
+      }
     };
 
-    const applyScannedFolder = (folder: Folder) => {
-      set(applyFolder(folder));
-      void get().refreshRecentFolders();
+    const applyOpenedCollection = (collection: MediaCollection) => {
+      sourceRequestRevision += 1;
+      set(applyCollection(collection));
+    };
+
+    const openSourceRequest = async (request: OpenSourceRequest) => {
+      sourceRequestRevision += 1;
+      try {
+        set({ pendingAuthenticationLocation: exHentaiLocation(request) });
+        api.openSource(request);
+      } catch (error) {
+        console.error(error);
+        set({
+          isSourceLoading: false,
+          loadState: get().source ? get().loadState : "idle",
+          sourceOpenError: "unavailable"
+        });
+      }
     };
 
     return {
-      folderPath: null,
+      source: null,
       items: [],
       index: 0,
       loadState: "idle",
+      isSourceLoading: false,
       mediaErrors: new Set(),
       isVideoPlaying: false,
       isVideoLooping: defaultSettings.videoLoopByDefault,
@@ -126,85 +179,168 @@ export function createViewerStore(
       imagePanX: 0,
       imagePanY: 0,
       settings: defaultSettings,
-      recentFolders: [],
+      recentSources: [],
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
       isFilmstripVisible: true,
+      sourceOpenError: null,
+      pendingAuthenticationLocation: null,
+      downloadActivity: {
+        revision: 0,
+        rows: [],
+        itemStates: {},
+        collectionActive: false
+      },
+      isDownloadPanelOpen: false,
 
       async initialize() {
-        await Promise.all([get().loadSettings(), get().refreshRecentFolders()]);
+        await Promise.all([
+          get().loadSettings(),
+          get().refreshRecentSources(),
+          get().loadDownloadActivity()
+        ]);
       },
 
       async openFolder() {
-        const requestId = nextFolderRequestId();
-        const isOpeningInitialFolder = get().folderPath === null;
-        if (isOpeningInitialFolder) set({ loadState: "loading" });
+        await openSourceRequest({ kind: "pick-directory" });
+      },
 
+      async openLocation(location: string) {
+        await openSourceRequest({ kind: "location", location });
+      },
+
+      async openRecentSource(location: string) {
+        await openSourceRequest({ kind: "location", location });
+      },
+
+      async signInExHentai() {
+        const location = get().pendingAuthenticationLocation;
+        const revision = sourceRequestRevision;
         try {
-          const result = await api.openFolder();
-          if (!isCurrentFolderRequest(requestId)) return;
-          if (!result) {
-            if (isOpeningInitialFolder) set({ loadState: "idle" });
-            return;
+          const signedIn = await api.signInExHentai();
+          if (signedIn && location && revision === sourceRequestRevision) {
+            await openSourceRequest({ kind: "location", location });
           }
-          applyScannedFolder(result);
         } catch (error) {
-          if (!isCurrentFolderRequest(requestId)) return;
           console.error(error);
-          set({ loadState: "error" });
         }
       },
 
-      async openRecentFolder(folderPath: string) {
-        const requestId = nextFolderRequestId();
-        const isOpeningInitialFolder = get().folderPath === null;
-        if (isOpeningInitialFolder) set({ loadState: "loading" });
+      async removeRecentSource(location: string) {
+        const revision = ++recentSourcesRevision;
         try {
-          const result = await api.openRecentFolder(folderPath);
-          if (!isCurrentFolderRequest(requestId)) return;
-          applyScannedFolder(result);
+          const recentSources = await api.removeRecentSource(location);
+          if (revision === recentSourcesRevision) set({ recentSources });
         } catch (error) {
-          if (!isCurrentFolderRequest(requestId)) return;
           console.error(error);
-          set({ loadState: "error" });
         }
       },
 
-      async removeRecentFolder(folderPath: string) {
+      openCollection(collection: MediaCollection) {
+        applyOpenedCollection(collection);
+      },
+
+      setSourceLoading(isSourceLoading: boolean) {
+        set((state) => ({
+          isSourceLoading,
+          sourceOpenError: isSourceLoading ? null : state.sourceOpenError,
+          loadState:
+            state.source === null
+              ? isSourceLoading
+                ? "loading"
+                : state.loadState === "loading"
+                  ? "idle"
+                  : state.loadState
+              : state.loadState
+        }));
+      },
+
+      showSourceError(sourceOpenError: OpenSourceError) {
+        set((state) => ({
+          sourceOpenError,
+          loadState: state.source ? state.loadState : "idle"
+        }));
+      },
+
+      async refreshSource() {
+        const { source } = get();
+        if (!source?.capabilities.canRefresh) return;
+
+        sourceRequestRevision += 1;
         try {
-          set({ recentFolders: await api.removeRecentFolder(folderPath) });
+          api.refreshSource();
         } catch (error) {
           console.error(error);
+          set({ isSourceLoading: false, sourceOpenError: "unavailable" });
         }
       },
 
-      openScannedFolder(folder: Folder) {
-        nextFolderRequestId();
-        applyScannedFolder(folder);
-      },
-
-      async rescanFolder() {
-        const { folderPath } = get();
-        if (!folderPath) return;
-
-        const requestId = nextFolderRequestId();
+      async downloadCurrentMedia() {
+        const state = get();
+        const item = selectCurrentItem(state);
+        if (!item || !state.source?.capabilities.canDownload) return;
         try {
-          const result = await api.rescanFolder(folderPath);
-          if (!isCurrentFolderRequest(requestId)) return;
-          set(applyFolder(result));
+          await api.downloadMedia(item.id);
         } catch (error) {
-          if (!isCurrentFolderRequest(requestId)) return;
           console.error(error);
-          set({ loadState: "error" });
         }
       },
 
-      async refreshRecentFolders() {
+      async downloadCollection() {
+        const state = get();
+        if (
+          !state.source?.capabilities.canDownload ||
+          state.downloadActivity.collectionActive
+        ) {
+          return;
+        }
         try {
-          set({ recentFolders: await api.getRecentFolders() });
+          await api.downloadCollection(
+            state.source.title,
+            state.items.map((item) => item.id)
+          );
         } catch (error) {
           console.error(error);
-          set({ recentFolders: [] });
         }
+      },
+
+      async loadDownloadActivity() {
+        try {
+          get().applyDownloadActivity(await api.getDownloadActivity());
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      applyDownloadActivity(downloadActivity) {
+        set((state) => {
+          if (
+            downloadActivity.revision < state.downloadActivity.revision
+          ) {
+            return state;
+          }
+          return {
+            downloadActivity,
+            isDownloadPanelOpen:
+              downloadActivity.rows.length > 0 &&
+              state.isDownloadPanelOpen
+          };
+        });
+      },
+
+      async refreshRecentSources() {
+        const revision = recentSourcesRevision;
+        try {
+          const recentSources = await api.getRecentSources();
+          if (revision === recentSourcesRevision) set({ recentSources });
+        } catch (error) {
+          console.error(error);
+          if (revision === recentSourcesRevision) set({ recentSources: [] });
+        }
+      },
+
+      applyRecentSources(recentSources: RecentSource[]) {
+        recentSourcesRevision += 1;
+        set({ recentSources });
       },
 
       async loadSettings() {
@@ -219,6 +355,43 @@ export function createViewerStore(
       applySettings(settings: AppSettings) {
         settingsSaveRevision += 1;
         applySettingsState(settings);
+      },
+
+      setVideoAudio(volume: number, muted: boolean) {
+        const videoVolume = Math.min(1, Math.max(0, volume));
+        const currentSettings = get().settings;
+        if (
+          currentSettings.videoVolume === videoVolume &&
+          currentSettings.videoMuted === muted
+        ) {
+          return;
+        }
+
+        set({
+          settings: {
+            ...currentSettings,
+            videoVolume,
+            videoMuted: muted
+          }
+        });
+
+        if (videoAudioSaveTimer) clearTimeout(videoAudioSaveTimer);
+        videoAudioSaveTimer = setTimeout(() => {
+          videoAudioSaveTimer = null;
+          const settings = get().settings;
+          const revision = settingsSaveRevision + 1;
+          settingsSaveRevision = revision;
+          void api.saveSettings(settings).then(
+            (savedSettings) => {
+              if (revision === settingsSaveRevision) {
+                applySettingsState(savedSettings);
+              }
+            },
+            (error: unknown) => {
+              if (revision === settingsSaveRevision) console.error(error);
+            }
+          );
+        }, VIDEO_AUDIO_SAVE_DELAY_MS);
       },
 
       async setFileOrder(fileOrder: FileOrder) {
@@ -256,12 +429,13 @@ export function createViewerStore(
       goNext() {
         set((state) => {
           const index = nextIndex(state.index, state.items.length, state.settings.wrapNavigation);
+          if (index === state.index) return state;
           return {
             index,
             isVideoPlaying: false,
-            imageZoom: index === state.index ? state.imageZoom : MIN_IMAGE_ZOOM,
-            imagePanX: index === state.index ? state.imagePanX : 0,
-            imagePanY: index === state.index ? state.imagePanY : 0
+            imageZoom: MIN_IMAGE_ZOOM,
+            imagePanX: 0,
+            imagePanY: 0
           };
         });
       },
@@ -269,28 +443,36 @@ export function createViewerStore(
       goPrevious() {
         set((state) => {
           const index = previousIndex(state.index, state.items.length, state.settings.wrapNavigation);
+          if (index === state.index) return state;
           return {
             index,
             isVideoPlaying: false,
-            imageZoom: index === state.index ? state.imageZoom : MIN_IMAGE_ZOOM,
-            imagePanX: index === state.index ? state.imagePanX : 0,
-            imagePanY: index === state.index ? state.imagePanY : 0
+            imageZoom: MIN_IMAGE_ZOOM,
+            imagePanX: 0,
+            imagePanY: 0
           };
         });
       },
 
       selectMedia(index: number) {
-        set((state) => ({
-          index,
-          isVideoPlaying: false,
-          imageZoom: index === state.index ? state.imageZoom : MIN_IMAGE_ZOOM,
-          imagePanX: index === state.index ? state.imagePanX : 0,
-          imagePanY: index === state.index ? state.imagePanY : 0
-        }));
+        set((state) => {
+          if (index === state.index) return state;
+          return {
+            index,
+            isVideoPlaying: false,
+            imageZoom: MIN_IMAGE_ZOOM,
+            imagePanX: 0,
+            imagePanY: 0
+          };
+        });
       },
 
       markMediaBroken(id: string) {
-        set((state) => ({ mediaErrors: new Set(state.mediaErrors).add(id) }));
+        set((state) => {
+          // An obsolete media request can fail after navigation cancels it.
+          if (selectCurrentItem(state)?.id !== id) return state;
+          return { mediaErrors: new Set(state.mediaErrors).add(id) };
+        });
       },
 
       attachVideoElement(element: HTMLVideoElement | null) {
@@ -350,6 +532,14 @@ export function createViewerStore(
 
       toggleFilmstrip() {
         set((state) => ({ isFilmstripVisible: !state.isFilmstripVisible }));
+      },
+
+      toggleDownloadPanel() {
+        set((state) => ({
+          isDownloadPanelOpen:
+            state.downloadActivity.rows.length > 0 &&
+            !state.isDownloadPanelOpen
+        }));
       },
 
       async toggleFullscreen() {

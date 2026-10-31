@@ -17,5 +17,6 @@ if (!match) {
   throw new Error(`package.json version must be a stable semantic version, received ${baseVersion}`);
 }
 
-const [, major, minor, patch] = match;
-process.stdout.write(`${major}.${minor}.${Number(patch) + 1}-dev.${runNumber}.${runAttempt}`);
+// dev's package.json already holds the next unreleased version, bumped by CI
+// when each change lands, so Nightly builds use it as-is.
+process.stdout.write(`${baseVersion}-nightly.${runNumber}.${runAttempt}`);

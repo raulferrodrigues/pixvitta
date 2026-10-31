@@ -8,19 +8,28 @@ const execFileAsync = promisify(execFile);
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const flavor = process.argv[2] ?? "stable";
 
-if (flavor !== "stable" && flavor !== "dev") {
-  throw new Error(`Icon flavor must be "stable" or "dev", received ${flavor}`);
+if (flavor !== "stable" && flavor !== "nightly") {
+  throw new Error(
+    `Icon flavor must be "stable" or "nightly", received ${flavor}`
+  );
 }
 
 const buildDir = path.join(root, "build");
 const workDir = path.join(buildDir, ".icon-work");
 const iconsetDir = path.join(buildDir, "icon.iconset");
-const sourcePng = path.join(root, "assets", flavor === "dev" ? "pixvitta-dev-icon.png" : "pixvitta-icon.png");
+const sourcePng = path.join(
+  root,
+  "assets",
+  flavor === "nightly" ? "pixvitta-dev-icon.png" : "pixvitta-icon.png"
+);
 const sourceSvg = path.join(root, "assets", "pixvitta-icon.svg");
 const iconPng = path.join(buildDir, "icon.png");
 const iconIcns = path.join(buildDir, "icon.icns");
 const runtimeIconPng = path.join(buildDir, "runtime-icon.png");
-const linuxIconsDir = path.join(buildDir, flavor === "dev" ? "icons-dev" : "icons");
+const linuxIconsDir = path.join(
+  buildDir,
+  flavor === "nightly" ? "icons-nightly" : "icons"
+);
 
 const linuxIconSizes = [16, 24, 32, 48, 64, 96, 128, 256, 512, 1024];
 
@@ -70,7 +79,7 @@ if (flavor === "stable") {
 
 if (process.platform === "darwin") {
   if (flavor !== "stable") {
-    throw new Error("The development icon is currently supported only by Linux packaging");
+    throw new Error("The Nightly icon is currently supported only by Linux packaging");
   }
   await ensureTool("sips", "resize application icons");
   await ensureTool("iconutil", "generate the macOS icon");

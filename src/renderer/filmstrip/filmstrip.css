@@ -8,5 +8,12 @@
 .filmstrip-scrollbar > * { direction: ltr; }
 .filmstrip-scrollbar::-webkit-scrollbar { width: 10px; }
 .filmstrip-scrollbar::-webkit-scrollbar-track { background: transparent; }
+/* The scrollbar runs under the top bar's window drag region in unobtrusive mode.
+   This strip removes the drag region above the left-side scrollbar column. */
+.filmstrip-scrollbar-passage { position: absolute; top: 0; left: 0; display: none; width: 10px; height: var(--pix-topbar-height); pointer-events: none; -webkit-app-region: no-drag; }
+.app-shell.has-unobtrusive-controls .filmstrip-scrollbar-passage { display: block; }
 .filmstrip-scrollbar::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: var(--pix-scrollbar-thumb); background-clip: padding-box; }
 .filmstrip-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--pix-scrollbar-thumb-hover); background-clip: padding-box; }
+.download-thumbnail-activity { position: absolute; top: 6px; right: 6px; z-index: 3; pointer-events: none; }
+/* An outline drawn outside the tile, so the thumbnail can't cover it and the offset leaves a see-through gap. */
+.filmstrip-item[aria-current="true"] { outline: 3px solid var(--pix-accent); outline-offset: 2px; }

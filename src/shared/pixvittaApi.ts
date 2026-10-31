@@ -1,11 +1,16 @@
 import type { AppBuildInfo } from "./appBuild";
-import type { Folder } from "./media";
-import type { RecentFolder } from "./recentFolders";
+import type {
+  DownloadActivitySnapshot,
+  MediaCollection,
+  OpenSourceError,
+  OpenSourceRequest
+} from "./media";
+import type { RecentSource } from "./recentSources";
 import type { AppSettings } from "./settings";
 
 export type PixvittaCommand =
   | "open-folder"
-  | "rescan-folder"
+  | "refresh-source"
   | "open-preferences"
   | "previous-media"
   | "next-media"
@@ -21,22 +26,37 @@ export type WindowChromeState = {
 
 export type PixvittaApi = {
   getBuildInfo(): Promise<AppBuildInfo>;
-  openFolder(): Promise<Folder | null>;
-  openRecentFolder(folderPath: string): Promise<Folder>;
-  rescanFolder(folderPath: string): Promise<Folder>;
-  getRecentFolders(): Promise<RecentFolder[]>;
-  removeRecentFolder(folderPath: string): Promise<RecentFolder[]>;
+  openSource(request: OpenSourceRequest): void;
+  refreshSource(): void;
+  openSourceOrigin(sourceId: string): Promise<boolean>;
+  signInExHentai(): Promise<boolean>;
+  getRecentSources(): Promise<RecentSource[]>;
+  removeRecentSource(location: string): Promise<RecentSource[]>;
   getSettings(): Promise<AppSettings>;
   saveSettings(settings: AppSettings): Promise<AppSettings>;
+  downloadMedia(mediaId: string): Promise<boolean>;
+  downloadCollection(
+    collectionName: string,
+    mediaIds: string[]
+  ): Promise<boolean>;
+  getDownloadActivity(): Promise<DownloadActivitySnapshot>;
   showMediaContextMenu(mediaId: string): Promise<boolean>;
-  saveMediaThumbnail(mediaId: string, dataUrl: string): Promise<boolean>;
+  saveMediaThumbnail(thumbnailReference: string, dataUrl: string): Promise<boolean>;
   openPreferences(): Promise<void>;
   toggleFullscreen(): Promise<void>;
   exitFullscreen(): Promise<void>;
   getWindowChromeState(): Promise<WindowChromeState>;
   markViewerReady(): Promise<void>;
+  acknowledgeCollection(): void;
+  setSelectedMedia(mediaId: string | null): void;
   onWindowChromeChanged(callback: (state: WindowChromeState) => void): () => void;
   onCommand(callback: (command: PixvittaCommand) => void): () => void;
-  onOpenedFile(callback: (folder: Folder) => void): () => void;
+  onCollectionChanged(callback: (collection: MediaCollection) => void): () => void;
+  onSourceLoadingChanged(callback: (isLoading: boolean) => void): () => void;
+  onSourceError(callback: (error: OpenSourceError) => void): () => void;
+  onDownloadActivityChanged(
+    callback: (snapshot: DownloadActivitySnapshot) => void
+  ): () => void;
+  onRecentSourcesChanged(callback: (sources: RecentSource[]) => void): () => void;
   onSettingsChanged(callback: (settings: AppSettings) => void): () => void;
 };

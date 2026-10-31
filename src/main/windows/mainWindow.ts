@@ -2,6 +2,7 @@ import { BrowserWindow } from "electron";
 import path from "node:path";
 import { HOTKEYS } from "../../shared/hotkeys";
 import { appBuildInfo } from "../app/buildInfo";
+import { installTextEditingContextMenu } from "./textEditingContextMenu";
 import { isCommandShortcut, notifyWindowChromeChanged } from "./windowChrome";
 import { getWindowIcon } from "./windowIcon";
 
@@ -53,6 +54,7 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
     window.setMenuBarVisibility(false);
   }
 
+  installTextEditingContextMenu(window);
   window.on("closed", () => options.onClosed(window));
   window.on("enter-full-screen", () => notifyWindowChromeChanged(window));
   window.on("leave-full-screen", () => notifyWindowChromeChanged(window));

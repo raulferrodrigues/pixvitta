@@ -16,7 +16,15 @@ export function configureAppIdentity(): void {
     return;
   }
 
-  if (appBuildInfo.flavor === "dev") {
-    app.setPath("userData", path.join(app.getPath("appData"), "Pixvitta Dev"));
+  if (appBuildInfo.flavor !== "stable") {
+    app.setPath(
+      "userData",
+      path.join(
+        app.getPath("appData"),
+        appBuildInfo.flavor === "nightly"
+          ? "Pixvitta Nightly"
+          : "Pixvitta Dev"
+      )
+    );
   }
 }
