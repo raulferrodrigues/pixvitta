@@ -35,3 +35,5 @@ CI owns the version in `package.json`, in `X.Y.Z` form, for every platform. Neve
 When doing work with web requests of any kind, check if there are rules to how many requests can be made and how fast they can be made. Always respect those limits.
 
 Never add _ before variables.
+
+Never add "Generated with Claude Code" (or any similar generated-by notice) anywhere, ever: not in commits, PR descriptions, issues, comments, code, or docs.
