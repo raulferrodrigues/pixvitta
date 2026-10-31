@@ -194,14 +194,21 @@ How it works:
   receiving updates. `dev` takes the higher of its own next patch and the
   release: `0.5.3` with hotfix `0.5.1` becomes `0.5.4`. A `dev` with nothing
   new since the release takes the hotfix version.
-- A pull request straight into `main` without `release:hotfix` is a normal
-  minor release.
+- A pull request straight into `main` must have `release:hotfix` (or
+  `release:major`). The **Version Check** workflow fails it without one, and the
+  Stable workflow refuses to release it if it is merged anyway: add the label
+  to the merged pull request and re-run the workflow. Pushing a local `dev`
+  into `main` merge without a pull request is a normal minor release.
 - Every platform build uses the version commit CI made, so `package.json`
   always holds the real version. Code reads it with `app.getVersion()` in the
   main process, or `buildInfo.version` in the renderer.
 - The version rules live in `scripts/release-version.mjs`, with tests.
 
 What this means when contributing:
+
+- Every pull request into `dev` or `main` runs the **Validate** workflow
+  (`pnpm validate`: tests, typechecking, and the production build). Merge only
+  when it passes.
 
 - Do not change the version in a pull request. The **Version Check** workflow
   fails pull requests that do, and CI discards the edit if one is merged

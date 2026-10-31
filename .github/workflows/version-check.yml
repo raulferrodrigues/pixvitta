@@ -3,10 +3,14 @@ name: Version Check
 # CI owns the version (see scripts/release-version.mjs). Flag PRs into dev,
 # and hotfix PRs into main, that edit the version themselves. Even if one is
 # merged anyway, CI discards the hand edit. dev -> main PRs are skipped: their
-# version change is CI's own bumps on dev.
+# version change is CI's own bumps on dev. Also require PRs into main from any
+# branch but dev to carry release:hotfix (or release:major), because the
+# Stable workflow refuses to release them otherwise.
 
 on:
   pull_request:
+    # Labels decide the release, so re-check when they change.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
     branches:
       - dev
       - main
@@ -45,3 +49,21 @@ jobs:
             exit 1
           fi
           echo "Version unchanged (${after})."
+
+  hotfix-label:
+    name: Hotfix PRs into main are labelled
+    if: github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref != 'dev'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Require a release label
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ' ') }}
+        run: |
+          case " ${LABELS} " in
+            *" release:hotfix "* | *" release:major "*) echo "Labels: ${LABELS}" ;;
+            *)
+              echo "::error::PRs into main from a branch other than dev are hotfixes. Add the release:hotfix label (or release:major)."
+              exit 1
+              ;;
+          esac
