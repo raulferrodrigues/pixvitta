@@ -2,6 +2,8 @@ export type FileOrder = "name" | "kind" | "last-opened" | "date-added" | "modifi
 
 export type MediaScaleMode = "native-or-smaller" | "fit-window";
 
+export type ViewerLayout = "classic" | "immersive";
+
 export type AppSettings = {
   videoAutoplay: boolean;
   videoLoopByDefault: boolean;
@@ -13,6 +15,7 @@ export type AppSettings = {
   showVideoControls: boolean;
   unobtrusiveViewerControls: boolean;
   mediaScaleMode: MediaScaleMode;
+  viewerLayout: ViewerLayout;
 };
 
 export const defaultSettings: AppSettings = {
@@ -25,5 +28,6 @@ export const defaultSettings: AppSettings = {
   includeHidden: false,
   showVideoControls: true,
   unobtrusiveViewerControls: false,
-  mediaScaleMode: "native-or-smaller"
+  mediaScaleMode: "native-or-smaller",
+  viewerLayout: "classic"
 };
