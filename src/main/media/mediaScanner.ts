@@ -99,10 +99,15 @@ function sortMediaItems(
 // This is the main "folder to media list" function. It reads only the top level
 // of the folder, filters to supported files, stats each file for metadata, and
 // produces the custom URLs that the renderer can safely load.
+//
+// Symlinks are followed when they point at a regular file. The item keeps the
+// link's path and name, so it matches what the user browsed, while size and
+// dates come from the target. Broken links, loops, and links to directories or
+// other non-regular files are skipped instead of failing the whole scan.
 export async function scanFolder(folderPath: string, options: ScanOptions = {}): Promise<FolderScanResult> {
   const entries = await readdir(folderPath, { withFileTypes: true });
   const mediaEntries = entries.flatMap((entry) => {
-    if (!entry.isFile()) return [];
+    if (!entry.isFile() && !entry.isSymbolicLink()) return [];
     if (!options.includeHidden && entry.name.startsWith(".")) return [];
 
     const fileType = getMediaFileType(entry.name);
@@ -112,14 +117,16 @@ export async function scanFolder(folderPath: string, options: ScanOptions = {}):
   const items = await Promise.all(
     mediaEntries.map(async ({ entry, fileType }) => {
       const absolutePath = path.join(folderPath, entry.name);
-      const details = await stat(absolutePath);
+      const details = await stat(absolutePath).catch(() => null);
+      if (!details?.isFile()) return [];
+
       const id = createMediaId(absolutePath);
       const thumbnail = getThumbnail({
         filePath: absolutePath,
         sizeBytes: details.size,
         modifiedMs: details.mtimeMs
       });
-      return {
+      return [{
         id,
         name: entry.name,
         absolutePath,
@@ -130,9 +137,9 @@ export async function scanFolder(folderPath: string, options: ScanOptions = {}):
         addedMs: details.ctimeMs,
         modifiedMs: details.mtimeMs,
         createdMs: details.birthtimeMs
-      };
+      }];
     })
-  );
+  ).then((results) => results.flat());
   sortMediaItems(items, options.fileOrder ?? "name", options.randomSeed);
 
   return {
