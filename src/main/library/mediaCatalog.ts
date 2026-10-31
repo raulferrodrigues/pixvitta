@@ -77,6 +77,7 @@ export class MediaCatalog {
         capabilities: {
           canRefresh: providerCollection.capabilities.canRefresh,
           canSort: providerCollection.capabilities.canSort,
+          canDownload: providerCollection.capabilities.canDownload,
           canOpenOrigin: !!providerCollection.origin
         }
       },

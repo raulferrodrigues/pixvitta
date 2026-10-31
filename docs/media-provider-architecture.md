@@ -5,10 +5,11 @@ This document tracks the refactor from a filesystem viewer with a special
 
 ## Goal
 
-Pixvitta treats every media location as a source loaded by a provider. A local
-directory and a 4chan thread are the first two providers. Adding another
-URL-based provider should normally require one provider implementation and one
-registry entry, without adding provider checks throughout IPC or React.
+Pixvitta treats every media location as a source loaded by a provider. Local
+directories, 4chan threads, E-Hentai galleries, and ExHentai galleries are the
+current providers. Adding another URL-based provider should normally require
+one provider implementation and one registry entry, without adding provider
+checks throughout IPC or React.
 
 ## Domain language
 
@@ -57,15 +58,21 @@ Providers are compile-time adapters registered under
 3. returns internal resources for media and thumbnails;
 4. declares presentation data and behavioral capabilities.
 
-The initial providers are:
+The providers are:
 
 - `localFolder/`: directory scanning, sorting, thumbnails, and local file
   resources;
 - `fourChan/`: thread URL parsing, API policy, attachment mapping, and CDN
-  resources.
+  resources;
+- `eHentai/`: gallery URL parsing, metadata, index and image-page parsing,
+  sprite thumbnails, and image viewing limits;
+- `exHentai/`: the E-Hentai gallery engine with an authenticated session and
+  forum sign-in.
 
-This is intentionally not a runtime plugin system. Authentication flows,
-provider-owned React UI, and dynamic provider installation are out of scope.
+This is intentionally not a runtime plugin system. Provider-owned React UI and
+dynamic provider installation are out of scope. ExHentai sign-in is currently
+wired specifically through IPC and the renderer; making authentication
+provider-neutral is recorded in [Future Work](future-work.md).
 
 ## Renderer contract
 
@@ -120,21 +127,34 @@ The resource registry maps opaque IDs to internal response functions:
 This removes raw CDN URLs and 4chan referrer behavior from the renderer and
 window layer.
 
+Remote providers acquire media and thumbnails through the shared
+[provider runtime](../src/main/providerRuntime/README.md). It owns selection,
+prefetch, sharing of in-flight work, and cancellation. Every remote request
+goes through the process-wide request broker, which paces each provider policy
+and halts all provider requests on HTTP 429. Fetched files are stored in a
+session resource cache that is cleared on launch and evicts least recently
+used entries above 2 GB.
+
 ## Deliberate limits
 
 - The existing folder picker layout remains; its URL field becomes
   provider-neutral.
-- Only local sources remain in recents for this iteration.
+- Recents store any source whose provider asks to be remembered; see
+  [Recent sources](recent-sources.md).
 - A 4chan board catalog is not implemented yet. A future browsing result may
   add child sources without changing how media collections are viewed.
 
 ## Verification
 
-- Provider matching, critical-zone exclusion, commit handoff, registry
-  lifetime, and fatal acknowledgement behavior are tested through the
-  media-library interface with injected dependencies.
-- Remote resource delivery verifies referrer and byte-range forwarding.
-- Existing validation must pass.
-- A focused Electron smoke test opens a local directory.
-- A focused Electron smoke test opens the known live 4chan thread and confirms
-  that full media, not only thumbnails, reaches a playable/loadable state.
+Focused tests use injected dependencies and synthetic responses; none make
+live requests:
+
+- collection lifetime: selection by provider key and deactivation only when a
+  replacement commits;
+- request broker scheduling, cancellation, pacing, and the 429 halt;
+- provider runtime ownership, sharing, prefetch order, and refresh lifetime;
+- E-Hentai and ExHentai parsing, authentication generations, session behavior,
+  and image limits;
+- resource cache eviction order.
+
+`pnpm validate` runs the tests, type checking, and a production build.

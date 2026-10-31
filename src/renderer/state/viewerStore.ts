@@ -277,7 +277,7 @@ export function createViewerStore(
       async downloadCurrentMedia() {
         const state = get();
         const item = selectCurrentItem(state);
-        if (!item || !state.source?.capabilities.canOpenOrigin) return;
+        if (!item || !state.source?.capabilities.canDownload) return;
         try {
           await api.downloadMedia(item.id);
         } catch (error) {
@@ -288,7 +288,7 @@ export function createViewerStore(
       async downloadCollection() {
         const state = get();
         if (
-          !state.source?.capabilities.canOpenOrigin ||
+          !state.source?.capabilities.canDownload ||
           state.downloadActivity.collectionActive
         ) {
           return;

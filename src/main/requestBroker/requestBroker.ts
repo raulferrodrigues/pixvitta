@@ -1,4 +1,5 @@
 import { app, dialog, net } from "electron";
+import { debugLog } from "../utils/debugLog";
 import { createRequestBroker } from "./scheduler";
 
 let haltDialogShown = false;
@@ -30,5 +31,5 @@ function showHaltDialog(): void {
 export const broker = createRequestBroker({
   fetch: (request) => net.fetch(request),
   onRateLimit: showHaltDialog,
-  debug: (message) => console.debug(`[request-broker ${new Date().toISOString()}] ${message}`)
+  debug: (message) => debugLog("request-broker", message)
 });

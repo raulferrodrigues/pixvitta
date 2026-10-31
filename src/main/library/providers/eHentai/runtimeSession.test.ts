@@ -6,7 +6,7 @@ import { createRequestBroker } from "../../../requestBroker/scheduler";
 import type { BrokerRequestOptions, RequestBroker, RequestPriority } from "../../../requestBroker";
 import { cache } from "../../../resourceCache";
 import { GalleryAuthentication } from "./galleryAccess";
-import { eHentaiSite } from "./gallerySite";
+import { eHentaiSite, exHentaiSite } from "./gallerySite";
 import { EHentaiRuntimeSession } from "./runtimeSession";
 
 function indexHtml(gallery: string, first: number): string {
@@ -112,5 +112,45 @@ test("HTTP 509 stops further full-image work while thumbnails remain independent
     assert.equal(thumbnail.headers.get("Content-Type"), "image/jpeg");
     assert.equal(await thumbnail.text(), "image-2");
     assert.equal(upstream.filter((url) => new URL(url).hostname === "images.hath.network").length, 1);
+  } finally { session.deactivate(); }
+});
+
+test("ExHentai addresses index pages by the account's page size and accepts its static image host", async () => {
+  const gallery = "601";
+  const pageUrl = `https://exhentai.org/g/${gallery}/abcdef1234/`;
+  const pageReference = (page: number) => ({
+    pageNumber: page, pageUrl: `https://exhentai.org/s/abcdef/${gallery}-${page}`, pageToken: "abcdef", thumbnail: null
+  });
+  const upstream: string[] = [];
+  const fetch = async (request: Request): Promise<Response> => {
+    upstream.push(request.url);
+    const url = new URL(request.url);
+    if (url.pathname.startsWith("/g/")) {
+      const first = Number(url.searchParams.get("p") ?? 0) * 40 + 1;
+      return new Response(`<div id="gdt">${Array.from({ length: 40 }, (value, offset) =>
+        `<a href="/s/abcdef/${gallery}-${first + offset}"></a>`).join("")}</div>`);
+    }
+    if (url.pathname.startsWith("/s/")) {
+      const page = Number(url.pathname.split("-").at(-1));
+      return new Response(`<img id="img" src="https://s.exhentai.org/${page}.jpg">`);
+    }
+    return new Response(`image-${url.pathname.slice(1).split(".")[0]}`, { headers: { "Content-Type": "image/jpeg" } });
+  };
+  const broker = createRequestBroker({ fetch, wait: async () => {}, onRateLimit() { assert.fail("Unexpected rate limit."); } });
+  const session = new EHentaiRuntimeSession({
+    site: exHentaiSite,
+    reference: { galleryId: gallery, galleryToken: "abcdef1234", pageUrl },
+    fileCount: 100, cacheNamespace: `trial-${gallery}`,
+    access: new GalleryAuthentication().capture("test", fetch),
+    initialPages: new Map(Array.from({ length: 40 }, (value, offset) => [offset + 1, pageReference(offset + 1)])),
+    resources: new ResourceAcquisitions(broker),
+    imageLimit: { reached: false, controller: new AbortController() }
+  });
+  try {
+    session.select(`${gallery}:page:45`);
+    const response = await session.respond(45, new Request("pixvitta-media://media/selected"), "high");
+    assert.equal(await response.text(), "image-45");
+    assert.equal(upstream[0], `${pageUrl}?p=1`);
+    assert.equal(upstream.includes(pageUrl), false);
   } finally { session.deactivate(); }
 });

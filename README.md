@@ -1,8 +1,9 @@
 # Pixvitta
 
-Pixvitta is a desktop image and video viewer for Linux and macOS. Open a folder,
-browse its supported media in a filmstrip, and move between files without
-importing them into a library. Viewing and thumbnail generation happen locally.
+Pixvitta is a desktop image and video viewer for Linux and macOS. Open a folder
+or a supported web page, browse its media in a filmstrip, and move between files
+without importing them into a library. Local viewing and thumbnail generation
+happen on your computer.
 
 Pixvitta is under active development. Linux builds are published in two
 side-by-side editions: stable **Pixvitta** and prerelease
@@ -14,13 +15,19 @@ macOS builds are unsigned development artifacts.
 - Image viewing with zoom, trackpad gestures, and click-and-drag panning.
 - Video playback, seeking, looping, autoplay, and optional native controls.
 - A resizable, virtualized filmstrip with cached image and video thumbnails.
-- Recent folders and support for opening an individual media file from the
-  desktop or command line.
+- Web sources: paste a 4chan thread, E-Hentai gallery, or ExHentai gallery URL
+  under **Open from the web**. Pixvitta fetches media with conservative,
+  per-site request pacing, prefetches around the current item, and can
+  download the current item or the whole collection. ExHentai requires signing
+  in to the E-Hentai forums from inside the app.
+- Recent sources, including web sources, and support for opening an individual
+  media file from the desktop or command line.
 - Sorting by name, kind, access time, date added, modification time, creation
   time, size, or a stable random order.
 - Optional hidden files, navigation wrapping, fullscreen viewing, and
   unobtrusive auto-hiding controls.
-- Native context-menu actions to reveal or copy a media file and copy its path.
+- Native context-menu actions to reveal or copy a local media file and copy its
+  path, or to download remote media and copy its URL.
 
 Folder scans are not recursive: Pixvitta displays supported files from the
 selected folder's top level.
@@ -58,7 +65,7 @@ sudo apt install ./Pixvitta-Nightly-<version>-amd64.deb
 
 The packages can be installed and run at the same time. Pixvitta Nightly uses a
 purple icon and an in-app `NIGHTLY` badge, and keeps its settings, recent
-folders, thumbnail cache, updater data, and single-instance lock separate from
+sources, thumbnail cache, updater data, and single-instance lock separate from
 stable. Both editions appear in the desktop environment's **Open With** list;
 installing Nightly does not intentionally change the default application.
 
@@ -101,7 +108,7 @@ Developers can create an unsigned DMG and ZIP locally with `pnpm dist:mac`.
 | Action | Shortcut |
 | --- | --- |
 | Open folder | `Ctrl/Cmd + O` |
-| Rescan current folder | `Ctrl/Cmd + R` |
+| Refresh current source | `Ctrl/Cmd + R` |
 | Open settings | `Ctrl/Cmd + ,` |
 | Previous or next media | `Left` / `Right` |
 | Play or pause video | `Space` or `K` |
@@ -163,8 +170,9 @@ update metadata.
 
 ## Project Structure
 
-- `src/main` owns windows, filesystem access, media scanning, thumbnail caching,
-  settings, native menus, and updates.
+- `src/main` owns windows, filesystem access, media providers, the request
+  broker and resource cache, thumbnail caching, settings, native menus, and
+  updates. See [Media Provider Architecture](docs/media-provider-architecture.md).
 - `src/preload` exposes the narrow IPC bridge used by the interface.
 - `src/renderer` contains the React viewer and settings interface.
 - `src/shared` contains types and contracts shared across Electron processes.

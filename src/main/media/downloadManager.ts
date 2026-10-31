@@ -6,6 +6,7 @@ import type {
 } from "../../shared/media";
 import type { RegisteredMediaItem } from "../library/mediaRegistry";
 import type { MediaResource } from "../library/providers";
+import { debugLog } from "../utils/debugLog";
 import {
   safeDownloadDirectoryName,
   writeMediaDownload
@@ -14,7 +15,7 @@ import {
 const TERMINAL_STATE_VISIBLE_MS = 900;
 
 function debugDownload(message: string): void {
-  console.debug(`[download ${new Date().toISOString()}] ${message}`);
+  debugLog("download", message);
 }
 
 type DownloadJob = {
