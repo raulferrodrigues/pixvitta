@@ -36,4 +36,4 @@ When doing work with web requests of any kind, check if there are rules to how m
 
 Never add _ before variables.
 
-Never add "Generated with Claude Code" (or any similar generated-by notice) anywhere, ever: not in commits, PR descriptions, issues, comments, code, or docs.
+Never add "Generated with Claude Code" (or any similar generated-by notice) anywhere, ever: not in commits, PR descriptions, issues, comments, code, or docs. Never add a `Co-Authored-By: Claude` (or any AI co-author) trailer to commits either.
