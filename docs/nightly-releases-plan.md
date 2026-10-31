@@ -19,7 +19,8 @@ development-only identity and data directory.
 - Nightly uses its own application ID, executable, package name, desktop file,
   updater cache, artifact names, updater metadata, and `nightly` channel.
 - Nightly versions use the prerelease form
-  `<next-patch>-nightly.<workflow-run>.<attempt>`.
+  `<dev-version>-nightly.<workflow-run>.<attempt>`, where `<dev-version>`
+  is the version CI committed to `dev` for that push.
 - Each push to `dev` creates a GitHub prerelease for that Nightly version.
 - Stable and Nightly builds must not share application data or updater state.
 - Existing **Pixvitta Dev** packages are treated as the former published

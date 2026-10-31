@@ -1,0 +1,227 @@
+name: Stable
+
+# Every push to main cuts a stable release. CI computes the version from the
+# last release, commits it to main, and each platform builds that commit:
+# - a dev -> main merge bumps the minor version: X.Y.Z -> X.(Y+1).0,
+# - the release:major label on the PR bumps the major version: (X+1).0.0,
+# - the release:hotfix label on a PR straight into main bumps the patch:
+#   X.Y.Z -> X.Y.(Z+1). Such a PR without a label is refused, not released.
+# Main is then merged back into dev so dev carries the release forward and the
+# next dev -> main merge has no version conflict. Add a new platform as another
+# job that needs `version`. Version rules live in scripts/release-version.mjs.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: read
+
+jobs:
+  version:
+    name: Bump version
+    runs-on: ubuntu-latest
+    # Releases must never run in parallel or be cancelled halfway.
+    concurrency:
+      group: pixvitta-stable-version
+      cancel-in-progress: false
+    outputs:
+      sha: ${{ steps.release.outputs.sha }}
+      version: ${{ steps.release.outputs.version }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Determine bump level
+        id: level
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pr="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
+            --jq "[.[] | select(.merge_commit_sha == \"${GITHUB_SHA}\")][0] // empty")"
+          labels=""
+          head_ref=""
+          if [ -n "$pr" ]; then
+            labels="$(jq -r '[.labels[].name] | join(" ")' <<< "$pr")"
+            head_ref="$(jq -r '.head.ref' <<< "$pr")"
+          fi
+          major=false
+          hotfix=false
+          case " ${labels} " in *" release:major "*) major=true ;; esac
+          case " ${labels} " in *" release:hotfix "*) hotfix=true ;; esac
+          if [ "$major" = true ] && [ "$hotfix" = true ]; then
+            echo "::error::The PR has both release:major and release:hotfix. Keep one and re-run this workflow."
+            exit 1
+          fi
+          # A PR into main from anywhere but dev is a hotfix and must say so;
+          # without a label it would otherwise cut a minor release. Adding the
+          # label to the merged PR and re-running this workflow fixes it.
+          # A push without a PR (a local dev -> main merge) is a minor release.
+          if [ -n "$head_ref" ] && [ "$head_ref" != "dev" ] && [ "$major" = false ] && [ "$hotfix" = false ]; then
+            echo "::error::PR from ${head_ref} into main has no release:hotfix label. Add release:hotfix (or release:major) to the PR and re-run this workflow."
+            exit 1
+          fi
+          level=minor
+          if [ "$major" = true ]; then level=major; fi
+          if [ "$hotfix" = true ]; then level=patch; fi
+          echo "Labels: ${labels:-none}. Bump level: ${level}"
+          echo "level=${level}" >> "$GITHUB_OUTPUT"
+
+      - name: Commit release version to main
+        id: release
+        env:
+          LEVEL: ${{ steps.level.outputs.level }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          trailer="Release-For: ${GITHUB_SHA}"
+
+          version_at() {
+            git show "$1:package.json" | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version"
+          }
+
+          for attempt in 1 2 3 4 5; do
+            git fetch origin main
+            git checkout --quiet --force -B main origin/main
+
+            # A re-run must not release a second time for the same push.
+            existing="$(git log origin/main --format=%H --fixed-strings --grep="${trailer}" -n 1)"
+            if [ -n "$existing" ]; then
+              version="$(version_at "$existing")"
+              echo "Push ${GITHUB_SHA} was already released as ${version} in ${existing}."
+              echo "sha=${existing}" >> "$GITHUB_OUTPUT"
+              echo "version=${version}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            # Bump from the last release CI made on main, not from whatever the
+            # merged branch carried, so a hotfix branch and a dev merge both
+            # start from the right place and hand edits are ignored.
+            last_release="$(git log origin/main --first-parent --format=%H --grep='^Release-For: ' -n 1)"
+            if [ -n "$last_release" ]; then
+              base="$(version_at "$last_release")"
+            else
+              base="$(node -p "require('./package.json').version")"
+            fi
+
+            version="$(node scripts/release-version.mjs next "$base" "$LEVEL")"
+            npm version "$version" --no-git-tag-version --allow-same-version >/dev/null
+            git commit --all --quiet --message "Release v${version}" --message "${trailer}"
+
+            if git push origin HEAD:main; then
+              echo "Released main as ${version} (${LEVEL} bump from ${base})."
+              echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+              echo "version=${version}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            echo "Push attempt ${attempt} was rejected; retrying from the new tip."
+            sleep $((attempt * 3))
+          done
+
+          echo "Could not push the release version to main."
+          exit 1
+
+  linux:
+    name: Linux
+    needs: version
+    uses: ./.github/workflows/linux-release.yml
+    with:
+      sha: ${{ needs.version.outputs.sha }}
+
+  sync-dev:
+    name: Merge the release back into dev
+    needs: version
+    runs-on: ubuntu-latest
+    # Separate from the builds: if a hotfix conflicts with code on dev, the
+    # release still ships and only this job fails.
+    concurrency:
+      group: pixvitta-stable-sync-dev
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      - name: Merge main into dev
+        env:
+          RELEASE_SHA: ${{ needs.version.outputs.sha }}
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          trailer="Version-Sync-For: ${GITHUB_SHA}"
+
+          version_at() {
+            git show "$1:package.json" | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version"
+          }
+
+          for attempt in 1 2 3 4 5; do
+            git fetch origin dev
+            git checkout --quiet --force -B dev origin/dev
+
+            if git log origin/dev --format=%H --fixed-strings --grep="${trailer}" -n 1 | grep -q .; then
+              echo "Release ${RELEASE_VERSION} is already merged into dev."
+              exit 0
+            fi
+
+            # Dev's own version, as CI last set it (hand edits are ignored).
+            last_dev="$(git log origin/dev --first-parent --format=%H --extended-regexp \
+              --grep='^Version-(Bump|Sync)-For: ' -n 1)"
+            if [ -n "$last_dev" ]; then
+              dev_version="$(version_at "$last_dev")"
+            else
+              dev_version="$(node -p "require('./package.json').version")"
+            fi
+            # Never move dev backwards: 0.4.3 + hotfix 0.4.1 -> 0.4.4,
+            # 0.4.3 + release 0.5.0 -> 0.5.0.
+            version="$(node scripts/release-version.mjs after-release "$dev_version" "$RELEASE_VERSION")"
+
+            if ! git merge --no-ff --no-commit "$RELEASE_SHA"; then
+              # The version line conflicts whenever dev moved since the last
+              # release; it is set below. Anything else needs a person.
+              conflicts="$(git diff --name-only --diff-filter=U)"
+              if [ "$conflicts" != "package.json" ]; then
+                echo "::error::Release ${RELEASE_VERSION} was published, but merging it into dev conflicts in:"
+                echo "$conflicts"
+                echo "Merge main into dev by hand and resolve these files. Leave the package.json version to CI."
+                exit 1
+              fi
+              git checkout --ours package.json
+            fi
+
+            npm version "$version" --no-git-tag-version --allow-same-version >/dev/null
+            git add package.json
+            git commit --quiet --message "Merge release v${RELEASE_VERSION} into dev" \
+              --message "Dev continues at ${version}." --message "${trailer}"
+
+            if git push origin HEAD:dev; then
+              echo "Merged release ${RELEASE_VERSION} into dev; dev is now ${version}."
+              exit 0
+            fi
+
+            echo "Push attempt ${attempt} was rejected; retrying from the new tip."
+            sleep $((attempt * 3))
+          done
+
+          echo "Could not merge the release into dev."
+          exit 1
