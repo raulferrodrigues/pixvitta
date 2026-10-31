@@ -16,10 +16,13 @@ import { createVideoController, type VideoController } from "./videoController";
 import { selectCurrentItem } from "./viewerSelectors";
 
 export type ViewerLoadState = "idle" | "loading" | "ready" | "empty" | "error";
+export type ViewMode = "single" | "continuous";
 
 export const DEFAULT_FILMSTRIP_WIDTH = 168;
 export const MIN_FILMSTRIP_WIDTH = 128;
 export const MAX_FILMSTRIP_WIDTH = 320;
+export const MIN_CONTINUOUS_COLUMN_SCALE = 0.3;
+export const MAX_CONTINUOUS_COLUMN_SCALE = 1;
 const VIDEO_AUDIO_SAVE_DELAY_MS = 250;
 
 export type ViewerState = {
@@ -34,6 +37,8 @@ export type ViewerState = {
   imageZoom: number;
   imagePanX: number;
   imagePanY: number;
+  viewMode: ViewMode;
+  continuousColumnScale: number;
   settings: AppSettings;
   recentSources: RecentSource[];
   filmstripWidth: number;
@@ -77,6 +82,8 @@ export type ViewerActions = {
   toggleVideoLoop(): void;
   zoomCurrentImage(multiplier: number): void;
   setImageView(zoom: number, panX: number, panY: number): void;
+  toggleViewMode(): void;
+  scaleContinuousColumn(multiplier: number): void;
   resizeFilmstrip(width: number): void;
   toggleFilmstrip(): void;
   toggleDownloadPanel(): void;
@@ -178,6 +185,8 @@ export function createViewerStore(
       imageZoom: MIN_IMAGE_ZOOM,
       imagePanX: 0,
       imagePanY: 0,
+      viewMode: "single",
+      continuousColumnScale: MAX_CONTINUOUS_COLUMN_SCALE,
       settings: defaultSettings,
       recentSources: [],
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
@@ -470,7 +479,8 @@ export function createViewerStore(
       markMediaBroken(id: string) {
         set((state) => {
           // An obsolete media request can fail after navigation cancels it.
-          if (selectCurrentItem(state)?.id !== id) return state;
+          // Continuous view keeps each mounted item's request alive instead.
+          if (state.viewMode === "single" && selectCurrentItem(state)?.id !== id) return state;
           return { mediaErrors: new Set(state.mediaErrors).add(id) };
         });
       },
@@ -524,6 +534,25 @@ export function createViewerStore(
           imagePanX: imageZoom === MIN_IMAGE_ZOOM ? 0 : panX,
           imagePanY: imageZoom === MIN_IMAGE_ZOOM ? 0 : panY
         });
+      },
+
+      toggleViewMode() {
+        set((state) => ({
+          viewMode: state.viewMode === "single" ? "continuous" : "single",
+          imageZoom: MIN_IMAGE_ZOOM,
+          imagePanX: 0,
+          imagePanY: 0
+        }));
+      },
+
+      scaleContinuousColumn(multiplier: number) {
+        if (!Number.isFinite(multiplier) || multiplier <= 0) return;
+        set((state) => ({
+          continuousColumnScale: Math.min(
+            MAX_CONTINUOUS_COLUMN_SCALE,
+            Math.max(MIN_CONTINUOUS_COLUMN_SCALE, roundImageTransformValue(state.continuousColumnScale * multiplier))
+          )
+        }));
       },
 
       resizeFilmstrip(width: number) {

@@ -3,17 +3,12 @@ import { useGT } from "gt-react";
 import { type MouseEvent as ReactMouseEvent, type SyntheticEvent, useEffect, useRef, useState } from "react";
 import type { MediaItem } from "../../shared/media";
 import { DownloadActivityIndicator } from "../downloads/DownloadActivityIndicator";
+import { prefetchUrl } from "../media-viewer/prefetchUrl";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { createMediaThumbnailDataUrl } from "./thumbnailCapture";
 
 type FilmstripItemProps = { item: MediaItem; itemIndex: number; isActive: boolean };
 type PreviewMode = "thumbnail" | "image-capture" | "video-capture" | "fallback";
-
-function prefetchUrl(rawUrl: string): string {
-  const url = new URL(rawUrl);
-  url.searchParams.set("intent", "prefetch");
-  return url.href;
-}
 
 export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps) {
   const gt = useGT();

@@ -1,5 +1,6 @@
 import {
   ExternalLink,
+  GalleryVertical,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
@@ -21,6 +22,8 @@ export function TopBar({ buildInfo }: { buildInfo: AppBuildInfo }) {
   const source = useViewerStore((state) => state.source);
   const statusText = useViewerStore(selectStatusText);
   const toggleFilmstrip = useViewerStore((state) => state.toggleFilmstrip);
+  const viewMode = useViewerStore((state) => state.viewMode);
+  const toggleViewMode = useViewerStore((state) => state.toggleViewMode);
   const hasDownloadActivity = useViewerStore(
     (state) => state.downloadActivity.rows.length > 0
   );
@@ -54,6 +57,15 @@ export function TopBar({ buildInfo }: { buildInfo: AppBuildInfo }) {
       ) : null}
       <div className="topbar-fill" aria-hidden />
       <div className="topbar-counter" data-testid="counter">{statusText}</div>
+      <IconButton
+        label={viewMode === "continuous" ? gt("Show one at a time") : gt("Show as continuous scroll")}
+        aria-pressed={viewMode === "continuous"}
+        className="topbar-view-mode-toggle"
+        data-testid="view-mode-toggle"
+        onClick={toggleViewMode}
+      >
+        <GalleryVertical size={17} aria-hidden />
+      </IconButton>
       {hasDownloadActivity ? (
         <IconButton
           label={
