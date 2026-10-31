@@ -6,7 +6,7 @@ import { NextButton, PreviousButton } from "../../parts/controls/NavigationButto
 import { FileOrderButton, OpenFolderButton, RefreshButton } from "../../parts/controls/SourceActions";
 import { Counter, SourceOrigin, SourceTitle } from "../../parts/controls/SourceInfo";
 import { LoopButton, PlayButton } from "../../parts/controls/VideoButtons";
-import { DownloadPanelToggle, FilmstripToggle, FullscreenButton } from "../../parts/controls/ViewButtons";
+import { DownloadPanelToggle, FilmstripToggle, FullscreenButton, ViewModeToggle } from "../../parts/controls/ViewButtons";
 import { WebSourceDialog } from "../../parts/controls/WebSourceDialog";
 import { DownloadPanel } from "../../parts/downloads/DownloadPanel";
 import { Filmstrip } from "../../parts/filmstrip/Filmstrip";
@@ -64,6 +64,7 @@ export function ImmersiveLayout({ buildInfo }: LayoutProps) {
               </ControlGroup>
               <ControlGroup label={gt("Viewing options")}>
                 <DownloadButtons />
+                <ViewModeToggle />
                 <FilmstripToggle />
                 <DownloadPanelToggle />
                 <FullscreenButton />

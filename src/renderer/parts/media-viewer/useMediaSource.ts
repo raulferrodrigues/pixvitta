@@ -14,7 +14,7 @@ function retryUrl(rawUrl: string): string {
 // item before its superseded request settles attaches the new element to that
 // request, so its cancellation reads as a load failure. A uniquely addressed
 // retry reaches the library as a fresh request for the selected item.
-export function useMediaSource(item: MediaItem) {
+export function useMediaSource(item: MediaItem, url = item.url) {
   const markMediaBroken = useViewerStore((state) => state.markMediaBroken);
   const [retry, setRetry] = useState<{ itemId: string; src: string } | null>(null);
   // Each visit to an item gets its own retry.
@@ -24,8 +24,8 @@ export function useMediaSource(item: MediaItem) {
   function handleError(event: SyntheticEvent<HTMLElement>) {
     if (!event.currentTarget.isConnected) return;
     if (isRetrying) markMediaBroken(item.id);
-    else setRetry({ itemId: item.id, src: retryUrl(item.url) });
+    else setRetry({ itemId: item.id, src: retryUrl(url) });
   }
 
-  return { src: isRetrying ? retry.src : item.url, handleError };
+  return { src: isRetrying ? retry.src : url, handleError };
 }

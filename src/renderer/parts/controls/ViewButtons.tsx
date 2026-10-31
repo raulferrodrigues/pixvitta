@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Maximize, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { Eye, EyeOff, GalleryVertical, Maximize, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useGT } from "gt-react";
 import { useViewerStore } from "../../state/ViewerStoreProvider";
 import { IconButton } from "../../ui/IconButton";
@@ -29,6 +29,18 @@ export function FilmstripToggle() {
   return (
     <IconButton label={label} aria-pressed={isFilmstripVisible} className="filmstrip-toggle" data-testid="filmstrip-toggle" onClick={toggleFilmstrip}>
       {isFilmstripVisible ? <PanelLeftClose size={17} aria-hidden /> : <PanelLeftOpen size={17} aria-hidden />}
+    </IconButton>
+  );
+}
+
+export function ViewModeToggle() {
+  const gt = useGT();
+  const viewMode = useViewerStore((state) => state.viewMode);
+  const toggleViewMode = useViewerStore((state) => state.toggleViewMode);
+  const label = viewMode === "continuous" ? gt("Show one at a time") : gt("Show as continuous scroll");
+  return (
+    <IconButton label={label} aria-pressed={viewMode === "continuous"} className="view-mode-toggle" data-testid="view-mode-toggle" onClick={toggleViewMode}>
+      <GalleryVertical size={17} aria-hidden />
     </IconButton>
   );
 }

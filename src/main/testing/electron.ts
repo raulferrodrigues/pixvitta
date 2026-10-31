@@ -25,3 +25,9 @@ export const net = {
 export const dialog = {
   async showMessageBox(): Promise<never> { throw new Error("Unexpected dialog in test."); }
 };
+
+// The thumbnailer runtime is bundled because of its guarded dynamic import, but
+// it only starts inside Electron. These names satisfy the bundle and stay unused.
+export const ipcMain = {};
+export const nativeImage = {};
+export const protocol = {};
