@@ -23,7 +23,8 @@ CI owns the version in `package.json`, in `X.Y.Z` form, for every platform. Neve
 - dev merging into main bumps Y and resets Z (0.4.3 -> 0.5.0). The Stable workflow commits `Release vX.Y.Z` to main, builds it, then merges main back into dev.
 - X is bumped only when the dev -> main PR has the `release:major` label.
 - A hotfix is a PR straight into main with the `release:hotfix` label. It bumps Z on main (0.5.0 -> 0.5.1). Dev never moves backwards when the hotfix is merged back (0.5.3 becomes 0.5.4).
-- A PR straight into main without `release:hotfix` is a minor release.
+- A PR straight into main must have `release:hotfix` (or `release:major`). Version Check fails it without one, and the Stable workflow refuses to release it; add the label to the merged PR and re-run the workflow.
+- Every PR runs the Validate workflow (`pnpm validate`). Only merge PRs whose checks pass.
 - Labels must be on the PR before it merges. Ask the user which label applies when opening a PR into main.
 - The Version Check workflow fails PRs that change the version, and CI discards such edits anyway.
 - If the Stable workflow's "Merge the release back into dev" job fails on a conflict, merge main into dev by hand, resolve the listed files, and leave the version line as it is on dev.
