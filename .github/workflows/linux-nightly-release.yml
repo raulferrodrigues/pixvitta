@@ -1,28 +1,35 @@
 name: Linux Nightly Release
 
+# Called by the Nightly workflow after it has committed the version bump.
+
 on:
-  push:
-    branches:
-      - dev
+  workflow_call:
+    inputs:
+      sha:
+        description: Commit to build, carrying the bumped package.json version.
+        required: true
+        type: string
 
 permissions:
   contents: write
-
-concurrency:
-  group: pixvitta-linux-nightly-release
-  cancel-in-progress: true
 
 jobs:
   linux:
     name: Build and publish Linux packages
     runs-on: ubuntu-latest
+    # Only the newest dev build matters, so a newer run cancels an older build.
+    concurrency:
+      group: pixvitta-linux-nightly-release
+      cancel-in-progress: true
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v5
         with:
           version: 10.30.0
 
@@ -67,12 +74,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
+          TARGET_SHA: ${{ inputs.sha }}
         run: |
           gh release create "v${VERSION}" \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
+            --target "$TARGET_SHA" \
             --title "Pixvitta Nightly ${VERSION}" \
-            --notes "Automated Pixvitta Nightly Linux build from ${GITHUB_SHA}. It installs alongside stable Pixvitta." \
+            --notes "Automated Pixvitta Nightly Linux build from ${TARGET_SHA}. It installs alongside stable Pixvitta." \
             --prerelease \
             release/Pixvitta-Nightly.AppImage \
             "release/Pixvitta-Nightly-${VERSION}-amd64.deb" \
