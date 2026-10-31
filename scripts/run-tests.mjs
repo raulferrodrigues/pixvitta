@@ -28,7 +28,12 @@ await build({
 const outputs = entries.map((entry) =>
   path.join(outdir, path.relative("src", entry).replace(/\.ts$/, ".js"))
 );
-const child = spawn(process.execPath, ["--test", ...outputs], {
+// Build and release scripts are plain Node modules and run without bundling.
+const scriptTests = (await readdir("scripts"))
+  .filter((file) => file.endsWith(".test.mjs"))
+  .map((file) => path.join("scripts", file))
+  .sort();
+const child = spawn(process.execPath, ["--test", ...outputs, ...scriptTests], {
   stdio: "inherit"
 });
 child.on("exit", (code, signal) => {

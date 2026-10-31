@@ -1,25 +1,31 @@
 name: Linux Release
 
+# Called by the Stable workflow after it has committed the release version.
+
 on:
-  push:
-    branches:
-      - main
+  workflow_call:
+    inputs:
+      sha:
+        description: Release commit to build, carrying the release version.
+        required: true
+        type: string
 
 permissions:
   contents: write
-
-concurrency:
-  group: pixvitta-linux-release
-  cancel-in-progress: false
 
 jobs:
   linux:
     name: Build and publish Linux packages
     runs-on: ubuntu-latest
+    concurrency:
+      group: pixvitta-linux-release
+      cancel-in-progress: false
 
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.sha }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -53,7 +59,7 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           if gh release view "v${VERSION}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "Release v${VERSION} already exists. Bump package.json before pushing to main."
+            echo "Release v${VERSION} already exists."
             exit 1
           fi
 
@@ -77,10 +83,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
+          TARGET_SHA: ${{ inputs.sha }}
         run: |
           gh release create "v${VERSION}" \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
+            --target "$TARGET_SHA" \
             --title "Pixvitta ${VERSION}" \
             --generate-notes \
             --latest \

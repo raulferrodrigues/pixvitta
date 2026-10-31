@@ -13,8 +13,22 @@ When you see the user intends to start working on something that requires actual
 Ask the user questions if there's good options for solutions. Things like tech choices, artifact shapes, etc. Do not ask user for implementation details unless the user asks you to ask them for implementation details.
 
 # Pushing to dev and main
-Whenever pushing to dev or main update the version number so the autoupdater works correctly.
 If the user doesn't explicit say that some new change should only be sent to dev, if they say "merge it and push it", assume they mean main. Merge first to dev, then merge dev into main.
+
+After any merge or push to dev or main, pull before pushing again. CI pushes version commits to both branches.
+
+# Versioning
+CI owns the version in `package.json`, in `X.Y.Z` form, for every platform. Never change the version by hand, not in a PR, not when merging, not to "fix" a conflict. The README's Versioning section is the full reference; the rules are:
+- A PR merging into dev (or any push to dev) bumps Z. The Nightly workflow commits the bump to dev, then builds that commit.
+- dev merging into main bumps Y and resets Z (0.4.3 -> 0.5.0). The Stable workflow commits `Release vX.Y.Z` to main, builds it, then merges main back into dev.
+- X is bumped only when the dev -> main PR has the `release:major` label.
+- A hotfix is a PR straight into main with the `release:hotfix` label. It bumps Z on main (0.5.0 -> 0.5.1). Dev never moves backwards when the hotfix is merged back (0.5.3 becomes 0.5.4).
+- A PR straight into main without `release:hotfix` is a minor release.
+- Labels must be on the PR before it merges. Ask the user which label applies when opening a PR into main.
+- The Version Check workflow fails PRs that change the version, and CI discards such edits anyway.
+- If the Stable workflow's "Merge the release back into dev" job fails on a conflict, merge main into dev by hand, resolve the listed files, and leave the version line as it is on dev.
+- In code, read the version with `app.getVersion()` (main process) or `buildInfo.version` (renderer).
+- The version rules live in `scripts/release-version.mjs`; change them there and keep its tests in sync.
 
 # Special rules
 
