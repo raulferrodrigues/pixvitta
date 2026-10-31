@@ -37,6 +37,7 @@ export type ProviderCollection = {
   capabilities: {
     canRefresh: boolean;
     canSort: boolean;
+    canDownload: boolean;
   };
   remember: boolean;
   items: ProviderMediaItem[];

@@ -70,7 +70,8 @@ export class LocalFolderProvider implements MediaProvider {
       title: path.basename(result.folderPath) || result.folderPath,
       capabilities: {
         canRefresh: true,
-        canSort: true
+        canSort: true,
+        canDownload: false
       },
       remember: true,
       items: result.items.map((item) => ({

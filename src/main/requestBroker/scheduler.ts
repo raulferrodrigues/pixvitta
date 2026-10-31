@@ -30,8 +30,6 @@ type Queue = {
   running: boolean;
 };
 
-const ranks: Record<RequestPriority, number> = { low: 0, normal: 1, high: 2 };
-
 export function createRequestBroker(dependencies: {
   fetch(request: Request): Promise<Response>;
   wait?: (milliseconds: number) => Promise<void>;
@@ -196,10 +194,6 @@ export function createRequestBroker(dependencies: {
     setPriority(handle, priority) {
       const task = tasks.get(handle);
       if (task) setPriority(task, priority);
-    },
-    promote(handle, priority) {
-      const task = tasks.get(handle);
-      if (task && ranks[priority] > ranks[task.priority]) setPriority(task, priority);
     }
   };
 }

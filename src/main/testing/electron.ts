@@ -8,6 +8,8 @@ const userData = mkdtempSync(path.join(os.tmpdir(), "pixvitta-tests-"));
 process.once("exit", () => rmSync(userData, { recursive: true, force: true }));
 
 export const app = {
+  name: "Pixvitta",
+  getVersion: () => "0.0.0",
   whenReady: async () => {},
   getPath(name: string) {
     if (name !== "userData") throw new Error(`Unexpected app path in test: ${name}`);

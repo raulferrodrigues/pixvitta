@@ -31,7 +31,6 @@ export type BrokerRequestOptions<T> = Readonly<{
 
 export type RequestBroker = {
   request<T>(options: BrokerRequestOptions<T>): BrokerTask<T>;
-  promote(task: BrokerTask<unknown>, priority: RequestPriority): void;
   setPriority(task: BrokerTask<unknown>, priority: RequestPriority): void;
   /** "obsolete" aborts active work only when it is unneeded and blocks high priority work. */
   cancel(task: BrokerTask<unknown>, mode?: "all" | "queued" | "obsolete"): boolean;

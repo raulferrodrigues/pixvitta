@@ -13,7 +13,12 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
+import { debugLog } from "../utils/debugLog";
+import { CacheIndex } from "./cacheIndex";
 import type { CachedFile } from "./types";
+
+export const RESOURCE_CACHE_MAX_BYTES = 2 * 1024 * 1024 * 1024;
+const RECENTLY_USED_MS = 60_000;
 
 type CacheMetadata = {
   contentType: string;
@@ -42,6 +47,13 @@ const preparation = app.whenReady().then(async () => {
   await mkdir(root, { recursive: true });
 });
 
+// Selected media, prefetches and downloads read their entries continuously,
+// so protecting recent use keeps them while older entries are evicted.
+const index = new CacheIndex({
+  maxBytes: RESOURCE_CACHE_MAX_BYTES,
+  protectedMs: RECENTLY_USED_MS
+});
+
 function isNodeError(error: unknown, code: string): boolean {
   return (
     error instanceof Error &&
@@ -65,7 +77,7 @@ function cacheEntryId(cacheKey: string): string {
 }
 
 function debugCache(message: string): void {
-  console.debug(`[resource-cache ${new Date().toISOString()}] ${message}`);
+  debugLog("resource-cache", message);
 }
 
 function entryPaths(cacheKey: string): EntryPaths {
@@ -94,6 +106,22 @@ async function removeEntry(directory: string): Promise<void> {
   await rm(directory, { recursive: true, force: true });
 }
 
+async function discardEntry(cacheKey: string): Promise<void> {
+  index.forget(cacheEntryId(cacheKey));
+  await removeEntry(entryPaths(cacheKey).directory);
+}
+
+async function evictUnusedEntries(): Promise<void> {
+  for (const id of index.takeEvictions(Date.now())) {
+    debugCache(`evicted id=${id} totalBytes=${index.byteLength}`);
+    try {
+      await removeEntry(path.join(cacheRoot(), id));
+    } catch (error) {
+      console.error("Could not evict a resource cache entry.", error);
+    }
+  }
+}
+
 async function findCompleted(cacheKey: string): Promise<CachedFile | null> {
   const paths = entryPaths(cacheKey);
   let rawMetadata: string;
@@ -101,7 +129,9 @@ async function findCompleted(cacheKey: string): Promise<CachedFile | null> {
     rawMetadata = await readFile(paths.metadata, "utf8");
   } catch (error) {
     if (!isNodeError(error, "ENOENT")) throw error;
-    await removeEntry(paths.directory);
+    // Entries are committed by renaming a complete directory into place, so a
+    // missing metadata file is a plain miss. Removing the directory here could
+    // delete an entry committed after the read failed.
     return null;
   }
 
@@ -109,11 +139,11 @@ async function findCompleted(cacheKey: string): Promise<CachedFile | null> {
   try {
     metadata = JSON.parse(rawMetadata);
   } catch {
-    await removeEntry(paths.directory);
+    await discardEntry(cacheKey);
     return null;
   }
   if (!isMetadata(metadata)) {
-    await removeEntry(paths.directory);
+    await discardEntry(cacheKey);
     return null;
   }
 
@@ -122,14 +152,15 @@ async function findCompleted(cacheKey: string): Promise<CachedFile | null> {
     details = await stat(paths.file);
   } catch (error) {
     if (!isNodeError(error, "ENOENT")) throw error;
-    await removeEntry(paths.directory);
+    await discardEntry(cacheKey);
     return null;
   }
   if (!details.isFile() || details.size !== metadata.byteLength) {
-    await removeEntry(paths.directory);
+    await discardEntry(cacheKey);
     return null;
   }
 
+  index.use(cacheEntryId(cacheKey), metadata.byteLength, Date.now());
   return {
     filePath: paths.file,
     contentType: metadata.contentType,
@@ -169,6 +200,8 @@ async function commitTemporaryEntry(
   debugCache(
     `committed id=${cacheEntryId(cacheKey)} bytes=${byteLength} type=${contentType}`
   );
+  index.use(cacheEntryId(cacheKey), byteLength, Date.now());
+  void evictUnusedEntries();
   return file;
 }
 
