@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { useGT } from "gt-react";
 import { ControlGroup } from "../../parts/controls/ControlGroup";
-import { DownloadButtons } from "../../parts/controls/DownloadButtons";
+import { DownloadCollectionButton, DownloadMediaButton } from "../../parts/controls/DownloadButtons";
 import { NextButton, PreviousButton } from "../../parts/controls/NavigationButtons";
 import { FileOrderButton, OpenFolderButton, RefreshButton } from "../../parts/controls/SourceActions";
 import { Counter, SourceOrigin, SourceTitle } from "../../parts/controls/SourceInfo";
@@ -20,7 +20,9 @@ import { RevealZone } from "./RevealZone";
 import "./immersive.css";
 
 // The media fills the window and the controls float over it in separate
-// zones. With unobtrusive mode on, the zones fade out and come back when the
+// zones. The top left zone holds the source and the actions on it, the top
+// right zone the current item and how it's viewed, with Fullscreen in the
+// corner. With unobtrusive mode on, the zones fade out and come back when the
 // pointer moves over them. The filmstrip tray never fades, so it always
 // matches its toggle. Only the download panel takes space of its own.
 export function ImmersiveLayout({ buildInfo }: LayoutProps) {
@@ -47,33 +49,38 @@ export function ImmersiveLayout({ buildInfo }: LayoutProps) {
         <div className="immersive-drag-region" aria-hidden />
         {hasMedia ? (
           <>
-            <RevealZone autoHide={autoHide} className="immersive-zone-title">
-              <BuildFlavorBadge buildInfo={buildInfo} />
-              <SourceTitle />
-              <SourceOrigin />
-              <Counter />
-            </RevealZone>
-            <RevealZone autoHide={autoHide} className="immersive-zone-actions" role="toolbar" aria-label={gt("Viewer controls")}>
-              <ControlGroup label={gt("Media controls")}>
-                <PlayButton />
-                <LoopButton />
-              </ControlGroup>
-              <ControlGroup label={gt("Library controls")}>
-                <OpenFolderButton />
-                <WebSourceDialog />
-                <RefreshButton />
-                <FileOrderButton />
-              </ControlGroup>
-              <ControlGroup label={gt("Viewing options")}>
-                <DownloadButtons />
-                <ViewModeToggle />
-                <FilmstripToggle />
-                <DownloadPanelToggle />
-                <FullscreenButton />
-                <UnobtrusiveToggle />
-                <SettingsToggle />
-              </ControlGroup>
-            </RevealZone>
+            <div className="immersive-top-row">
+              <RevealZone autoHide={autoHide} className="immersive-zone-title">
+                <BuildFlavorBadge buildInfo={buildInfo} />
+                <SourceTitle />
+                <SourceOrigin />
+                <Counter />
+                <ControlGroup label={gt("Library controls")}>
+                  <OpenFolderButton />
+                  <WebSourceDialog />
+                  <RefreshButton />
+                  <DownloadCollectionButton />
+                  <FileOrderButton />
+                </ControlGroup>
+              </RevealZone>
+              <RevealZone autoHide={autoHide} className="immersive-zone-actions" role="toolbar" aria-label={gt("Viewer controls")}>
+                <ControlGroup label={gt("Media controls")}>
+                  <PlayButton />
+                  <LoopButton />
+                  <DownloadMediaButton />
+                </ControlGroup>
+                <ControlGroup label={gt("Viewing options")}>
+                  <FilmstripToggle />
+                  <ViewModeToggle />
+                  <UnobtrusiveToggle />
+                  <DownloadPanelToggle />
+                </ControlGroup>
+                <ControlGroup label={gt("App controls")}>
+                  <SettingsToggle />
+                  <FullscreenButton />
+                </ControlGroup>
+              </RevealZone>
+            </div>
             <RevealZone autoHide={autoHide} className="immersive-zone-previous">
               <PreviousButton />
             </RevealZone>

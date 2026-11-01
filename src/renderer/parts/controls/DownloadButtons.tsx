@@ -4,18 +4,15 @@ import { useViewerStore } from "../../state/ViewerStoreProvider";
 import { selectCurrentItem } from "../../state/viewerSelectors";
 import { IconButton } from "../../ui/IconButton";
 
-export function DownloadButtons() {
+// Downloading the current item and the whole collection are separate buttons
+// because layouts place them apart: one acts on the item, the other on the
+// source.
+export function DownloadMediaButton() {
   const gt = useGT();
   const canDownload = useViewerStore((state) => state.source?.capabilities.canDownload ?? false);
   const currentItem = useViewerStore(selectCurrentItem);
   const downloadCurrentMedia = useViewerStore(
     (state) => state.downloadCurrentMedia
-  );
-  const downloadCollection = useViewerStore(
-    (state) => state.downloadCollection
-  );
-  const isCollectionDownloadActive = useViewerStore(
-    (state) => state.downloadActivity.collectionActive
   );
   const downloadActivityState = useViewerStore((state) =>
     currentItem
@@ -37,31 +34,44 @@ export function DownloadButtons() {
           : gt("Download media to Downloads");
 
   return (
-    <>
-      <IconButton
-        label={downloadLabel}
-        disabled={isDownloadActive}
-        data-testid="download-media"
-        onClick={() => void downloadCurrentMedia()}
-      >
-        {isDownloadActive ? (
-          <LoaderCircle className="animate-spin" size={17} aria-hidden />
-        ) : downloadActivityState === "complete" ? (
-          <Check size={17} aria-hidden />
-        ) : downloadActivityState === "failed" ? (
-          <CircleAlert size={17} aria-hidden />
-        ) : (
-          <Download size={17} aria-hidden />
-        )}
-      </IconButton>
-      <IconButton
-        label={gt("Download collection")}
-        disabled={isCollectionDownloadActive}
-        data-testid="download-collection"
-        onClick={() => void downloadCollection()}
-      >
-        <FolderDown size={17} aria-hidden />
-      </IconButton>
-    </>
+    <IconButton
+      label={downloadLabel}
+      disabled={isDownloadActive}
+      data-testid="download-media"
+      onClick={() => void downloadCurrentMedia()}
+    >
+      {isDownloadActive ? (
+        <LoaderCircle className="animate-spin" size={17} aria-hidden />
+      ) : downloadActivityState === "complete" ? (
+        <Check size={17} aria-hidden />
+      ) : downloadActivityState === "failed" ? (
+        <CircleAlert size={17} aria-hidden />
+      ) : (
+        <Download size={17} aria-hidden />
+      )}
+    </IconButton>
+  );
+}
+
+export function DownloadCollectionButton() {
+  const gt = useGT();
+  const canDownload = useViewerStore((state) => state.source?.capabilities.canDownload ?? false);
+  const downloadCollection = useViewerStore(
+    (state) => state.downloadCollection
+  );
+  const isCollectionDownloadActive = useViewerStore(
+    (state) => state.downloadActivity.collectionActive
+  );
+
+  if (!canDownload) return null;
+  return (
+    <IconButton
+      label={gt("Download collection")}
+      disabled={isCollectionDownloadActive}
+      data-testid="download-collection"
+      onClick={() => void downloadCollection()}
+    >
+      <FolderDown size={17} aria-hidden />
+    </IconButton>
   );
 }

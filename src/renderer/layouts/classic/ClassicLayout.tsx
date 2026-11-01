@@ -6,12 +6,11 @@ import { useViewerStore } from "../../state/ViewerStoreProvider";
 import { selectHasMedia } from "../../state/viewerSelectors";
 import { classNames } from "../../ui/classNames";
 import type { LayoutProps } from "../types";
-import { ClassicControls } from "./ClassicControls";
 import { ClassicTopBar } from "./ClassicTopBar";
 import { useAutoHideControls } from "./useAutoHideControls";
 import "./classic.css";
 
-// A top bar with the controls centered in it, the filmstrip in a column on the
+// A top bar with the controls in it, the filmstrip in a column on the
 // left and the download panel in a column on the right. Unobtrusive mode lets
 // the media fill the window and fades the bar until the pointer reaches it.
 export function ClassicLayout({ buildInfo }: LayoutProps) {
@@ -46,7 +45,6 @@ export function ClassicLayout({ buildInfo }: LayoutProps) {
       data-testid="app-shell"
     >
       {hasMedia ? <ClassicTopBar buildInfo={buildInfo} /> : null}
-      {hasMedia ? <ClassicControls /> : null}
       {showFilmstrip ? <Filmstrip orientation="vertical" /> : null}
       <MediaViewer />
       {isDownloadPanelOpen && hasDownloadActivity ? (
