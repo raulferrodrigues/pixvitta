@@ -12,6 +12,7 @@ import { useViewerStore } from "../state/ViewerStoreProvider";
 import { selectHasMedia, selectStatusText } from "../state/viewerSelectors";
 import { IconButton } from "../ui/IconButton";
 import { BuildFlavorBadge } from "../ui/BuildFlavorBadge";
+import { ShortcutsSheet } from "../shortcuts/ShortcutsSheet";
 import { useWindowChrome } from "./useWindowChrome";
 import "./topbar.css";
 
@@ -57,6 +58,7 @@ export function TopBar({ buildInfo }: { buildInfo: AppBuildInfo }) {
       ) : null}
       <div className="topbar-fill" aria-hidden />
       <div className="topbar-counter" data-testid="counter">{statusText}</div>
+      <ShortcutsSheet className="topbar-shortcuts-toggle" />
       <IconButton
         label={viewMode === "continuous" ? gt("Show one at a time") : gt("Show as continuous scroll")}
         aria-pressed={viewMode === "continuous"}

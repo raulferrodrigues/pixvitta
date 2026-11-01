@@ -3,7 +3,7 @@ import type { PixvittaApi } from "../../shared/pixvittaApi";
 import { IMAGE_ZOOM_STEP } from "../state/imageView";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { selectCurrentItem } from "../state/viewerSelectors";
-import { matchesRendererHotkey, RENDERER_HOTKEYS } from "./hotkeys";
+import { isShortcutsSheetKey, matchesRendererHotkey, RENDERER_HOTKEYS } from "./hotkeys";
 
 export function useKeyboardShortcuts(api: PixvittaApi) {
   const currentItemKind = useViewerStore((state) => selectCurrentItem(state)?.kind);
@@ -16,6 +16,8 @@ export function useKeyboardShortcuts(api: PixvittaApi) {
   const toggleVideoPlayback = useViewerStore((state) => state.toggleVideoPlayback);
   const toggleFullscreen = useViewerStore((state) => state.toggleFullscreen);
   const exitFullscreen = useViewerStore((state) => state.exitFullscreen);
+  const isShortcutsSheetOpen = useViewerStore((state) => state.isShortcutsSheetOpen);
+  const setShortcutsSheetOpen = useViewerStore((state) => state.setShortcutsSheetOpen);
 
   useEffect(() => {
     // Continuous view zooms by widening or narrowing its column.
@@ -24,6 +26,10 @@ export function useKeyboardShortcuts(api: PixvittaApi) {
       else if (currentItemKind === "image") zoomCurrentImage(multiplier);
     };
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isShortcutsSheetKey(event)) { event.preventDefault(); setShortcutsSheetOpen(!isShortcutsSheetOpen); return; }
+      // The open sheet keeps viewer keys from acting behind it; its native
+      // dialog handles Escape.
+      if (isShortcutsSheetOpen) return;
       if (event.metaKey && event.key.toLowerCase() === "o") { event.preventDefault(); void openFolder(); return; }
       if (event.metaKey && event.key.toLowerCase() === "r") { event.preventDefault(); void refreshSource(); return; }
       if (event.metaKey && event.key === ",") { event.preventDefault(); void api.openPreferences(); return; }
@@ -37,5 +43,5 @@ export function useKeyboardShortcuts(api: PixvittaApi) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [api, currentItemKind, downloadCurrentMedia, exitFullscreen, openFolder, refreshSource, scaleContinuousColumn, toggleFullscreen, toggleVideoPlayback, viewMode, zoomCurrentImage]);
+  }, [api, currentItemKind, downloadCurrentMedia, exitFullscreen, isShortcutsSheetOpen, openFolder, refreshSource, scaleContinuousColumn, setShortcutsSheetOpen, toggleFullscreen, toggleVideoPlayback, viewMode, zoomCurrentImage]);
 }

@@ -26,6 +26,9 @@
 .topbar-view-mode-toggle { flex: 0 0 auto; width: 30px; height: 30px; margin-right: 8px; border-color: transparent; background: transparent; color: var(--pix-muted); -webkit-app-region: no-drag; }
 .topbar-view-mode-toggle:hover { border-color: var(--pix-border); background: var(--pix-control-muted); color: var(--pix-text); }
 .topbar-view-mode-toggle[aria-pressed="true"] { border-color: var(--pix-border); background: var(--pix-control-muted); color: var(--pix-text); }
+.topbar-shortcuts-toggle { flex: 0 0 auto; width: 30px; height: 30px; margin-right: 8px; border-color: transparent; background: transparent; color: var(--pix-muted); -webkit-app-region: no-drag; }
+.topbar-shortcuts-toggle:hover,
+.topbar-shortcuts-toggle[aria-pressed="true"] { border-color: var(--pix-border); background: var(--pix-control-muted); color: var(--pix-text); }
 .topbar-download-toggle { flex: 0 0 auto; width: 30px; height: 30px; margin-right: 8px; border-color: transparent; background: transparent; color: var(--pix-muted); -webkit-app-region: no-drag; }
 .topbar-download-toggle:hover { border-color: var(--pix-border); background: var(--pix-control-muted); color: var(--pix-text); }
 
