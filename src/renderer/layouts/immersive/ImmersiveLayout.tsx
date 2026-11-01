@@ -6,7 +6,7 @@ import { NextButton, PreviousButton } from "../../parts/controls/NavigationButto
 import { FileOrderButton, OpenFolderButton, RefreshButton } from "../../parts/controls/SourceActions";
 import { Counter, SourceOrigin, SourceTitle } from "../../parts/controls/SourceInfo";
 import { LoopButton, PlayButton } from "../../parts/controls/VideoButtons";
-import { DownloadPanelToggle, FilmstripToggle, FullscreenButton, ViewModeToggle } from "../../parts/controls/ViewButtons";
+import { DownloadPanelToggle, FilmstripToggle, FullscreenButton, UnobtrusiveToggle, ViewModeToggle } from "../../parts/controls/ViewButtons";
 import { WebSourceDialog } from "../../parts/controls/WebSourceDialog";
 import { DownloadPanel } from "../../parts/downloads/DownloadPanel";
 import { Filmstrip } from "../../parts/filmstrip/Filmstrip";
@@ -19,13 +19,14 @@ import { RevealZone } from "./RevealZone";
 import "./immersive.css";
 
 // The media fills the window and the controls float over it in separate
-// zones that fade out and come back when the pointer moves over them. Only the
-// download panel takes space of its own. Unobtrusive mode has no effect here,
-// since the controls already fade.
+// zones. With unobtrusive mode on, the zones fade out and come back when the
+// pointer moves over them. The filmstrip tray never fades, so it always
+// matches its toggle. Only the download panel takes space of its own.
 export function ImmersiveLayout({ buildInfo }: LayoutProps) {
   const gt = useGT();
   const hasMedia = useViewerStore(selectHasMedia);
   const isFilmstripVisible = useViewerStore((state) => state.isFilmstripVisible);
+  const autoHide = useViewerStore((state) => state.settings.unobtrusiveViewerControls);
   const isDownloadPanelOpen = useViewerStore(
     (state) => state.isDownloadPanelOpen
   );
@@ -45,13 +46,13 @@ export function ImmersiveLayout({ buildInfo }: LayoutProps) {
         <div className="immersive-drag-region" aria-hidden />
         {hasMedia ? (
           <>
-            <RevealZone className="immersive-zone-title">
+            <RevealZone autoHide={autoHide} className="immersive-zone-title">
               <BuildFlavorBadge buildInfo={buildInfo} />
               <SourceTitle />
               <SourceOrigin />
               <Counter />
             </RevealZone>
-            <RevealZone className="immersive-zone-actions" role="toolbar" aria-label={gt("Viewer controls")}>
+            <RevealZone autoHide={autoHide} className="immersive-zone-actions" role="toolbar" aria-label={gt("Viewer controls")}>
               <ControlGroup label={gt("Media controls")}>
                 <PlayButton />
                 <LoopButton />
@@ -68,16 +69,17 @@ export function ImmersiveLayout({ buildInfo }: LayoutProps) {
                 <FilmstripToggle />
                 <DownloadPanelToggle />
                 <FullscreenButton />
+                <UnobtrusiveToggle />
               </ControlGroup>
             </RevealZone>
-            <RevealZone className="immersive-zone-previous">
+            <RevealZone autoHide={autoHide} className="immersive-zone-previous">
               <PreviousButton />
             </RevealZone>
-            <RevealZone className="immersive-zone-next">
+            <RevealZone autoHide={autoHide} className="immersive-zone-next">
               <NextButton />
             </RevealZone>
             {isFilmstripVisible ? (
-              <RevealZone className="immersive-zone-filmstrip">
+              <RevealZone autoHide={false} className="immersive-zone-filmstrip">
                 <Filmstrip orientation="horizontal" />
               </RevealZone>
             ) : null}

@@ -28,7 +28,7 @@
 .immersive-zone-actions { right: 10px; }
 .immersive-zone-actions [role="group"] { gap: 2px; }
 .immersive-zone-actions [role="group"]:empty { display: none; }
-.immersive-zone-actions [role="group"] + [role="group"] { padding-left: 8px; border-left: 1px solid var(--pix-border); }
+.immersive-zone-actions [role="group"]:not(:empty) ~ [role="group"]:not(:empty) { padding-left: 8px; border-left: 1px solid var(--pix-border); }
 .immersive-zone-actions button { width: 30px; height: 30px; border-color: transparent; border-radius: 6px; background: transparent; color: var(--pix-muted); }
 .immersive-zone-actions button:hover:not(:disabled),
 .immersive-zone-actions button[aria-pressed="true"] { background: var(--pix-control-muted); color: var(--pix-text); }

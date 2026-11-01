@@ -5,13 +5,14 @@ import { classNames } from "../../ui/classNames";
 // How far outside a zone the pointer can be and still reveal it.
 const REVEAL_MARGIN_PX = 24;
 
-type RevealZoneProps = HTMLAttributes<HTMLDivElement> & { children: ReactNode };
+type RevealZoneProps = HTMLAttributes<HTMLDivElement> & { autoHide: boolean; children: ReactNode };
 
-// A floating group of controls that fades on its own. Each zone watches only
-// its own area, so moving toward one corner doesn't reveal the others.
-export function RevealZone({ className, children, ...props }: RevealZoneProps) {
+// A floating group of controls. With autoHide it fades on its own, and each
+// zone watches only its own area, so moving toward one corner doesn't reveal
+// the others. Without it the zone stays visible.
+export function RevealZone({ autoHide, className, children, ...props }: RevealZoneProps) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const isRevealed = useAutoReveal(true, (x, y) => {
+  const isRevealed = useAutoReveal(autoHide, (x, y) => {
     const rect = ref.current?.getBoundingClientRect();
     if (!rect) return false;
     return (
