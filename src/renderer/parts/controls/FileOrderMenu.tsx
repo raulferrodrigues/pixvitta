@@ -4,6 +4,7 @@ import { useGT } from "gt-react";
 import type { FileOrder } from "../../../shared/settings";
 import { FILE_ORDER_OPTIONS } from "../../settings/fileOrderOptions";
 import { IconButton } from "../../ui/IconButton";
+import "./controls.css";
 
 function isFileOrder(value: string): value is FileOrder {
   return FILE_ORDER_OPTIONS.some((option) => option.value === value);
