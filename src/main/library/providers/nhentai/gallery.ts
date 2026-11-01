@@ -3,7 +3,8 @@ import { ProviderError } from "../provider";
 
 const SITE_HOST = "nhentai.net";
 const SITE_ORIGIN = `https://${SITE_HOST}`;
-const FILE_NAME_PATTERN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9]+$/;
+// The CDN returns some names with a doubled extension, such as `2t.webp.webp`.
+const FILE_NAME_PATTERN = /^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9]+)+$/;
 
 export type NHentaiGalleryReference = {
   galleryId: string;
@@ -16,7 +17,7 @@ export type NHentaiPage = {
   number: number;
   name: string;
   path: string;
-  thumbnailPath: string;
+  thumbnailPath: string | null;
   readerUrl: string;
 };
 
@@ -130,11 +131,12 @@ export function parseNHentaiGallery(
     if (!entry || typeof entry !== "object") return [];
     const page = entry as Record<string, unknown>;
     const path = validImagePath(page.path, mediaId);
-    const thumbnailPath = validImagePath(page.thumbnail, mediaId);
-    if (!isPositiveInteger(page.number) || seen.has(page.number) || !path || !thumbnailPath) {
+    if (!isPositiveInteger(page.number) || seen.has(page.number) || !path) {
       return [];
     }
     seen.add(page.number);
+    // A bad thumbnail costs only the filmstrip preview, not the page.
+    const thumbnailPath = validImagePath(page.thumbnail, mediaId);
     return [{ number: page.number, path, thumbnailPath }];
   });
   if (valid.length === 0) {

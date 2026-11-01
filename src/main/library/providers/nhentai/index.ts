@@ -212,13 +212,19 @@ export class NHentaiProvider implements MediaProvider {
           url: cdnUrl(servers.imageServers, pages[index].number, pages[index].path),
           policy: IMAGES_POLICY
         }),
+      // Only pages with a thumbnail path expose a thumbnail resource.
       thumbnailKey: (index) => `nhentai:thumbnail:${pages[index].thumbnailPath}`,
-      loadThumbnail: (index, io) =>
-        this.loadImage(io, {
-          cacheKey: `nhentai:thumbnail:${pages[index].thumbnailPath}`,
-          url: cdnUrl(servers.thumbnailServers, pages[index].number, pages[index].thumbnailPath),
+      loadThumbnail: (index, io) => {
+        const { number, thumbnailPath } = pages[index];
+        if (!thumbnailPath) {
+          return Promise.reject(new Error("This page has no thumbnail."));
+        }
+        return this.loadImage(io, {
+          cacheKey: `nhentai:thumbnail:${thumbnailPath}`,
+          url: cdnUrl(servers.thumbnailServers, number, thumbnailPath),
           policy: THUMBNAILS_POLICY
-        })
+        });
+      }
     });
 
     const items = pages.map((page, index): ProviderMediaItem => ({
@@ -237,15 +243,17 @@ export class NHentaiProvider implements MediaProvider {
           )
       },
       externalUrl: page.readerUrl,
-      thumbnail: {
-        kind: "resource",
-        resource: {
-          respond: (thumbnailRequest, priority) =>
-            fileResponse(thumbnailRequest, () =>
-              runtime.getThumbnail(index, priority, thumbnailRequest)
-            )
-        }
-      }
+      thumbnail: page.thumbnailPath
+        ? {
+            kind: "resource",
+            resource: {
+              respond: (thumbnailRequest, priority) =>
+                fileResponse(thumbnailRequest, () =>
+                  runtime.getThumbnail(index, priority, thumbnailRequest)
+                )
+            }
+          }
+        : { kind: "none" }
     }));
     const indexByKey = new Map(items.map((item, index) => [item.key, index]));
     const requestedIndex = pages.findIndex(
@@ -273,7 +281,9 @@ export class NHentaiProvider implements MediaProvider {
       capabilities: {
         canRefresh: true,
         canSort: false,
-        canDownload: true
+        canDownload: true,
+        // nhentai asks clients not to rebuild whole galleries from page URLs.
+        canDownloadCollection: false
       },
       remember: true,
       items,

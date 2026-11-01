@@ -1,4 +1,5 @@
 export {
+  canDownloadCollection,
   getRecentSources,
   openFileAsCollection,
   openSource,

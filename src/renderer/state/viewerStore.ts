@@ -306,7 +306,7 @@ export function createViewerStore(
       async downloadCollection() {
         const state = get();
         if (
-          !state.source?.capabilities.canDownload ||
+          !state.source?.capabilities.canDownloadCollection ||
           state.downloadActivity.collectionActive
         ) {
           return;

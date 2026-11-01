@@ -93,13 +93,29 @@ test("pages with paths outside the gallery or unsupported types are skipped", ()
       { ...page(3), path: "/galleries/9/3.jpg" },
       { ...page(4), path: "galleries/9/../4.jpg" },
       { ...page(5), path: "galleries/9/5.mp4" },
-      { ...page(6), thumbnail: "https://evil.test/6t.jpg" },
       { ...page(7), number: 1 },
       { ...page(8), number: "8" },
       null
     ])
   );
   assert.deepEqual(parsed.pages.map((entry) => entry.number), [1]);
+});
+
+test("doubled extensions are accepted and a bad thumbnail keeps the page", () => {
+  const parsed = parseNHentaiGallery(
+    reference,
+    gallery([
+      { ...page(1, "webp"), thumbnail: "galleries/9/1t.webp.webp" },
+      { ...page(2), thumbnail: "galleries/9/../2t.jpg" }
+    ])
+  );
+  assert.deepEqual(
+    parsed.pages.map(({ name, path, thumbnailPath }) => [name, path, thumbnailPath]),
+    [
+      ["Page 001.webp", "galleries/9/1.webp", "galleries/9/1t.webp.webp"],
+      ["Page 002.jpg", "galleries/9/2.jpg", null]
+    ]
+  );
 });
 
 test("gallery responses must match the request and contain images", () => {

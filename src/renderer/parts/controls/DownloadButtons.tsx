@@ -55,7 +55,9 @@ export function DownloadMediaButton() {
 
 export function DownloadCollectionButton() {
   const gt = useGT();
-  const canDownload = useViewerStore((state) => state.source?.capabilities.canDownload ?? false);
+  const canDownloadCollection = useViewerStore(
+    (state) => state.source?.capabilities.canDownloadCollection ?? false
+  );
   const downloadCollection = useViewerStore(
     (state) => state.downloadCollection
   );
@@ -63,7 +65,7 @@ export function DownloadCollectionButton() {
     (state) => state.downloadActivity.collectionActive
   );
 
-  if (!canDownload) return null;
+  if (!canDownloadCollection) return null;
   return (
     <IconButton
       label={gt("Download collection")}

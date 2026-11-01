@@ -71,7 +71,8 @@ export class LocalFolderProvider implements MediaProvider {
       capabilities: {
         canRefresh: true,
         canSort: true,
-        canDownload: false
+        canDownload: false,
+        canDownloadCollection: false
       },
       remember: true,
       items: result.items.map((item) => ({

@@ -36,6 +36,8 @@ The API asks every client to send a descriptive User-Agent shaped like
   `thumbnail_width`, `thumbnail_height`.
 
 Paths are relative, for example `galleries/9/1.jpg` and `galleries/9/1t.jpg`.
+Some live paths carry a doubled extension, such as `galleries/4289548/2t.webp.webp`,
+and the CDN serves them as returned.
 Unlike E-Hentai, one request returns the complete ordered page list. No HTML
 parsing, lazy index pages, or placeholder enumeration is needed.
 
@@ -86,7 +88,9 @@ page URLs are used only as links the user may open in their browser.
 - Anonymous access only. No API key, sign-in, favorites, comments, search,
   tags, related galleries, or archive downloads.
 - Individual page downloads of the displayed image through the existing
-  download capability.
+  download capability. "Download collection" is hidden and refused in main
+  (`canDownloadCollection: false`), because nhentai asks clients not to rebuild
+  galleries by walking page URLs.
 - Refresh and "Open in browser" through the existing capabilities.
 
 ## Decisions
@@ -101,7 +105,8 @@ page URLs are used only as links the user may open in their browser.
 3. **Use CDN paths verbatim.** The provider joins a server from `/api/v2/cdn`
    with the returned `path`. It never derives a path from `media_id`, page
    numbers, or extensions. A page whose path fails validation is skipped,
-   not repaired.
+   not repaired. A page whose thumbnail path fails validation keeps its image
+   and shows no thumbnail.
 4. **Fetch the CDN configuration once per session.** It is cached in memory
    for one hour and requested again when stale or after a failure. A gallery
    load fetches it only when no fresh copy exists.
@@ -142,8 +147,8 @@ full image per second, even while skipping quickly.
   credentials, path, query, or fragment. Invalid entries are dropped. If none
   remain, the load fails as `invalid-response`.
 - Paths: relative `galleries/{media_id}/{file}`, where `{media_id}` matches the
-  gallery's `media_id`, the file name contains only safe characters, and the
-  extension is a supported image type. Paths are never rewritten.
+  gallery's `media_id`, the file name is safe characters in dot-separated,
+  non-empty parts, and the final extension is a supported image type. Paths are never rewritten.
 - Responses: no redirects, and media responses must have a supported image
   content type.
 - Only `Accept` and `User-Agent` headers are sent. No cookies or credentials.

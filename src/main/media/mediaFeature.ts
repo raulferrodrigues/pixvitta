@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, protocol } from "electron";
-import { resolveMediaId, resolveMediaUrl } from "../library";
+import { canDownloadCollection, resolveMediaId, resolveMediaUrl } from "../library";
 import { ProviderError } from "../library/providers";
 import {
   showLocalMediaContextMenu,
@@ -69,6 +69,7 @@ function downloadCollection(
   mediaIds: unknown
 ): boolean {
   if (
+    !canDownloadCollection() ||
     typeof collectionName !== "string" ||
     !collectionName.trim() ||
     !Array.isArray(mediaIds) ||

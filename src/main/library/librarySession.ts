@@ -111,6 +111,10 @@ export async function openFileAsCollection(
   return mediaLibrary.openLocation(path.resolve(baseDirectory, filePath));
 }
 
+export function canDownloadCollection(): boolean {
+  return mediaLibrary.canDownloadCollection();
+}
+
 export function resolveMediaId(
   mediaId: string
 ): RegisteredMediaItem | null {
