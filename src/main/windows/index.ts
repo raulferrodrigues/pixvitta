@@ -8,7 +8,6 @@
 export {
   closeAppWindow,
   createMainWindow,
-  createPreferencesWindow,
   isMainWindow,
   publishMainWindowCollection,
   publishMainWindowDownloadActivity,

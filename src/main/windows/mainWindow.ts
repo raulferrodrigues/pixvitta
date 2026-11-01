@@ -7,20 +7,17 @@ import { isCommandShortcut, notifyWindowChromeChanged } from "./windowChrome";
 import { getWindowIcon } from "./windowIcon";
 
 type MainWindowOptions = {
-  rendererUrl(hash?: string): string;
+  rendererUrl(): string;
   onClosed(window: BrowserWindow): void;
   onLoaded(window: BrowserWindow): void;
   onCloseShortcut(window: BrowserWindow): void;
-  onOpenPreferences(): void;
 };
 
 // BrowserWindow is the native shell around a renderer page. This function owns
 // the main viewer window: dimensions, macOS title-bar behavior, security
 // settings, preload script, keyboard shortcuts, and the URL that loads React.
 export function createMainWindow(options: MainWindowOptions): BrowserWindow {
-  const startHash = process.env.PIXVITTA_TEST_START_HASH;
-  const isPreferencesRoute = startHash === "preferences";
-  const autoHideMenuBar = !isPreferencesRoute && process.platform !== "darwin";
+  const autoHideMenuBar = process.platform !== "darwin";
 
   const window = new BrowserWindow({
     width: 1180,
@@ -31,7 +28,7 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
     icon: getWindowIcon(),
     backgroundColor: "#101214",
     autoHideMenuBar,
-    ...(isPreferencesRoute || process.platform !== "darwin"
+    ...(process.platform !== "darwin"
       ? {}
       : {
         // The viewer draws custom controls into the title-bar area, so the
@@ -83,8 +80,12 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
       options.onCloseShortcut(window);
       return;
     }
-    if ((input.meta || input.control) && (input.key === "," || input.key === "Comma")) {
-      options.onOpenPreferences();
+    if (input.type === "keyDown" && (input.meta || input.control) && (input.key === "," || input.key === "Comma")) {
+      // Settings is a modal inside the viewer, so the shortcut becomes a viewer
+      // command. Handling it here keeps Ctrl+, working on Linux, where the
+      // menu bar (and its accelerator) is hidden.
+      event.preventDefault();
+      window.webContents.send("menu:command", "open-settings");
       return;
     }
     if (input.key === "Escape" && window.isFullScreen()) {
@@ -95,7 +96,7 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
   // loadURL points at Vite during development and at dist/index.html in packaged
   // builds. Once the page itself has loaded, pending macOS file-open requests can
   // move to the next queue, which waits for React's viewer:ready signal.
-  void window.loadURL(options.rendererUrl(startHash)).then(() => {
+  void window.loadURL(options.rendererUrl()).then(() => {
     if (window.isDestroyed()) return;
     options.onLoaded(window);
   });

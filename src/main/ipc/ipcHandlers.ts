@@ -11,11 +11,7 @@ import { appBuildInfo } from "../app/buildInfo";
  * web UI is allowed to use, so this file is also a useful security audit surface.
  */
 
-type IpcHandlerOptions = {
-  createPreferencesWindow(): void;
-};
-
-export function registerIpcHandlers(options: IpcHandlerOptions): void {
+export function registerIpcHandlers(): void {
   ipcMain.handle("app:get-build-info", () => appBuildInfo);
 
   // Fullscreen is native BrowserWindow state. React asks for the action, but the
@@ -32,12 +28,6 @@ export function registerIpcHandlers(options: IpcHandlerOptions): void {
     const window = BrowserWindow.fromWebContents(event.sender);
     if (!window) return;
     window.setFullScreen(false);
-  });
-
-  // Preferences are a separate native BrowserWindow, not a modal drawn inside
-  // the viewer, because that matches macOS app conventions.
-  ipcMain.handle("window:open-preferences", () => {
-    options.createPreferencesWindow();
   });
 
   // The renderer draws custom chrome, so it needs a read-only snapshot of the

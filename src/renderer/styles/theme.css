@@ -27,12 +27,6 @@
   --color-pix-recent-border: var(--pix-recent-border);
   --color-pix-recent-text: var(--pix-recent-text);
   --color-pix-recent-path: var(--pix-recent-path);
-  --color-pix-preferences-bg: var(--pix-preferences-bg);
-  --color-pix-preferences-text: var(--pix-preferences-text);
-  --color-pix-preferences-muted: var(--pix-preferences-muted);
-  --color-pix-preferences-heading: var(--pix-preferences-heading);
-  --color-pix-preferences-border: var(--pix-preferences-border);
-  --color-pix-preferences-input-border: var(--pix-preferences-input-border);
   --color-pix-dev: var(--pix-dev);
   --color-pix-dev-text: var(--pix-dev-text);
 }
@@ -64,12 +58,6 @@
   --pix-recent-border: #303a40;
   --pix-recent-text: #edf3f5;
   --pix-recent-path: #91a0a7;
-  --pix-preferences-bg: var(--pix-bg);
-  --pix-preferences-text: var(--pix-text);
-  --pix-preferences-muted: var(--pix-muted);
-  --pix-preferences-heading: var(--pix-section);
-  --pix-preferences-border: var(--pix-border);
-  --pix-preferences-input-border: var(--pix-control-border);
   --pix-scrollbar-thumb: #6a747a;
   --pix-scrollbar-thumb-hover: #8a969d;
   --pix-dev: #7c3aed;

@@ -1,9 +1,9 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { classNames } from "./classNames";
 
 type IconButtonVariant = "primary" | "secondary" | "prominent";
 
-type IconButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "title"> & {
+type IconButtonProps = Omit<ComponentProps<"button">, "title"> & {
   label: string;
   tooltip?: string;
   variant?: IconButtonVariant;

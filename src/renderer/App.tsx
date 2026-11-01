@@ -7,12 +7,12 @@ import { useWindowChrome } from "./app/useWindowChrome";
 import { SourceOpenError } from "./folder-picker/SourceOpenError";
 import { SourcePicker } from "./folder-picker/SourcePicker";
 import { layouts } from "./layouts";
-import { ShortcutsSheet } from "./parts/shortcuts/ShortcutsSheet";
+import { SettingsModal } from "./parts/settings/SettingsModal";
 import { useViewerStore } from "./state/ViewerStoreProvider";
 
 export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
   useAppLifecycle(window.pixvitta);
-  useKeyboardShortcuts(window.pixvitta);
+  useKeyboardShortcuts();
   useWindowChrome(window.pixvitta);
   const source = useViewerStore((state) => state.source);
   const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
@@ -22,7 +22,7 @@ export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
     return (
       <>
         <SourcePicker buildInfo={buildInfo} />
-        <ShortcutsSheet />
+        <SettingsModal />
       </>
     );
   }
@@ -31,7 +31,7 @@ export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
   return (
     <>
       <Layout buildInfo={buildInfo} />
-      <ShortcutsSheet />
+      <SettingsModal />
       {isSourceLoading ? (
         <div
           className="fixed left-1/2 top-[calc(var(--pix-topbar-height)+12px)] z-40 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-pix-border bg-pix-panel/95 px-4 py-2.5 text-sm text-pix-text shadow-xl"

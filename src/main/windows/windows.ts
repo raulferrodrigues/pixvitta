@@ -7,7 +7,6 @@ import type {
 import type { PixvittaCommand } from "../../shared/pixvittaApi";
 import type { RecentSource } from "../../shared/recentSources";
 import { rendererUrl } from "../app";
-import { createPreferencesBrowserWindow } from "./preferencesWindow";
 import { createMainWindow as createMainBrowserWindow } from "./mainWindow";
 import { notifyWindowChromeChanged } from "./windowChrome";
 
@@ -19,21 +18,15 @@ import { notifyWindowChromeChanged } from "./windowChrome";
  * import these operations directly without receiving a custom "window manager"
  * bag from the entry point.
  *
- * There are two native windows in Pixvitta today:
- * - the main window, which displays the media viewer route;
- * - the preferences window, which displays the settings route.
- *
- * They intentionally share one boundary because some behavior is cross-window:
- * the app menu can close whichever Pixvitta window is focused, closing the main
- * window should quit the app, and closing a preferences-only window should not
- * accidentally make the app feel like the viewer quit. The construction details
- * for each BrowserWindow still live in focused files; this file owns the live
- * references and the policy around them.
+ * Pixvitta has one native window, the main viewer. Settings and the keyboard
+ * shortcuts are drawn by React as a modal inside it. The BrowserWindow
+ * construction details live in mainWindow.ts; this file owns the live
+ * reference and the policy around it.
  *
  * A few Electron handlers are registered at import time. That is deliberate:
  * importing "../windows" means the windows feature is present, including its
  * renderer readiness IPC and app-wide window-close policy. Callers should invoke
- * capabilities such as createMainWindow() and createPreferencesWindow(), not
+ * capabilities such as createMainWindow(), not
  * remember a separate "register window handlers" step.
  */
 
@@ -58,13 +51,6 @@ let mainWindow: BrowserWindow | null = null;
 // Both gates are tracked separately before queued folders are sent to renderer.
 let mainWindowLoaded = false;
 let mainWindowReady = false;
-
-let preferencesWindow: BrowserWindow | null = null;
-
-// Closing the preferences window when it is the only open window triggers
-// Electron's window-all-closed event. That event should be ignored once so the
-// user does not quit the whole app just by closing settings.
-let skipNextWindowAllClosedQuit = false;
 
 type PendingCollectionDelivery = {
   collection: MediaCollection;
@@ -131,8 +117,7 @@ export function createMainWindow(): void {
       mainWindowLoaded = true;
       flushMainWindowEvents();
     },
-    onCloseShortcut: closeAppWindow,
-    onOpenPreferences: createPreferencesWindow
+    onCloseShortcut: closeAppWindow
   });
 
   mainWindow = window;
@@ -205,26 +190,6 @@ export function isMainWindow(window: BrowserWindow | null): boolean {
   return !!window && window === mainWindow && !window.isDestroyed();
 }
 
-export function createPreferencesWindow(): void {
-  // Preferences are single-instance. Reusing the existing native window matches
-  // macOS settings-window expectations and avoids duplicate settings screens
-  // racing to save the same JSON-backed settings.
-  if (preferencesWindow && !preferencesWindow.isDestroyed()) {
-    preferencesWindow.focus();
-    return;
-  }
-
-  preferencesWindow = createPreferencesBrowserWindow({
-    rendererUrl,
-    onClosed() {
-      preferencesWindow = null;
-    },
-    onCloseShortcut() {
-      closeAppWindow(preferencesWindow);
-    }
-  });
-}
-
 export async function showAppMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
   // Dialog parenting is a native-window detail. Callers ask the app to show a
   // message, while this module decides whether the main viewer can own it.
@@ -237,16 +202,6 @@ export async function showAppMessageBox(options: Electron.MessageBoxOptions): Pr
 export function closeAppWindow(window: BrowserWindow | null | undefined): void {
   if (!window || window.isDestroyed()) return;
 
-  if (window === preferencesWindow) {
-    // If preferences is the last window, Electron will emit window-all-closed
-    // after close(). Mark the next event as intentional so the app stays alive
-    // instead of treating a settings close as a viewer close.
-    const hasOtherWindows = BrowserWindow.getAllWindows().some((openWindow) => openWindow !== window && !openWindow.isDestroyed());
-    skipNextWindowAllClosedQuit = !hasOtherWindows;
-    window.close();
-    return;
-  }
-
   if (window === mainWindow) {
     // The main viewer is the primary document surface. Closing it is equivalent
     // to quitting Pixvitta, even on macOS where many apps stay resident after
@@ -257,7 +212,7 @@ export function closeAppWindow(window: BrowserWindow | null | undefined): void {
 
   // Unknown BrowserWindows are not owned by Pixvitta's window feature. If one
   // reaches this helper from a menu event, close it normally rather than trying
-  // to apply main/preference-specific policy.
+  // to apply main-window policy.
   window.close();
 }
 
@@ -308,11 +263,6 @@ ipcMain.handle("viewer:ready", (event) => {
 // should not ask whether a close event should quit; it should just let this
 // module own the native BrowserWindow rules.
 app.on("window-all-closed", () => {
-  if (skipNextWindowAllClosedQuit) {
-    skipNextWindowAllClosedQuit = false;
-    return;
-  }
-
   if (SHOULD_KEEP_OPEN_AFTER_LAST_WINDOW_CLOSED) return;
   app.quit();
 });
