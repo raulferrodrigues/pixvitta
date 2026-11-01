@@ -47,7 +47,9 @@ export type ViewerState = {
   pendingAuthenticationLocation: string | null;
   downloadActivity: DownloadActivitySnapshot;
   isDownloadPanelOpen: boolean;
-  isShortcutsSheetOpen: boolean;
+  // The settings modal shows either the settings list or the keyboard
+  // shortcuts; null means it is closed.
+  settingsView: SettingsView | null;
 };
 
 export type ViewerActions = {
@@ -71,6 +73,7 @@ export type ViewerActions = {
   applySettings(settings: AppSettings): void;
   setFileOrder(fileOrder: FileOrder): Promise<void>;
   toggleUnobtrusiveControls(): Promise<void>;
+  updateSettings(changes: Partial<AppSettings>): Promise<void>;
   goNext(): void;
   goPrevious(): void;
   selectMedia(index: number): void;
@@ -88,10 +91,13 @@ export type ViewerActions = {
   resizeFilmstrip(width: number): void;
   toggleFilmstrip(): void;
   toggleDownloadPanel(): void;
-  setShortcutsSheetOpen(isOpen: boolean): void;
+  openSettings(view?: SettingsView): void;
+  closeSettings(): void;
   toggleFullscreen(): Promise<void>;
   exitFullscreen(): Promise<void>;
 };
+
+export type SettingsView = "settings" | "shortcuts";
 
 export type ViewerStore = ViewerState & ViewerActions;
 export type ViewerStoreApi = StoreApi<ViewerStore>;
@@ -202,7 +208,7 @@ export function createViewerStore(
         collectionActive: false
       },
       isDownloadPanelOpen: false,
-      isShortcutsSheetOpen: false,
+      settingsView: null,
 
       async initialize() {
         await Promise.all([
@@ -407,34 +413,31 @@ export function createViewerStore(
       },
 
       async setFileOrder(fileOrder: FileOrder) {
-        const currentSettings = get().settings;
-        if (fileOrder === currentSettings.fileOrder) return;
-        const revision = settingsSaveRevision + 1;
-        settingsSaveRevision = revision;
-        try {
-          const savedSettings = await api.saveSettings({ ...currentSettings, fileOrder });
-          if (revision === settingsSaveRevision) applySettingsState(savedSettings);
-        } catch (error) {
-          if (revision === settingsSaveRevision) console.error(error);
-        }
+        if (fileOrder === get().settings.fileOrder) return;
+        await get().updateSettings({ fileOrder });
       },
 
       async toggleUnobtrusiveControls() {
+        await get().updateSettings({ unobtrusiveViewerControls: !get().settings.unobtrusiveViewerControls });
+      },
+
+      async updateSettings(changes: Partial<AppSettings>) {
         const previousSettings = get().settings;
-        const nextSettings = {
-          ...previousSettings,
-          unobtrusiveViewerControls: !previousSettings.unobtrusiveViewerControls
-        };
+        const nextSettings = { ...previousSettings, ...changes };
         const revision = settingsSaveRevision + 1;
         settingsSaveRevision = revision;
-        applySettingsState(nextSettings);
+        // Order and hidden-file changes refresh the source, and main reads the
+        // saved settings to do that, so those apply only once the save lands.
+        // Everything else shows right away and rolls back if the save fails.
+        const waitsForSave = settingsRequireSourceRefresh(previousSettings, nextSettings);
+        if (!waitsForSave) applySettingsState(nextSettings);
         try {
           const savedSettings = await api.saveSettings(nextSettings);
           if (revision === settingsSaveRevision) applySettingsState(savedSettings);
         } catch (error) {
           if (revision !== settingsSaveRevision) return;
           console.error(error);
-          applySettingsState(previousSettings);
+          if (!waitsForSave) applySettingsState(previousSettings);
         }
       },
 
@@ -574,8 +577,12 @@ export function createViewerStore(
         }));
       },
 
-      setShortcutsSheetOpen(isOpen) {
-        set({ isShortcutsSheetOpen: isOpen });
+      openSettings(view = "settings") {
+        set({ settingsView: view });
+      },
+
+      closeSettings() {
+        set({ settingsView: null });
       },
 
       async toggleFullscreen() {

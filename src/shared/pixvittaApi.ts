@@ -11,7 +11,7 @@ import type { AppSettings } from "./settings";
 export type PixvittaCommand =
   | "open-folder"
   | "refresh-source"
-  | "open-preferences"
+  | "open-settings"
   | "previous-media"
   | "next-media"
   | "seek-video-backward"
@@ -43,7 +43,6 @@ export type PixvittaApi = {
   getDownloadActivity(): Promise<DownloadActivitySnapshot>;
   showMediaContextMenu(mediaId: string): Promise<boolean>;
   saveMediaThumbnail(thumbnailReference: string, dataUrl: string): Promise<boolean>;
-  openPreferences(): Promise<void>;
   toggleFullscreen(): Promise<void>;
   exitFullscreen(): Promise<void>;
   getWindowChromeState(): Promise<WindowChromeState>;

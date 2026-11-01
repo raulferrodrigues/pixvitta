@@ -7,7 +7,7 @@ import {
 } from "./library";
 import "./media";
 import { startAutomaticUpdates } from "./updates";
-import { createMainWindow, createPreferencesWindow } from "./windows";
+import { createMainWindow } from "./windows";
 
 function fileArguments(argv: string[]): string[] {
   const start = app.isPackaged ? 1 : 2;
@@ -46,12 +46,8 @@ async function openFileArgument(
 configureAppIdentity();
 
 // IPC handlers are registered before app readiness because they do not touch
-// BrowserWindow state directly. The handlers receive dependencies as callbacks
-// and services, which keeps the channel definitions testable and avoids making
-// ipcHandlers.ts import this whole entry point.
-registerIpcHandlers({
-  createPreferencesWindow
-});
+// BrowserWindow state directly.
+registerIpcHandlers();
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
