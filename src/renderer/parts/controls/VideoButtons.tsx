@@ -3,6 +3,7 @@ import { useGT } from "gt-react";
 import { useViewerStore } from "../../state/ViewerStoreProvider";
 import { selectCurrentItem } from "../../state/viewerSelectors";
 import { IconButton } from "../../ui/IconButton";
+import "./controls.css";
 
 // Video buttons render nothing on images. Layouts that keep their controls in
 // fixed positions pass keepSpace to show a disabled placeholder instead.

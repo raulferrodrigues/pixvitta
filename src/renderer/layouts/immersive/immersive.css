@@ -9,7 +9,7 @@
   color: var(--pix-text);
 }
 
-.immersive-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.immersive-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; container-type: inline-size; }
 .immersive-stage .media-viewer { position: absolute; inset: 0; }
 
 /* Without a top bar, this strip is where the window can be dragged from. */
@@ -22,14 +22,27 @@
 .immersive-zone:has(:focus-visible),
 .immersive-zone:has([data-state="open"]) { opacity: 1; }
 
+/* The two top zones share a row, so a long title shrinks instead of running
+   under the actions. Narrow windows also drop the source label, keeping its
+   link icon. When the download panel leaves too little room for both zones,
+   the actions move to a second row. */
+.immersive-top-row { position: absolute; top: 10px; right: 10px; left: var(--pix-topbar-leading-space, 10px); z-index: 5; display: flex; gap: 8px 10px; pointer-events: none; }
+.immersive-top-row .immersive-zone { position: relative; pointer-events: auto; }
+@media (max-width: 900px) { .immersive-zone .source-origin span { display: none; } }
+@container (max-width: 700px) { .immersive-top-row { flex-wrap: wrap; } }
+
 .immersive-zone-title,
-.immersive-zone-actions { top: 10px; display: flex; height: 36px; align-items: center; gap: 8px; padding: 0 6px; border: 1px solid var(--pix-border-subtle); border-radius: 10px; background: var(--pix-overlay); backdrop-filter: blur(14px); user-select: none; }
-.immersive-zone-title { left: var(--pix-topbar-leading-space, 10px); max-width: calc(50% - var(--pix-topbar-leading-space, 10px) - 16px); padding: 0 10px; }
-.immersive-zone-actions { right: 10px; }
+.immersive-zone-actions { display: flex; height: 36px; align-items: center; gap: 8px; padding: 0 6px; border: 1px solid var(--pix-border-subtle); border-radius: 10px; background: var(--pix-overlay); backdrop-filter: blur(14px); user-select: none; }
+.immersive-zone-title { flex: 0 1 auto; min-width: 0; padding: 0 10px; }
+.immersive-zone-actions { flex: none; margin-left: auto; }
 .immersive-zone-actions [role="group"] { gap: 2px; }
 .immersive-zone-actions [role="group"]:empty { display: none; }
 .immersive-zone-actions [role="group"]:not(:empty) ~ [role="group"]:not(:empty) { padding-left: 8px; border-left: 1px solid var(--pix-border); }
+.immersive-zone-title [role="group"] { display: inline-flex; flex: none; gap: 2px; padding-left: 8px; border-left: 1px solid var(--pix-border); }
+.immersive-zone-title [role="group"]:empty { display: none; }
+.immersive-zone-title [role="group"] button,
 .immersive-zone-actions button { width: 30px; height: 30px; border-color: transparent; border-radius: 6px; background: transparent; color: var(--pix-muted); }
+.immersive-zone-title [role="group"] button:hover:not(:disabled),
 .immersive-zone-actions button:hover:not(:disabled),
 .immersive-zone-actions button[aria-pressed="true"] { background: var(--pix-control-muted); color: var(--pix-text); }
 

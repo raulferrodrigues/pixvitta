@@ -15,7 +15,6 @@
 
 .app-shell.has-media { grid-template-rows: var(--pix-topbar-height) minmax(0, 1fr); }
 .app-shell .topbar { grid-column: 1 / -1; grid-row: 1; }
-.app-shell .viewer-controls { grid-column: 2; grid-row: 1; }
 .app-shell .filmstrip { grid-column: 1; grid-row: 2; }
 .app-shell .media-viewer { grid-column: 2; grid-row: 2; }
 .app-shell .download-panel { grid-column: 3; grid-row: 2; }
@@ -24,8 +23,7 @@
 .app-shell.has-unobtrusive-controls .media-viewer,
 .app-shell.has-unobtrusive-controls .download-panel { grid-row: 1 / -1; }
 
-.app-shell.has-unobtrusive-controls .topbar,
-.app-shell.has-unobtrusive-controls .viewer-controls { opacity: 0; }
+.app-shell.has-unobtrusive-controls .topbar { opacity: 0; }
 
 /* Window dragging is handled by the drag region, not pointer events. Letting
    other clicks through reaches the filmstrip scrollbar beneath the bar. */
@@ -33,9 +31,7 @@
 .app-shell.has-unobtrusive-controls .topbar button { pointer-events: auto; }
 
 .app-shell.has-unobtrusive-controls.is-controls-revealed .topbar,
-.app-shell.has-unobtrusive-controls.is-controls-revealed .viewer-controls,
-.app-shell.has-unobtrusive-controls:has(.viewer-file-order-trigger[data-state="open"]) .topbar,
-.app-shell.has-unobtrusive-controls:has(.viewer-file-order-trigger[data-state="open"]) .viewer-controls { opacity: 0.34; }
+.app-shell.has-unobtrusive-controls:has(.viewer-file-order-trigger[data-state="open"]) .topbar { opacity: 0.34; }
 
 /* The filmstrip scrollbar runs under the top bar's window drag region in
    unobtrusive mode. This strip removes the drag region above the left-side
@@ -66,32 +62,41 @@
 .topbar .source-origin { display: inline-flex; min-width: 0; align-items: center; gap: 5px; margin-left: 10px; padding: 4px 7px; overflow: hidden; border: 1px solid var(--pix-border); border-radius: 999px; background: var(--pix-control-muted); color: var(--pix-muted); font: inherit; font-size: 11px; line-height: 1; white-space: nowrap; cursor: pointer; -webkit-app-region: no-drag; }
 .topbar .source-origin:hover { border-color: var(--pix-control-border); color: var(--pix-text); }
 .topbar .source-origin:focus-visible { outline: 2px solid var(--pix-accent); outline-offset: 2px; }
-.topbar-fill { flex: 1 1 auto; min-width: 18px; }
-.topbar .source-counter { flex: 0 0 auto; min-width: 48px; padding-right: 10px; color: var(--pix-muted); font-size: 13px; line-height: 1; text-align: right; }
-.topbar .view-mode-toggle { flex: 0 0 auto; width: 30px; height: 30px; margin-right: 8px; border-color: transparent; background: transparent; color: var(--pix-muted); -webkit-app-region: no-drag; }
-.topbar .view-mode-toggle:hover,
-.topbar .view-mode-toggle[aria-pressed="true"] { border-color: var(--pix-border); background: var(--pix-control-muted); color: var(--pix-text); }
-.topbar .settings-toggle { flex: 0 0 auto; width: 30px; height: 30px; margin-right: 8px; border-color: transparent; background: transparent; color: var(--pix-muted); -webkit-app-region: no-drag; }
-.topbar .settings-toggle:hover,
-.topbar .settings-toggle[aria-pressed="true"] { border-color: var(--pix-border); background: var(--pix-control-muted); color: var(--pix-text); }
-.topbar .download-panel-toggle { flex: 0 0 auto; width: 30px; height: 30px; margin-right: 8px; border-color: transparent; background: transparent; color: var(--pix-muted); -webkit-app-region: no-drag; }
-.topbar .download-panel-toggle:hover { border-color: var(--pix-border); background: var(--pix-control-muted); color: var(--pix-text); }
+.topbar-start, .topbar-end { display: flex; height: 100%; align-items: center; }
+.topbar-start { flex: 1 1 var(--filmstrip-width, 0px); justify-content: flex-start; padding-right: 12px; }
+.topbar-end { flex: 1 1 var(--download-panel-width, 0px); justify-content: flex-end; padding-left: 12px; }
+.topbar .source-counter { flex: 0 0 auto; min-width: 48px; color: var(--pix-muted); font-size: 13px; line-height: 1; text-align: right; }
+.topbar-divider { flex: 0 0 auto; width: 1px; height: 18px; margin: 0 8px; background: var(--pix-border); }
+.topbar-group { flex: 0 0 auto; -webkit-app-region: no-drag; }
+.topbar .topbar-group { gap: 2px; }
+.topbar-group-end { margin-right: 8px; }
+.topbar-group button { width: 30px; height: 30px; border-color: transparent; background: transparent; color: var(--pix-muted); }
+.topbar-group button:hover:not(:disabled),
+.topbar-group button[aria-pressed="true"] { border-color: var(--pix-border); background: var(--pix-control-muted); color: var(--pix-text); }
+
+/* Narrow windows can't fit every button with the source label, so the chip
+   keeps only its link icon, whose tooltip still names the action, and the
+   spacing tightens. This fits the bar at the minimum window width with the
+   macOS traffic lights. */
+@media (max-width: 900px) {
+  .topbar .source-origin span { display: none; }
+  .topbar .filmstrip-toggle { margin-right: 4px; }
+  .topbar .source-origin { margin-left: 4px; }
+  .topbar-divider { margin: 0 4px; }
+  .topbar-start { padding-right: 6px; }
+  .topbar-end { padding-left: 6px; }
+}
 
 /* The continuous viewer's scrollbar runs under the top bar's drag region in
    unobtrusive mode. */
 .app-shell.has-unobtrusive-controls .continuous-scrollbar-passage { display: block; }
 
-@media (prefers-reduced-motion: reduce) { .topbar, .viewer-controls { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .topbar { transition: none; } }
 
-.viewer-controls { z-index: 6; display: flex; height: var(--pix-topbar-height); min-width: 0; align-items: center; opacity: 1; transition: opacity 480ms ease; will-change: opacity; -webkit-app-region: no-drag; }
-.viewer-controls-content { position: relative; width: 100%; height: 100%; pointer-events: none; }
-.viewer-controls-content button { pointer-events: auto; }
-.viewer-controls-content [role="group"] { gap: 2px; }
-.viewer-controls-leading, .viewer-controls-transport, .viewer-controls-trailing { position: absolute; top: 50%; display: flex; align-items: center; }
-.viewer-controls-leading { right: calc(50% + 66px); gap: 10px; transform: translateY(-50%); }
-.viewer-controls-transport { left: 50%; transform: translate(-50%, -50%); }
-.viewer-controls-trailing { left: calc(50% + 66px); transform: translateY(-50%); }
-.viewer-controls-content button, .viewer-controls-content [data-testid$="-slot"] { width: 32px; height: 32px; border-color: transparent; border-radius: 6px; background: transparent; }
-.viewer-controls-content button:hover:not(:disabled), .viewer-controls-content button[aria-pressed="true"] { background: var(--pix-control-muted); }
-.viewer-controls-content [aria-label="Media controls"] button, .viewer-controls-content [aria-label="Media controls"] [data-testid$="-slot"] { width: 36px; height: 34px; }
-.viewer-controls-content [aria-label="Play or pause video"] { border-color: var(--pix-control-border); background: var(--pix-control); }
+.viewer-controls { display: flex; flex: none; align-items: center; gap: 10px; -webkit-app-region: no-drag; }
+.viewer-controls [role="group"] { gap: 2px; }
+.viewer-controls-slot { display: flex; width: 32px; justify-content: center; }
+.viewer-controls button, .viewer-controls [data-testid$="-slot"] { width: 32px; height: 32px; border-color: transparent; border-radius: 6px; background: transparent; }
+.viewer-controls button:hover:not(:disabled), .viewer-controls button[aria-pressed="true"] { background: var(--pix-control-muted); }
+.viewer-controls [aria-label="Media controls"] button, .viewer-controls [aria-label="Media controls"] [data-testid$="-slot"] { width: 36px; height: 34px; }
+.viewer-controls [aria-label="Play or pause video"] { border-color: var(--pix-control-border); background: var(--pix-control); }
