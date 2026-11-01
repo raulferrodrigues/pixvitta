@@ -1,0 +1,62 @@
+.immersive-shell {
+  display: grid;
+  width: 100vw;
+  height: 100vh;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) var(--download-panel-width, 0px);
+  overflow: hidden;
+  background: var(--pix-bg);
+  color: var(--pix-text);
+}
+
+.immersive-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; }
+.immersive-stage .media-viewer { position: absolute; inset: 0; }
+
+/* Without a top bar, this strip is where the window can be dragged from. */
+.immersive-drag-region { position: absolute; top: 0; right: 0; left: 0; z-index: 4; height: 36px; -webkit-app-region: drag; }
+/* Keeps the continuous viewer's scrollbar usable under the drag strip. */
+.immersive-shell .continuous-scrollbar-passage { display: block; height: 36px; }
+
+.immersive-zone { position: absolute; z-index: 5; opacity: 0; transition: opacity 480ms ease; will-change: opacity; -webkit-app-region: no-drag; }
+.immersive-zone.is-revealed,
+.immersive-zone:has(:focus-visible),
+.immersive-zone:has([data-state="open"]) { opacity: 1; }
+
+.immersive-zone-title,
+.immersive-zone-actions { top: 10px; display: flex; height: 36px; align-items: center; gap: 8px; padding: 0 6px; border: 1px solid var(--pix-border-subtle); border-radius: 10px; background: var(--pix-overlay); backdrop-filter: blur(14px); user-select: none; }
+.immersive-zone-title { left: var(--pix-topbar-leading-space, 10px); max-width: calc(50% - var(--pix-topbar-leading-space, 10px) - 16px); padding: 0 10px; }
+.immersive-zone-actions { right: 10px; }
+.immersive-zone-actions [role="group"] { gap: 2px; }
+.immersive-zone-actions [role="group"]:empty { display: none; }
+.immersive-zone-actions [role="group"]:not(:empty) ~ [role="group"]:not(:empty) { padding-left: 8px; border-left: 1px solid var(--pix-border); }
+.immersive-zone-actions button { width: 30px; height: 30px; border-color: transparent; border-radius: 6px; background: transparent; color: var(--pix-muted); }
+.immersive-zone-actions button:hover:not(:disabled),
+.immersive-zone-actions button[aria-pressed="true"] { background: var(--pix-control-muted); color: var(--pix-text); }
+
+.immersive-zone .source-title { min-width: 0; overflow: hidden; font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.immersive-zone .source-origin { display: inline-flex; flex: none; align-items: center; gap: 5px; padding: 3px 7px; border: 1px solid var(--pix-border); border-radius: 999px; background: var(--pix-control-muted); color: var(--pix-muted); font-size: 11px; line-height: 1; white-space: nowrap; cursor: pointer; }
+.immersive-zone .source-origin:hover { border-color: var(--pix-control-border); color: var(--pix-text); }
+.immersive-zone .source-origin:focus-visible { outline: 2px solid var(--pix-accent); outline-offset: 2px; }
+.immersive-zone .source-counter { flex: none; color: var(--pix-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* The edge zones are tall bands, so the buttons come back anywhere along the
+   side, but only the buttons themselves take clicks. */
+.immersive-zone-previous,
+.immersive-zone-next { top: 56px; bottom: 112px; display: flex; width: 64px; align-items: center; justify-content: center; pointer-events: none; }
+.immersive-zone-previous { left: 0; }
+.immersive-zone-next { right: 0; }
+.immersive-zone-previous button,
+.immersive-zone-next button { width: 40px; height: 40px; border-color: var(--pix-border); border-radius: 999px; background: var(--pix-overlay); pointer-events: auto; backdrop-filter: blur(14px); }
+.immersive-zone-previous button:hover:not(:disabled),
+.immersive-zone-next button:hover:not(:disabled) { border-color: var(--pix-control-border); background: var(--pix-panel); }
+
+.immersive-zone-filmstrip { right: 0; bottom: 0; left: 0; height: 92px; background: linear-gradient(to top, rgb(0 0 0 / 70%), transparent); }
+.immersive-zone-filmstrip .filmstrip { width: 100%; height: 100%; background: transparent; backdrop-filter: none; }
+
+.immersive-shell .download-panel { grid-column: 2; }
+
+@media (prefers-reduced-motion: reduce) { .immersive-zone { transition: none; } }
+
+/* Keep the filename flash and the download badge above the filmstrip tray. */
+.immersive-stage:has(.immersive-zone-filmstrip) .media-filename-overlay { padding-bottom: 106px; }
+.immersive-stage:has(.immersive-zone-filmstrip) .media-download-activity { bottom: 110px; }
