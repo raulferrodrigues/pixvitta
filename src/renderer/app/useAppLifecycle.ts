@@ -1,9 +1,16 @@
 import { useEffect } from "react";
 import { flushSync } from "react-dom";
-import type { PixvittaApi } from "../../shared/pixvittaApi";
+import type { PixvittaApi, PixvittaCommand } from "../../shared/pixvittaApi";
 import { useViewerStore, useViewerStoreApi } from "../state/ViewerStoreProvider";
 
-const VIDEO_SEEK_SECONDS = 5;
+export const VIDEO_SEEK_SECONDS = 5;
+const SHEET_BLOCKED_COMMANDS: ReadonlySet<PixvittaCommand> = new Set([
+  "previous-media",
+  "next-media",
+  "seek-video-backward",
+  "seek-video-forward",
+  "toggle-video-playback"
+]);
 
 export function useAppLifecycle(api: PixvittaApi) {
   const store = useViewerStoreApi();
@@ -14,6 +21,7 @@ export function useAppLifecycle(api: PixvittaApi) {
   const goPrevious = useViewerStore((state) => state.goPrevious);
   const seekVideoBy = useViewerStore((state) => state.seekVideoBy);
   const toggleVideoPlayback = useViewerStore((state) => state.toggleVideoPlayback);
+  const setShortcutsSheetOpen = useViewerStore((state) => state.setShortcutsSheetOpen);
   const openCollection = useViewerStore((state) => state.openCollection);
   const setSourceLoading = useViewerStore((state) => state.setSourceLoading);
   const showSourceError = useViewerStore((state) => state.showSourceError);
@@ -41,6 +49,8 @@ export function useAppLifecycle(api: PixvittaApi) {
 
   useEffect(() => {
     const unsubscribeCommand = api.onCommand((command) => {
+      // Keys the main process forwards should not act behind the open sheet.
+      if (store.getState().isShortcutsSheetOpen && SHEET_BLOCKED_COMMANDS.has(command)) return;
       if (command === "open-folder") void openFolder();
       if (command === "refresh-source") void refreshSource();
       if (command === "open-preferences") void api.openPreferences();
@@ -49,6 +59,7 @@ export function useAppLifecycle(api: PixvittaApi) {
       if (command === "seek-video-backward") seekVideoBy(-VIDEO_SEEK_SECONDS);
       if (command === "seek-video-forward") seekVideoBy(VIDEO_SEEK_SECONDS);
       if (command === "toggle-video-playback") void toggleVideoPlayback();
+      if (command === "show-shortcuts") setShortcutsSheetOpen(true);
     });
     const unsubscribeCollection = api.onCollectionChanged((collection) => {
       flushSync(() => openCollection(collection));
@@ -71,5 +82,5 @@ export function useAppLifecycle(api: PixvittaApi) {
       unsubscribeRecentSources();
       unsubscribeSettings();
     };
-  }, [api, applyDownloadActivity, applyRecentSources, applySettings, goNext, goPrevious, openCollection, openFolder, refreshSource, seekVideoBy, setSourceLoading, showSourceError, toggleVideoPlayback]);
+  }, [api, applyDownloadActivity, applyRecentSources, applySettings, goNext, goPrevious, openCollection, openFolder, refreshSource, seekVideoBy, setShortcutsSheetOpen, setSourceLoading, showSourceError, toggleVideoPlayback]);
 }

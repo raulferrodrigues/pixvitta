@@ -47,6 +47,7 @@ export type ViewerState = {
   pendingAuthenticationLocation: string | null;
   downloadActivity: DownloadActivitySnapshot;
   isDownloadPanelOpen: boolean;
+  isShortcutsSheetOpen: boolean;
 };
 
 export type ViewerActions = {
@@ -87,6 +88,7 @@ export type ViewerActions = {
   resizeFilmstrip(width: number): void;
   toggleFilmstrip(): void;
   toggleDownloadPanel(): void;
+  setShortcutsSheetOpen(isOpen: boolean): void;
   toggleFullscreen(): Promise<void>;
   exitFullscreen(): Promise<void>;
 };
@@ -200,6 +202,7 @@ export function createViewerStore(
         collectionActive: false
       },
       isDownloadPanelOpen: false,
+      isShortcutsSheetOpen: false,
 
       async initialize() {
         await Promise.all([
@@ -569,6 +572,10 @@ export function createViewerStore(
             state.downloadActivity.rows.length > 0 &&
             !state.isDownloadPanelOpen
         }));
+      },
+
+      setShortcutsSheetOpen(isOpen) {
+        set({ isShortcutsSheetOpen: isOpen });
       },
 
       async toggleFullscreen() {

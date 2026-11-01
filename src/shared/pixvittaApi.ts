@@ -16,7 +16,8 @@ export type PixvittaCommand =
   | "next-media"
   | "seek-video-backward"
   | "seek-video-forward"
-  | "toggle-video-playback";
+  | "toggle-video-playback"
+  | "show-shortcuts";
 
 export type WindowChromeState = {
   zoomFactor: number;

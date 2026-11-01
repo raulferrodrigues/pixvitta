@@ -118,6 +118,15 @@ export function createAppMenu(): void {
       id: "window-menu",
       label: "Window",
       role: "windowMenu"
+    },
+    {
+      role: "help",
+      submenu: [
+        {
+          label: "Keyboard Shortcuts",
+          click: () => sendViewerCommand("show-shortcuts")
+        }
+      ]
     }
   ];
 

@@ -30,7 +30,7 @@ function frameSize(item: MediaItem, natural: NaturalSize | undefined, columnWidt
 }
 
 function isKeyboardInputTarget(target: EventTarget | null): boolean {
-  return target instanceof Element && target.closest("input, textarea, select, [contenteditable='true'], [role='menu'], [role='dialog']") !== null;
+  return target instanceof Element && target.closest("input, textarea, select, [contenteditable='true'], [role='menu'], [role='dialog'], dialog") !== null;
 }
 
 function scrollBehavior(): ScrollBehavior {

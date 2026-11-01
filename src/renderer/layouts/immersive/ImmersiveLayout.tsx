@@ -11,6 +11,7 @@ import { WebSourceDialog } from "../../parts/controls/WebSourceDialog";
 import { DownloadPanel } from "../../parts/downloads/DownloadPanel";
 import { Filmstrip } from "../../parts/filmstrip/Filmstrip";
 import { MediaViewer } from "../../parts/media-viewer/MediaViewer";
+import { ShortcutsToggle } from "../../parts/shortcuts/ShortcutsSheet";
 import { useViewerStore } from "../../state/ViewerStoreProvider";
 import { selectHasMedia } from "../../state/viewerSelectors";
 import { BuildFlavorBadge } from "../../ui/BuildFlavorBadge";
@@ -70,6 +71,7 @@ export function ImmersiveLayout({ buildInfo }: LayoutProps) {
                 <DownloadPanelToggle />
                 <FullscreenButton />
                 <UnobtrusiveToggle />
+                <ShortcutsToggle />
               </ControlGroup>
             </RevealZone>
             <RevealZone autoHide={autoHide} className="immersive-zone-previous">

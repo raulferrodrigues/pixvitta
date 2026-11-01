@@ -22,7 +22,7 @@ type HotkeyDefinition = {
   aliases?: readonly string[];
 };
 
-function isApplePlatform(): boolean {
+export function isApplePlatform(): boolean {
   return /Mac|iPhone|iPad|iPod/.test(navigator.platform);
 }
 
@@ -73,4 +73,31 @@ export function matchesRendererHotkey(event: KeyboardEvent, hotkey: RendererHotk
     ? event.code === hotkey.code
     : hotkey.keys.includes(event.key);
   return matchesKey && matchesModifiers(event, hotkey);
+}
+
+// Opening the cheat sheet takes "?" however the layout produces it, so Shift
+// is allowed but app modifiers are not.
+export function isShortcutsSheetKey(event: KeyboardEvent): boolean {
+  return event.key === "?" && !event.metaKey && !event.ctrlKey && !event.altKey;
+}
+
+const MAC_MODIFIER_LABELS: Record<string, string> = {
+  CommandOrControl: "⌘",
+  Control: "⌃",
+  Shift: "⇧",
+  Alt: "⌥"
+};
+
+const OTHER_MODIFIER_LABELS: Record<string, string> = {
+  CommandOrControl: "Ctrl",
+  Control: "Ctrl",
+  Shift: "Shift",
+  Alt: "Alt"
+};
+
+// Splits an Electron-style accelerator into the key caps shown to the user,
+// with modifier names matching the current platform.
+export function formatAccelerator(accelerator: string): string[] {
+  const modifierLabels = isApplePlatform() ? MAC_MODIFIER_LABELS : OTHER_MODIFIER_LABELS;
+  return accelerator.split("+").map((part) => modifierLabels[part] ?? (part.length === 1 ? part.toUpperCase() : part));
 }
