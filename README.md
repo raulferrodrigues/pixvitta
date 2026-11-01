@@ -26,6 +26,10 @@ macOS builds are unsigned development artifacts.
   time, size, or a stable random order.
 - Optional hidden files, navigation wrapping, fullscreen viewing, and
   unobtrusive auto-hiding controls.
+- Two layouts, chosen in Preferences: classic, with a top bar and a side
+  filmstrip, and immersive, where the media fills the window and the controls
+  float over it. With unobtrusive controls on, each group of controls fades in
+  when the pointer moves over it.
 - Native context-menu actions to reveal or copy a local media file and copy its
   path, or to download remote media and copy its URL.
 

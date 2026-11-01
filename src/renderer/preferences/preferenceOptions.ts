@@ -2,7 +2,7 @@ import type { AppSettings } from "../../shared/settings";
 import { FILE_ORDER_OPTIONS } from "../settings/fileOrderOptions";
 
 type CheckboxSettingKey = "videoAutoplay" | "videoLoopByDefault" | "showVideoControls" | "wrapNavigation" | "includeHidden";
-type SelectSettingKey = "mediaScaleMode" | "fileOrder";
+type SelectSettingKey = "viewerLayout" | "mediaScaleMode" | "fileOrder";
 
 export type CheckboxPreferenceRow = {
   kind: "checkbox";
@@ -27,6 +27,22 @@ export type PreferenceRow = CheckboxPreferenceRow | SelectPreferenceRow;
 export type PreferenceSection = { label: string; rows: PreferenceRow[] };
 
 export const preferenceSections = [
+  {
+    label: "Viewer",
+    rows: [
+      {
+        kind: "select",
+        setting: "viewerLayout",
+        testId: "setting-viewer-layout",
+        label: "Layout",
+        description: "Choose how controls are arranged around the media.",
+        options: [
+          { value: "classic", label: "Classic" },
+          { value: "immersive", label: "Immersive" }
+        ]
+      }
+    ]
+  },
   {
     label: "Playback",
     rows: [
