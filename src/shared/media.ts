@@ -4,6 +4,7 @@ export type MediaSourceCapabilities = {
   canRefresh: boolean;
   canSort: boolean;
   canDownload: boolean;
+  canDownloadCollection: boolean;
   canOpenOrigin: boolean;
 };
 

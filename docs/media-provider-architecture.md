@@ -6,8 +6,8 @@ This document tracks the refactor from a filesystem viewer with a special
 ## Goal
 
 Pixvitta treats every media location as a source loaded by a provider. Local
-directories, 4chan threads, E-Hentai galleries, and ExHentai galleries are the
-current providers. Adding another URL-based provider should normally require
+directories, 4chan threads, and E-Hentai, ExHentai, and nhentai galleries are
+the current providers. Adding another URL-based provider should normally require
 one provider implementation and one registry entry, without adding provider
 checks throughout IPC or React.
 
@@ -67,7 +67,9 @@ The providers are:
 - `eHentai/`: gallery URL parsing, metadata, index and image-page parsing,
   sprite thumbnails, and image viewing limits;
 - `exHentai/`: the E-Hentai gallery engine with an authenticated session and
-  forum sign-in.
+  forum sign-in;
+- `nhentai/`: gallery URL parsing, the documented v2 API, CDN server
+  configuration, and path validation. See [nhentai provider](nhentai-provider.md).
 
 This is intentionally not a runtime plugin system. Provider-owned React UI and
 dynamic provider installation are out of scope. ExHentai sign-in is currently
@@ -155,6 +157,7 @@ live requests:
 - provider runtime ownership, sharing, prefetch order, and refresh lifetime;
 - E-Hentai and ExHentai parsing, authentication generations, session behavior,
   and image limits;
+- nhentai URL, gallery, and CDN configuration validation;
 - resource cache eviction order.
 
 `pnpm validate` runs the tests, type checking, and a production build.

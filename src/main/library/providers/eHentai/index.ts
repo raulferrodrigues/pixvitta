@@ -178,7 +178,8 @@ export class EHentaiProvider implements MediaProvider {
       capabilities: {
         canRefresh: true,
         canSort: false,
-        canDownload: true
+        canDownload: true,
+        canDownloadCollection: true
       },
       remember: true,
       items,
