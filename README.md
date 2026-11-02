@@ -15,8 +15,8 @@ macOS builds are unsigned development artifacts.
 - Image viewing with zoom, trackpad gestures, and click-and-drag panning.
 - Video playback, seeking, looping, autoplay, and optional native controls.
 - A resizable, virtualized filmstrip with cached image and video thumbnails.
-- Web sources: paste a 4chan thread, E-Hentai gallery, or ExHentai gallery URL
-  under **Open from the web**. Pixvitta fetches media with conservative,
+- Web sources: paste a 4chan thread or an E-Hentai, ExHentai, or nhentai
+  gallery URL under **Open from the web**. Pixvitta fetches media with conservative,
   per-site request pacing, prefetches around the current item, and can
   download the current item or the whole collection. ExHentai requires signing
   in to the E-Hentai forums from inside the app.
@@ -26,6 +26,10 @@ macOS builds are unsigned development artifacts.
   time, size, or a stable random order.
 - Optional hidden files, navigation wrapping, fullscreen viewing, and
   unobtrusive auto-hiding controls.
+- Two layouts, chosen in Preferences: classic, with a top bar and a side
+  filmstrip, and immersive, where the media fills the window and the controls
+  float over it. With unobtrusive controls on, each group of controls fades in
+  when the pointer moves over it.
 - Native context-menu actions to reveal or copy a local media file and copy its
   path, or to download remote media and copy its URL.
 

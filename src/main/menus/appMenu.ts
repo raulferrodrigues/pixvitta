@@ -3,7 +3,6 @@ import { MAIN_HOTKEYS } from "../app";
 import { checkForUpdates } from "../updates";
 import {
   closeAppWindow,
-  createPreferencesWindow,
   resetFocusedWindowZoom,
   sendMenuCommand,
   type WindowMenuCommand,
@@ -41,9 +40,9 @@ export function createAppMenu(): void {
           id: "preferences",
           label: "Settings...",
           accelerator: MAIN_HOTKEYS.preferences,
-          // Settings are native-window state, so this menu item calls directly
-          // into the main process instead of asking React first.
-          click: () => createPreferencesWindow()
+          // Settings is a modal inside the viewer, so the menu asks React to
+          // open it.
+          click: () => sendViewerCommand("open-settings")
         },
         {
           id: "check-for-updates",
@@ -118,6 +117,15 @@ export function createAppMenu(): void {
       id: "window-menu",
       label: "Window",
       role: "windowMenu"
+    },
+    {
+      role: "help",
+      submenu: [
+        {
+          label: "Keyboard Shortcuts",
+          click: () => sendViewerCommand("show-shortcuts")
+        }
+      ]
     }
   ];
 

@@ -63,7 +63,7 @@ test("a collection delivered while sign-in is open prevents a stale retry", asyn
     source: {
       id: "new-source",
       title: "Folder",
-      capabilities: { canRefresh: true, canSort: true, canDownload: false, canOpenOrigin: false }
+      capabilities: { canRefresh: true, canSort: true, canDownload: false, canDownloadCollection: false, canOpenOrigin: false }
     },
     items: [],
     selectedId: null
@@ -81,7 +81,7 @@ test("refreshing the current source while signing in prevents a stale retry", as
     source: {
       id: "current-source",
       title: "Gallery",
-      capabilities: { canRefresh: true, canSort: false, canDownload: true, canOpenOrigin: true }
+      capabilities: { canRefresh: true, canSort: false, canDownload: true, canDownloadCollection: true, canOpenOrigin: true }
     },
     items: [],
     selectedId: null
@@ -96,7 +96,7 @@ test("refreshing the current source while signing in prevents a stale retry", as
 test("an obsolete media failure after navigation does not mark that page broken", () => {
   const { store } = setup();
   store.getState().openCollection({
-    source: { id: "source", title: "Gallery", capabilities: { canRefresh: true, canSort: false, canDownload: true, canOpenOrigin: true } },
+    source: { id: "source", title: "Gallery", capabilities: { canRefresh: true, canSort: false, canDownload: true, canDownloadCollection: true, canOpenOrigin: true } },
     selectedId: "first",
     items: ["first", "second"].map((id) => ({ id, name: id, url: `pixvitta-media://media/${id}`, thumbnailUrl: null,
       kind: "image", sizeBytes: 1, lastOpenedMs: 0, addedMs: 0, modifiedMs: 0, createdMs: 0 }))

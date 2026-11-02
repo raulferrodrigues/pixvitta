@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { defaultSettings, type AppSettings, type FileOrder, type MediaScaleMode } from "../../shared/settings";
+import { defaultSettings, type AppSettings, type FileOrder, type MediaScaleMode, type ViewerLayout } from "../../shared/settings";
 
 /*
  * Settings are plain JSON on disk, owned by the main process. The renderer can
@@ -35,6 +35,10 @@ function isMediaScaleMode(value: unknown): value is MediaScaleMode {
   return value === "native-or-smaller" || value === "fit-window";
 }
 
+function isViewerLayout(value: unknown): value is ViewerLayout {
+  return value === "classic" || value === "immersive";
+}
+
 function normalizeVideoVolume(value: unknown): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     return defaultSettings.videoVolume;
@@ -66,7 +70,8 @@ export function sanitizeSettings(value: unknown): AppSettings {
       ? raw.mediaScaleMode
       : isMediaScaleMode((raw as { videoScaleMode?: unknown }).videoScaleMode)
         ? (raw as { videoScaleMode: MediaScaleMode }).videoScaleMode
-        : defaultSettings.mediaScaleMode
+        : defaultSettings.mediaScaleMode,
+    viewerLayout: isViewerLayout(raw.viewerLayout) ? raw.viewerLayout : defaultSettings.viewerLayout
   };
 }
 

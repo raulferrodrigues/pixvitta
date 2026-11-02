@@ -143,6 +143,13 @@ export class MediaLibrary {
     return this.active.originUrl ?? null;
   }
 
+  canDownloadCollection(): boolean {
+    return (
+      this.active?.catalog.collection.source.capabilities.canDownloadCollection ??
+      false
+    );
+  }
+
   resolveMediaId(mediaId: string): RegisteredMediaItem | null {
     return (
       this.active?.catalog.resolveId(mediaId) ??

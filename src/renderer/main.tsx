@@ -4,17 +4,13 @@ import { GTProvider } from "gt-react";
 import gtConfig from "../../gt.config.json";
 import { App } from "./App";
 import loadTranslations from "./i18n/loadTranslations";
-import { PreferencesApp } from "./preferences/PreferencesApp";
 import { ViewerStoreProvider } from "./state/ViewerStoreProvider";
 import "./styles/theme.css";
 import "./styles/global.css";
 
 async function renderApp() {
   const buildInfo = await window.pixvitta.getBuildInfo();
-  const isPreferences = window.location.hash === "#preferences";
-  const root = isPreferences ? (
-    <PreferencesApp buildInfo={buildInfo} />
-  ) : (
+  const root = (
     <ViewerStoreProvider api={window.pixvitta}>
       <App buildInfo={buildInfo} />
     </ViewerStoreProvider>

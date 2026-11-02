@@ -16,10 +16,13 @@ import { createVideoController, type VideoController } from "./videoController";
 import { selectCurrentItem } from "./viewerSelectors";
 
 export type ViewerLoadState = "idle" | "loading" | "ready" | "empty" | "error";
+export type ViewMode = "single" | "continuous";
 
 export const DEFAULT_FILMSTRIP_WIDTH = 168;
 export const MIN_FILMSTRIP_WIDTH = 128;
 export const MAX_FILMSTRIP_WIDTH = 320;
+export const MIN_CONTINUOUS_COLUMN_SCALE = 0.3;
+export const MAX_CONTINUOUS_COLUMN_SCALE = 1;
 const VIDEO_AUDIO_SAVE_DELAY_MS = 250;
 
 export type ViewerState = {
@@ -34,6 +37,8 @@ export type ViewerState = {
   imageZoom: number;
   imagePanX: number;
   imagePanY: number;
+  viewMode: ViewMode;
+  continuousColumnScale: number;
   settings: AppSettings;
   recentSources: RecentSource[];
   filmstripWidth: number;
@@ -42,6 +47,9 @@ export type ViewerState = {
   pendingAuthenticationLocation: string | null;
   downloadActivity: DownloadActivitySnapshot;
   isDownloadPanelOpen: boolean;
+  // The settings modal shows either the settings list or the keyboard
+  // shortcuts; null means it is closed.
+  settingsView: SettingsView | null;
 };
 
 export type ViewerActions = {
@@ -65,6 +73,7 @@ export type ViewerActions = {
   applySettings(settings: AppSettings): void;
   setFileOrder(fileOrder: FileOrder): Promise<void>;
   toggleUnobtrusiveControls(): Promise<void>;
+  updateSettings(changes: Partial<AppSettings>): Promise<void>;
   goNext(): void;
   goPrevious(): void;
   selectMedia(index: number): void;
@@ -77,12 +86,18 @@ export type ViewerActions = {
   toggleVideoLoop(): void;
   zoomCurrentImage(multiplier: number): void;
   setImageView(zoom: number, panX: number, panY: number): void;
+  toggleViewMode(): void;
+  scaleContinuousColumn(multiplier: number): void;
   resizeFilmstrip(width: number): void;
   toggleFilmstrip(): void;
   toggleDownloadPanel(): void;
+  openSettings(view?: SettingsView): void;
+  closeSettings(): void;
   toggleFullscreen(): Promise<void>;
   exitFullscreen(): Promise<void>;
 };
+
+export type SettingsView = "settings" | "shortcuts";
 
 export type ViewerStore = ViewerState & ViewerActions;
 export type ViewerStoreApi = StoreApi<ViewerStore>;
@@ -178,6 +193,8 @@ export function createViewerStore(
       imageZoom: MIN_IMAGE_ZOOM,
       imagePanX: 0,
       imagePanY: 0,
+      viewMode: "single",
+      continuousColumnScale: MAX_CONTINUOUS_COLUMN_SCALE,
       settings: defaultSettings,
       recentSources: [],
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
@@ -191,6 +208,7 @@ export function createViewerStore(
         collectionActive: false
       },
       isDownloadPanelOpen: false,
+      settingsView: null,
 
       async initialize() {
         await Promise.all([
@@ -288,7 +306,7 @@ export function createViewerStore(
       async downloadCollection() {
         const state = get();
         if (
-          !state.source?.capabilities.canDownload ||
+          !state.source?.capabilities.canDownloadCollection ||
           state.downloadActivity.collectionActive
         ) {
           return;
@@ -395,34 +413,31 @@ export function createViewerStore(
       },
 
       async setFileOrder(fileOrder: FileOrder) {
-        const currentSettings = get().settings;
-        if (fileOrder === currentSettings.fileOrder) return;
-        const revision = settingsSaveRevision + 1;
-        settingsSaveRevision = revision;
-        try {
-          const savedSettings = await api.saveSettings({ ...currentSettings, fileOrder });
-          if (revision === settingsSaveRevision) applySettingsState(savedSettings);
-        } catch (error) {
-          if (revision === settingsSaveRevision) console.error(error);
-        }
+        if (fileOrder === get().settings.fileOrder) return;
+        await get().updateSettings({ fileOrder });
       },
 
       async toggleUnobtrusiveControls() {
+        await get().updateSettings({ unobtrusiveViewerControls: !get().settings.unobtrusiveViewerControls });
+      },
+
+      async updateSettings(changes: Partial<AppSettings>) {
         const previousSettings = get().settings;
-        const nextSettings = {
-          ...previousSettings,
-          unobtrusiveViewerControls: !previousSettings.unobtrusiveViewerControls
-        };
+        const nextSettings = { ...previousSettings, ...changes };
         const revision = settingsSaveRevision + 1;
         settingsSaveRevision = revision;
-        applySettingsState(nextSettings);
+        // Order and hidden-file changes refresh the source, and main reads the
+        // saved settings to do that, so those apply only once the save lands.
+        // Everything else shows right away and rolls back if the save fails.
+        const waitsForSave = settingsRequireSourceRefresh(previousSettings, nextSettings);
+        if (!waitsForSave) applySettingsState(nextSettings);
         try {
           const savedSettings = await api.saveSettings(nextSettings);
           if (revision === settingsSaveRevision) applySettingsState(savedSettings);
         } catch (error) {
           if (revision !== settingsSaveRevision) return;
           console.error(error);
-          applySettingsState(previousSettings);
+          if (!waitsForSave) applySettingsState(previousSettings);
         }
       },
 
@@ -470,7 +485,8 @@ export function createViewerStore(
       markMediaBroken(id: string) {
         set((state) => {
           // An obsolete media request can fail after navigation cancels it.
-          if (selectCurrentItem(state)?.id !== id) return state;
+          // Continuous view keeps each mounted item's request alive instead.
+          if (state.viewMode === "single" && selectCurrentItem(state)?.id !== id) return state;
           return { mediaErrors: new Set(state.mediaErrors).add(id) };
         });
       },
@@ -526,6 +542,25 @@ export function createViewerStore(
         });
       },
 
+      toggleViewMode() {
+        set((state) => ({
+          viewMode: state.viewMode === "single" ? "continuous" : "single",
+          imageZoom: MIN_IMAGE_ZOOM,
+          imagePanX: 0,
+          imagePanY: 0
+        }));
+      },
+
+      scaleContinuousColumn(multiplier: number) {
+        if (!Number.isFinite(multiplier) || multiplier <= 0) return;
+        set((state) => ({
+          continuousColumnScale: Math.min(
+            MAX_CONTINUOUS_COLUMN_SCALE,
+            Math.max(MIN_CONTINUOUS_COLUMN_SCALE, roundImageTransformValue(state.continuousColumnScale * multiplier))
+          )
+        }));
+      },
+
       resizeFilmstrip(width: number) {
         set({ filmstripWidth: Math.min(MAX_FILMSTRIP_WIDTH, Math.max(MIN_FILMSTRIP_WIDTH, Math.round(width))) });
       },
@@ -540,6 +575,14 @@ export function createViewerStore(
             state.downloadActivity.rows.length > 0 &&
             !state.isDownloadPanelOpen
         }));
+      },
+
+      openSettings(view = "settings") {
+        set({ settingsView: view });
+      },
+
+      closeSettings() {
+        set({ settingsView: null });
       },
 
       async toggleFullscreen() {

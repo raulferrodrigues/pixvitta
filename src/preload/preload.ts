@@ -59,7 +59,6 @@ const pixvittaApi = {
 
   // Native window state belongs to BrowserWindow in the main process. These
   // methods give React controls without granting direct BrowserWindow access.
-  openPreferences: (): Promise<void> => ipcRenderer.invoke("window:open-preferences"),
   toggleFullscreen: (): Promise<void> => ipcRenderer.invoke("window:toggle-fullscreen"),
   exitFullscreen: (): Promise<void> => ipcRenderer.invoke("window:exit-fullscreen"),
   getWindowChromeState: (): Promise<WindowChromeState> => ipcRenderer.invoke("window:get-chrome-state"),

@@ -78,6 +78,8 @@ export class MediaCatalog {
           canRefresh: providerCollection.capabilities.canRefresh,
           canSort: providerCollection.capabilities.canSort,
           canDownload: providerCollection.capabilities.canDownload,
+          canDownloadCollection:
+            providerCollection.capabilities.canDownloadCollection,
           canOpenOrigin: !!providerCollection.origin
         }
       },

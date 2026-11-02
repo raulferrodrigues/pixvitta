@@ -48,7 +48,7 @@ export function LocationPicker({
         </PrimaryButton>
       </div>
       <p className="m-0 min-h-5 text-xs text-pix-recent-path">
-        {gt("Supports 4chan thread, E-Hentai, and ExHentai gallery URLs.")}
+        {gt("Supports 4chan thread, E-Hentai, ExHentai, and nhentai gallery URLs.")}
       </p>
       <SourceOpenError />
     </form>
