@@ -19,7 +19,9 @@ export type ProviderMediaItem = Omit<MediaItem, "id" | "url" | "thumbnailUrl"> &
   key: string;
   media: MediaResource;
   thumbnail: ProviderThumbnail;
-  externalUrl?: string;
+  // A URL some providers only learn after fetching an index page, so they
+  // pass a resolver that looks it up when the user asks for it.
+  externalUrl?: string | (() => Promise<string>);
   localPath?: string;
 };
 

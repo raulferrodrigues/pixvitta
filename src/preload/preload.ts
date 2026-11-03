@@ -132,3 +132,33 @@ const pixvittaApi = {
 } satisfies PixvittaApi;
 
 contextBridge.exposeInMainWorld("pixvitta", pixvittaApi);
+
+// Copy Image needs PNG data, and the main process cannot decode WebP or AVIF,
+// so it asks this context, which has Chromium's image decoders, to encode it.
+// React never sees this channel.
+type EncodePngRequest = { id: string; bytes: Uint8Array; mimeType: string };
+
+async function encodePng(bytes: Uint8Array, mimeType: string): Promise<Uint8Array> {
+  const bitmap = await createImageBitmap(new Blob([new Uint8Array(bytes)], { type: mimeType }));
+  try {
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Could not create a canvas to encode the image.");
+    context.drawImage(bitmap, 0, 0);
+    const png = await canvas.convertToBlob({ type: "image/png" });
+    return new Uint8Array(await png.arrayBuffer());
+  } finally {
+    bitmap.close();
+  }
+}
+
+ipcRenderer.on("clipboard:encode-png", (_event, request: EncodePngRequest) => {
+  void encodePng(request.bytes, request.mimeType).then(
+    (png) => ipcRenderer.send("clipboard:encoded-png", { id: request.id, png }),
+    (error: unknown) =>
+      ipcRenderer.send("clipboard:encoded-png", {
+        id: request.id,
+        error: error instanceof Error ? error.message : String(error)
+      })
+  );
+});

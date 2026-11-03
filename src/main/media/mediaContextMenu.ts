@@ -1,7 +1,9 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
-import { BrowserWindow, clipboard, ClipboardItem, dialog, Menu, shell } from "electron";
+import { BrowserWindow, clipboard, ClipboardItem, dialog, Menu, shell, type MenuItemConstructorOptions } from "electron";
+import type { MediaKind } from "../../shared/media";
+import { encodeImageAsPng } from "./clipboardImage";
 
 /*
  * Media context menus are native UI, so they live in the main process. The
@@ -31,8 +33,15 @@ function run(argv) {
 
 async function copyFileToClipboard(filePath: string): Promise<void> {
   if (process.platform === "linux") {
-    const uriList = `${pathToFileURL(filePath).href}\r\n`;
-    await clipboard.write([new ClipboardItem({ "text/uri-list": uriList })]);
+    // Chromium and Qt apps read text/uri-list; GTK file managers (Nautilus,
+    // Nemo, Caja, Thunar) only paste files from x-special/gnome-copied-files.
+    const fileUrl = pathToFileURL(filePath).href;
+    await clipboard.write([
+      new ClipboardItem({
+        "text/uri-list": `${fileUrl}\r\n`,
+        'electron application/osclipboard;format="x-special/gnome-copied-files"': new Blob([`copy\n${fileUrl}`])
+      })
+    ]);
     return;
   }
 
@@ -44,6 +53,15 @@ async function copyFileToClipboard(filePath: string): Promise<void> {
   }
 
   throw new Error("Copying files to the clipboard is not supported on this platform.");
+}
+
+// Copies image data only, like a browser's Copy Image. Chat apps such as
+// Discord paste this, but fail to paste anything when the clipboard also lists
+// files, which is why Copy File and Copy Image are separate actions.
+async function copyImageToClipboard(window: BrowserWindow, filePath: string): Promise<void> {
+  const png = await encodeImageAsPng(window.webContents, filePath);
+  if (!png) throw new Error("Only images can be copied as image data.");
+  await clipboard.write([new ClipboardItem({ "image/png": new Blob([new Uint8Array(png)], { type: "image/png" }) })]);
 }
 
 // Context-menu actions happen outside React, so failures need a native dialog
@@ -61,8 +79,46 @@ function showMenuActionError(window: BrowserWindow, title: string, error: unknow
   });
 }
 
-export function showLocalMediaContextMenu(window: BrowserWindow, filePath: string): void {
-  const canCopyFile = process.platform === "darwin" || process.platform === "linux";
+const canCopyFile = process.platform === "darwin" || process.platform === "linux";
+
+// Copy Image and Copy File take the media's local file, which remote media
+// only has after it is fetched, so both receive a function that provides it.
+function copyItems(
+  window: BrowserWindow,
+  kind: MediaKind,
+  getFilePath: () => Promise<string>
+): MenuItemConstructorOptions[] {
+  const items: MenuItemConstructorOptions[] = [];
+  if (kind === "image") {
+    items.push({
+      label: "Copy Image",
+      click: () => {
+        void getFilePath()
+          .then((filePath) => copyImageToClipboard(window, filePath))
+          .catch((error: unknown) => showMenuActionError(window, "Copy Image Failed", error));
+      }
+    });
+  }
+  items.push({
+    label: canCopyFile ? "Copy File" : "Copy File (unsupported)",
+    enabled: canCopyFile,
+    click: () => {
+      void getFilePath()
+        .then(copyFileToClipboard)
+        .catch((error: unknown) => showMenuActionError(window, "Copy File Failed", error));
+    }
+  });
+  return items;
+}
+
+export type RemoteMediaActions = {
+  download(): void;
+  // Resolves to a local copy of the media, fetched through its provider.
+  saveFile(): Promise<string>;
+  getMediaUrl?: () => Promise<string>;
+};
+
+export function showLocalMediaContextMenu(window: BrowserWindow, filePath: string, kind: MediaKind): void {
   // Menu.popup anchors the native context menu to the BrowserWindow that invoked
   // it, preserving focus and modality expectations on macOS.
   const menu = Menu.buildFromTemplate([
@@ -71,13 +127,7 @@ export function showLocalMediaContextMenu(window: BrowserWindow, filePath: strin
       click: () => shell.showItemInFolder(filePath)
     },
     { type: "separator" },
-    {
-      label: canCopyFile ? "Copy File" : "Copy File (unsupported)",
-      enabled: canCopyFile,
-      click: () => {
-        void copyFileToClipboard(filePath).catch((error: unknown) => showMenuActionError(window, "Copy File Failed", error));
-      }
-    },
+    ...copyItems(window, kind, () => Promise.resolve(filePath)),
     {
       label: "Copy Path",
       click: () => {
@@ -88,29 +138,31 @@ export function showLocalMediaContextMenu(window: BrowserWindow, filePath: strin
   menu.popup({ window });
 }
 
-export function showRemoteMediaContextMenu(
-  window: BrowserWindow,
-  mediaUrl: string,
-  download: () => void
-): void {
+export function showRemoteMediaContextMenu(window: BrowserWindow, kind: MediaKind, actions: RemoteMediaActions): void {
+  const { getMediaUrl } = actions;
   const menu = Menu.buildFromTemplate([
     {
       label: "Download File",
       click: () => {
         try {
-          download();
+          actions.download();
         } catch (error) {
           showMenuActionError(window, "Download Failed", error);
         }
       }
     },
     { type: "separator" },
-    {
-      label: "Copy Media URL",
-      click: () => {
-        void clipboard.writeText(mediaUrl).catch((error: unknown) => showMenuActionError(window, "Copy URL Failed", error));
-      }
-    }
+    ...copyItems(window, kind, actions.saveFile),
+    ...(getMediaUrl
+      ? [{
+          label: "Copy Media URL",
+          click: () => {
+            void getMediaUrl()
+              .then((mediaUrl) => clipboard.writeText(mediaUrl))
+              .catch((error: unknown) => showMenuActionError(window, "Copy URL Failed", error));
+          }
+        }]
+      : [])
   ]);
   menu.popup({ window });
 }
