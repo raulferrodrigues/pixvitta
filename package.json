@@ -17,6 +17,13 @@
   "homepage": "https://github.com/raulferrodrigues/pixvitta#readme",
   "main": "dist-electron/main/main.js",
   "packageManager": "pnpm@12.16.1",
+  "devEngines": {
+    "runtime": {
+      "name": "node",
+      "version": "^24.22.0",
+      "onFail": "download"
+    }
+  },
   "scripts": {
     "icon:generate": "node scripts/generate-icon.mjs stable",
     "icon:generate:nightly": "node scripts/generate-icon.mjs nightly",
