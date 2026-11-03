@@ -1,0 +1,6 @@
+allowBuilds:
+  esbuild: true
+  # Windows installer pulled in by electron-builder; Pixvitta ships macOS and Linux only.
+  electron-winstaller: false
+  # Python string extractor pulled in by gt; the project has no Python sources.
+  tree-sitter-python: false

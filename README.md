@@ -66,7 +66,10 @@ Press `?` in the app for the full list.
 
 ## Development
 
-Requires Node.js 24 and pnpm 10.
+Requires pnpm and any Node.js 22 or newer to start it. `package.json` pins pnpm
+(`packageManager`) and Node (`devEngines.runtime`, locked to an exact version in
+`pnpm-lock.yaml`), and pnpm switches to both on its own: `pnpm install` downloads
+the pinned Node and every `pnpm` script runs on it.
 
 ```bash
 pnpm install

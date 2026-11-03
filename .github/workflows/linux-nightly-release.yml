@@ -24,19 +24,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.sha }}
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5
-        with:
-          version: 10.30.0
+        uses: pnpm/action-setup@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: package.json
           cache: pnpm
 
       - name: Install dependencies

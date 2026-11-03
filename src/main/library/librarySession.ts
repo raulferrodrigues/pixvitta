@@ -54,6 +54,10 @@ function isOpenSourceRequest(value: unknown): value is OpenSourceRequest {
   return request.kind === "location" && typeof request.location === "string";
 }
 
+// Electron dialogs open in Downloads unless given a defaultPath, so the picker
+// reopens where the last chosen folder lives, as the OS dialogs used to.
+let pickerStartDirectory: string | undefined;
+
 async function chooseDirectory(
   parentWindow?: BrowserWindow | null
 ): Promise<string | null> {
@@ -63,7 +67,8 @@ async function chooseDirectory(
   }
 
   const options: Electron.OpenDialogOptions = {
-    properties: ["openDirectory"]
+    properties: ["openDirectory"],
+    defaultPath: pickerStartDirectory
   };
   const window =
     parentWindow && !parentWindow.isDestroyed()
@@ -73,9 +78,9 @@ async function chooseDirectory(
     ? await dialog.showOpenDialog(window, options)
     : await dialog.showOpenDialog(options);
 
-  return result.canceled || result.filePaths.length === 0
-    ? null
-    : result.filePaths[0];
+  if (result.canceled || result.filePaths.length === 0) return null;
+  pickerStartDirectory = path.dirname(result.filePaths[0]);
+  return result.filePaths[0];
 }
 
 async function openSourceForWindow(
