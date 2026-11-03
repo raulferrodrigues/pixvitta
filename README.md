@@ -66,7 +66,7 @@ Press `?` in the app for the full list.
 
 ## Development
 
-Requires Node.js 24 and pnpm 10.
+Requires Node.js 24 and pnpm 12 (pnpm picks up the pinned version from `packageManager`).
 
 ```bash
 pnpm install

@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { pathToFileURL } from "node:url";
-import { BrowserWindow, clipboard, dialog, Menu, shell } from "electron";
+import { BrowserWindow, clipboard, ClipboardItem, dialog, Menu, shell } from "electron";
 
 /*
  * Media context menus are native UI, so they live in the main process. The
@@ -32,7 +32,7 @@ function run(argv) {
 async function copyFileToClipboard(filePath: string): Promise<void> {
   if (process.platform === "linux") {
     const uriList = `${pathToFileURL(filePath).href}\r\n`;
-    clipboard.writeBuffer("text/uri-list", Buffer.from(uriList, "utf8"));
+    await clipboard.write([new ClipboardItem({ "text/uri-list": uriList })]);
     return;
   }
 
@@ -80,7 +80,9 @@ export function showLocalMediaContextMenu(window: BrowserWindow, filePath: strin
     },
     {
       label: "Copy Path",
-      click: () => clipboard.writeText(filePath)
+      click: () => {
+        void clipboard.writeText(filePath).catch((error: unknown) => showMenuActionError(window, "Copy Path Failed", error));
+      }
     }
   ]);
   menu.popup({ window });
@@ -105,7 +107,9 @@ export function showRemoteMediaContextMenu(
     { type: "separator" },
     {
       label: "Copy Media URL",
-      click: () => clipboard.writeText(mediaUrl)
+      click: () => {
+        void clipboard.writeText(mediaUrl).catch((error: unknown) => showMenuActionError(window, "Copy URL Failed", error));
+      }
     }
   ]);
   menu.popup({ window });
