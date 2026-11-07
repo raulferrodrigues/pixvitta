@@ -1,5 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+import * as Tooltip from "@radix-ui/react-tooltip";
 import { initializeGTSPA } from "gt-react";
 import gtConfig from "../../gt.config.json";
 import { App } from "./App";
@@ -17,9 +18,11 @@ async function renderApp() {
   ]);
   createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
-      <ViewerStoreProvider api={window.pixvitta}>
-        <App buildInfo={buildInfo} />
-      </ViewerStoreProvider>
+      <Tooltip.Provider delayDuration={500} skipDelayDuration={250}>
+        <ViewerStoreProvider api={window.pixvitta}>
+          <App buildInfo={buildInfo} />
+        </ViewerStoreProvider>
+      </Tooltip.Provider>
     </React.StrictMode>
   );
 }
