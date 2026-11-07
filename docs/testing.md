@@ -125,6 +125,7 @@ the commands.
 
 | T3 Code feature | How Pixvitta uses it |
 | --- | --- |
+| Worktree by default | `t3.json` sets `defaultThreadEnvMode` to `worktree`, so each new thread works in its own checkout with its own sandbox and stage port. |
 | Worktree setup script | `t3.json` installs dependencies and Electron, and holds the agent until they are ready, so a new worktree can run tests right away. |
 | Preview tools | `preview_open` on the stage's port shows the real UI in a tab the user can watch, driven with `preview_snapshot`, `preview_act`, and `preview_evaluate` on `window.pixvittaStage`. |
 | Scripts menu | One click each for Verify Diff, Stage, and E2E Tests. |
@@ -152,7 +153,8 @@ E2E tests* runs both Playwright projects on Linux under `xvfb` and uploads
 ## Known limits
 
 - T3 Code's `preview_snapshot`, `preview_act`, and `preview_wait_for` need a tab that
-  can render. On a host where they time out, `preview_navigate` and `preview_evaluate`
+  can render. On Linux, `t3 browser setup` prepares the host for that once. Where
+  they still time out, `preview_navigate` and `preview_evaluate`
   still work, and `pnpm app snapshot` and `pnpm app screenshot` cover looking at the app.
 - Stage and E2E tests run on Linux in CI. Run them by hand before relying on
   macOS-specific behavior; on macOS their windows are visible.

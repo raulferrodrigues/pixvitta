@@ -55,10 +55,11 @@ at the UI or asks for browser work.
    window.pixvittaStage.callsTo("setSelectedMedia")   // what the UI asked of main
    window.pixvittaStage.violations                    // broken protocol, must be empty
    ```
-   If `preview_snapshot`, `preview_act`, or `preview_wait_for` time out, which
-   happens when the tab cannot render on this host, keep going with `preview_evaluate`
-   alone: it can click elements and read the DOM. To get a picture, use the real app
-   below. Tell the user the preview tools were limited.
+   If `preview_snapshot`, `preview_act`, or `preview_wait_for` time out on Linux,
+   the host's browser is not set up. Tell the user `t3 browser setup` fixes it (it
+   changes system settings, so do not run it yourself), and meanwhile keep going
+   with `preview_evaluate`, which can click elements and read the DOM. To get a
+   picture, use the real app below.
 5. Close your tab with `t3_preview_close` and stop the stage when the work is done.
    Keep them while the user may still ask for changes.
 
