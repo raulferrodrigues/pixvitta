@@ -47,6 +47,23 @@ type LoadedCandidate = {
 
 const DEFAULT_ACKNOWLEDGEMENT_TIMEOUT_MS = 1_000;
 
+// A refresh reloads from the source's canonical location, so the provider has
+// no idea what was being viewed. Every provider gets the same rule: the item
+// stays selected wherever it moved to, and only when it is gone does the
+// selection fall back to the first item.
+function keepSelection(
+  collection: ProviderCollection,
+  selectedKey: string | null
+): ProviderCollection {
+  const stillPresent =
+    selectedKey !== null &&
+    collection.items.some((item) => item.key === selectedKey);
+  return {
+    ...collection,
+    selectedKey: stillPresent ? selectedKey : (collection.items[0]?.key ?? null)
+  };
+}
+
 export class MediaLibrary {
   private phase: MediaLibraryPhase = "idle";
   private active: ActiveLibraryState | null = null;
@@ -101,7 +118,11 @@ export class MediaLibrary {
       return {
         provider: active.provider,
         collectionId: active.catalog.collection.source.id,
-        providerCollection,
+        // Read after the load, so navigation during it is kept too.
+        providerCollection: keepSelection(
+          providerCollection,
+          active.catalog.selectedKey
+        ),
         rememberAfterAcknowledgement: false
       };
     });
