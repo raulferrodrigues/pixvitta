@@ -138,8 +138,41 @@ contextBridge.exposeInMainWorld("pixvitta", pixvittaApi);
 // React never sees this channel.
 type EncodePngRequest = { id: string; bytes: Uint8Array; mimeType: string };
 
+const SVG_FALLBACK_SIZE = 1024;
+
+// SVGs without their own width and height cannot be drawn until they are given
+// a size. Their viewBox, when they have one, gives the shape.
+function withFallbackSize(svg: string): string {
+  const document = new DOMParser().parseFromString(svg, "image/svg+xml");
+  const root = document.documentElement;
+  const viewBox = root.getAttribute("viewBox")?.trim().split(/[\s,]+/).map(Number);
+  const ratio = viewBox?.[2] && viewBox[3] && viewBox[2] > 0 && viewBox[3] > 0 ? viewBox[2] / viewBox[3] : 1;
+  root.setAttribute("width", String(ratio >= 1 ? SVG_FALLBACK_SIZE : Math.max(1, Math.round(SVG_FALLBACK_SIZE * ratio))));
+  root.setAttribute("height", String(ratio >= 1 ? Math.max(1, Math.round(SVG_FALLBACK_SIZE / ratio)) : SVG_FALLBACK_SIZE));
+  return new XMLSerializer().serializeToString(document);
+}
+
+// createImageBitmap cannot decode an SVG blob, but an image element can.
+async function loadSvg(svg: string): Promise<ImageBitmap> {
+  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+  try {
+    const image = new Image();
+    image.src = url;
+    await image.decode();
+    return await createImageBitmap(image);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function rasterizeSvg(blob: Blob): Promise<ImageBitmap> {
+  const svg = await blob.text();
+  return loadSvg(svg).catch(() => loadSvg(withFallbackSize(svg)));
+}
+
 async function encodePng(bytes: Uint8Array, mimeType: string): Promise<Uint8Array> {
-  const bitmap = await createImageBitmap(new Blob([new Uint8Array(bytes)], { type: mimeType }));
+  const blob = new Blob([new Uint8Array(bytes)], { type: mimeType });
+  const bitmap = mimeType === "image/svg+xml" ? await rasterizeSvg(blob) : await createImageBitmap(blob);
   try {
     const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
     const context = canvas.getContext("2d");
@@ -152,7 +185,8 @@ async function encodePng(bytes: Uint8Array, mimeType: string): Promise<Uint8Arra
   }
 }
 
-ipcRenderer.on("clipboard:encode-png", (_event, request: EncodePngRequest) => {
+ipcRenderer.on("clipboard:encode-png", (event, request: EncodePngRequest) => {
+  void event;
   void encodePng(request.bytes, request.mimeType).then(
     (png) => ipcRenderer.send("clipboard:encoded-png", { id: request.id, png }),
     (error: unknown) =>

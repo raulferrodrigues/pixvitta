@@ -55,9 +55,8 @@ async function copyFileToClipboard(filePath: string): Promise<void> {
   throw new Error("Copying files to the clipboard is not supported on this platform.");
 }
 
-// Copies image data only, like a browser's Copy Image. Chat apps such as
-// Discord paste this, but fail to paste anything when the clipboard also lists
-// files, which is why Copy File and Copy Image are separate actions.
+// Copies image data only, like a browser's or Discord's Copy Image. Chat apps
+// paste this, but can fail to paste anything when the clipboard also lists files.
 async function copyImageToClipboard(window: BrowserWindow, filePath: string): Promise<void> {
   const png = await encodeImageAsPng(window.webContents, filePath);
   if (!png) throw new Error("Only images can be copied as image data.");
@@ -81,25 +80,25 @@ function showMenuActionError(window: BrowserWindow, title: string, error: unknow
 
 const canCopyFile = process.platform === "darwin" || process.platform === "linux";
 
-// Copy Image and Copy File take the media's local file, which remote media
-// only has after it is fetched, so both receive a function that provides it.
-function copyItems(
+// Media gets one copy action: images copy as image data, and videos, which have
+// no such form, copy as a file. Both take the media's local file, which remote
+// media only has after it is fetched, so they receive a function that provides it.
+function copyItem(
   window: BrowserWindow,
   kind: MediaKind,
   getFilePath: () => Promise<string>
-): MenuItemConstructorOptions[] {
-  const items: MenuItemConstructorOptions[] = [];
+): MenuItemConstructorOptions {
   if (kind === "image") {
-    items.push({
+    return {
       label: "Copy Image",
       click: () => {
         void getFilePath()
           .then((filePath) => copyImageToClipboard(window, filePath))
           .catch((error: unknown) => showMenuActionError(window, "Copy Image Failed", error));
       }
-    });
+    };
   }
-  items.push({
+  return {
     label: canCopyFile ? "Copy File" : "Copy File (unsupported)",
     enabled: canCopyFile,
     click: () => {
@@ -107,8 +106,7 @@ function copyItems(
         .then(copyFileToClipboard)
         .catch((error: unknown) => showMenuActionError(window, "Copy File Failed", error));
     }
-  });
-  return items;
+  };
 }
 
 export type RemoteMediaActions = {
@@ -127,7 +125,7 @@ export function showLocalMediaContextMenu(window: BrowserWindow, filePath: strin
       click: () => shell.showItemInFolder(filePath)
     },
     { type: "separator" },
-    ...copyItems(window, kind, () => Promise.resolve(filePath)),
+    copyItem(window, kind, () => Promise.resolve(filePath)),
     {
       label: "Copy Path",
       click: () => {
@@ -152,7 +150,7 @@ export function showRemoteMediaContextMenu(window: BrowserWindow, kind: MediaKin
       }
     },
     { type: "separator" },
-    ...copyItems(window, kind, actions.saveFile),
+    copyItem(window, kind, actions.saveFile),
     ...(getMediaUrl
       ? [{
           label: "Copy Media URL",
