@@ -78,11 +78,16 @@ pnpm electron:dev
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm test` | Run tests |
-| `pnpm typecheck` | Type-check renderer and Electron code |
+| `pnpm verify` | Run the checks your diff can affect |
+| `pnpm test` | Run spec and flow tests; accepts paths, `--changed`, and `--name` |
+| `pnpm test:stage` | Run renderer tests against a fake main process |
+| `pnpm test:e2e` | Run the real app against fixture folders and a fake web |
+| `pnpm dev:stage` | Serve the renderer at `/stage.html` for use in a browser |
+| `pnpm app` | Drive the real app in a sandbox, one command at a time |
+| `pnpm typecheck` | Type-check renderer, Electron, and test code |
 | `pnpm validate` | Run tests, type checking, and a production build |
 
-See [Releasing and Versioning](docs/releasing.md) for packaging and the CI
+See [Testing](docs/testing.md) for how the test layers fit together, [Releasing and Versioning](docs/releasing.md) for packaging and the CI
 release process, and [Media Provider Architecture](docs/media-provider-architecture.md)
 for how media sources work.
 
