@@ -73,6 +73,8 @@ ImageMagick (`magick` or `convert`), and platform packages should be built on
 their target operating system.
 
 The icons themselves are drawn by `pnpm icon:design`, which writes the SVG and
-1024px PNG for each flavor (stable, nightly, dev) into `assets/`. Run it after
-changing `scripts/design-icon.mjs` and commit what it writes; packaging only
-resizes those PNGs.
+1024px PNG for each flavor (stable, nightly, dev) into `assets/`. These fill the
+whole canvas, as Linux docks expect. Stable also gets `pixvitta-icon-macos.png`,
+the same icon with the margin macOS icons need, which becomes the `.icns`. Run it
+after changing `scripts/design-icon.mjs` and commit what it writes; packaging
+only resizes those PNGs.
