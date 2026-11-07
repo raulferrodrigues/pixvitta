@@ -1,5 +1,7 @@
+import * as Tooltip from "@radix-ui/react-tooltip";
 import type { ComponentProps, ReactNode } from "react";
 import { classNames } from "./classNames";
+import "./tooltip.css";
 
 type IconButtonVariant = "primary" | "secondary" | "prominent";
 
@@ -27,7 +29,9 @@ export function IconButton({
   children,
   ...props
 }: IconButtonProps) {
-  return (
+  // A disabled button fires no pointer events, so the Radix tooltip never
+  // opens on it. Keep the native title there so the label still shows.
+  const button = (
     <button
       className={classNames(
         "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg border [font:inherit] disabled:cursor-default disabled:opacity-45 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pix-accent",
@@ -35,10 +39,21 @@ export function IconButton({
         className
       )}
       aria-label={label}
-      title={tooltip}
+      title={props.disabled ? tooltip : undefined}
       {...props}
     >
       {children}
     </button>
+  );
+  if (props.disabled) return button;
+  return (
+    <Tooltip.Root>
+      <Tooltip.Trigger asChild>{button}</Tooltip.Trigger>
+      <Tooltip.Portal>
+        <Tooltip.Content className="pix-tooltip" side="bottom" sideOffset={7} collisionPadding={8}>
+          {tooltip}
+        </Tooltip.Content>
+      </Tooltip.Portal>
+    </Tooltip.Root>
   );
 }
