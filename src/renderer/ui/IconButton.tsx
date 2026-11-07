@@ -1,5 +1,5 @@
 import * as Tooltip from "@radix-ui/react-tooltip";
-import type { ComponentProps, ReactNode } from "react";
+import { useCallback, useState, type ComponentProps, type ReactNode } from "react";
 import { classNames } from "./classNames";
 import "./tooltip.css";
 
@@ -29,6 +29,12 @@ export function IconButton({
   children,
   ...props
 }: IconButtonProps) {
+  // A modal <dialog> sits in the top layer, above anything portaled to <body>,
+  // so a button inside one portals its tooltip into that dialog instead.
+  const [tooltipLayer, setTooltipLayer] = useState<HTMLElement | null>(null);
+  const findTooltipLayer = useCallback((node: HTMLButtonElement | null) => {
+    if (node) setTooltipLayer(node.closest("dialog"));
+  }, []);
   // A disabled button fires no pointer events, so the Radix tooltip never
   // opens on it. Keep the native title there so the label still shows.
   const button = (
@@ -48,8 +54,8 @@ export function IconButton({
   if (props.disabled) return button;
   return (
     <Tooltip.Root>
-      <Tooltip.Trigger asChild>{button}</Tooltip.Trigger>
-      <Tooltip.Portal>
+      <Tooltip.Trigger asChild ref={findTooltipLayer}>{button}</Tooltip.Trigger>
+      <Tooltip.Portal container={tooltipLayer}>
         <Tooltip.Content className="pix-tooltip" side="bottom" sideOffset={7} collisionPadding={8}>
           {tooltip}
         </Tooltip.Content>
