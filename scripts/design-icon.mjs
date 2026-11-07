@@ -6,9 +6,12 @@
 // radius, position and fade is a power of φ.
 //
 // Writes assets/pixvitta-icon.svg (stable), assets/pixvitta-nightly-icon.svg
-// and assets/pixvitta-dev-icon.svg, plus a 1024px PNG next to each. Those PNGs
-// are what `pnpm icon:generate` packages. Rendering uses Playwright's
-// Chromium: run `pnpm exec playwright install chromium` once if it is missing.
+// and assets/pixvitta-dev-icon.svg, plus a 1024px PNG next to each. These are
+// full-bleed: the rounded body fills the canvas, as Linux docks expect. Stable
+// also gets assets/pixvitta-icon-macos.png, the same icon on the macOS grid
+// (see BODY_SIZE) for the .icns. Those PNGs are what `pnpm icon:generate`
+// packages. Rendering uses Playwright's Chromium: run
+// `pnpm exec playwright install chromium` once if it is missing.
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,7 +23,8 @@ const SIZE = 1024;
 const round = (value) => +value.toFixed(2);
 
 // The body follows the macOS icon grid: an 824px rounded square centred on the
-// 1024px canvas. Its corner radius is 824/φ³.
+// 1024px canvas, leaving room for the drop shadow macOS expects. Its corner
+// radius is 824/φ³. The full-bleed layout crops the canvas to the body.
 const BODY_SIZE = 824;
 const BODY_ORIGIN = (SIZE - BODY_SIZE) / 2;
 const BODY_RADIUS = BODY_SIZE / PHI ** 3;
@@ -135,19 +139,25 @@ function blueprint() {
 }
 
 const FLAVORS = {
-  stable: { file: "pixvitta-icon", top: "#1c1c1e", bottom: "#030303", shadow: "#000", lift: 0.6 },
+  stable: { file: "pixvitta-icon", macos: true, top: "#1c1c1e", bottom: "#030303", shadow: "#000", lift: 0.6 },
   nightly: { file: "pixvitta-nightly-icon", top: "#5b2fd0", bottom: "#1d0b5c", shadow: "#0d0330", lift: 0.4, backdrop: nightSky },
   dev: { file: "pixvitta-dev-icon", top: "#3d8bff", bottom: "#163fb4", shadow: "#061a55", lift: 0.35, backdrop: blueprint }
 };
 
-function icon(flavor) {
+// layout "full" crops to the body (Linux, window icons, T3); "macos" keeps the
+// 1024 canvas with the body's drop shadow around it.
+function icon(flavor, layout) {
   const body = `x="${BODY_ORIGIN}" y="${BODY_ORIGIN}" width="${BODY_SIZE}" height="${BODY_SIZE}" rx="${round(BODY_RADIUS)}"`;
   const rimInset = 1.5;
   const rim = `x="${BODY_ORIGIN + rimInset}" y="${BODY_ORIGIN + rimInset}" width="${BODY_SIZE - 2 * rimInset}" height="${BODY_SIZE - 2 * rimInset}" rx="${round(BODY_RADIUS - rimInset)}"`;
   const top = BODY_ORIGIN;
   const bottom = BODY_ORIGIN + BODY_SIZE;
   // sRGB filters: the default linearRGB visibly bands the dark gradients.
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SIZE} ${SIZE}">
+  const viewBox = layout === "macos"
+    ? `0 0 ${SIZE} ${SIZE}`
+    : `${BODY_ORIGIN} ${BODY_ORIGIN} ${BODY_SIZE} ${BODY_SIZE}`;
+  const shadow = layout === "macos" ? `<rect ${body} fill="#000" filter="url(#drop)"/>\n` : "";
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">
 <defs>
   <linearGradient id="body" gradientUnits="userSpaceOnUse" x1="0" y1="${top}" x2="0" y2="${bottom}">
     <stop offset="0" stop-color="${flavor.top}"/><stop offset="1" stop-color="${flavor.bottom}"/>
@@ -167,8 +177,7 @@ function icon(flavor) {
   </filter>
   <clipPath id="bodyClip"><rect ${body}/></clipPath>
 </defs>
-<rect ${body} fill="#000" filter="url(#drop)"/>
-<rect ${body} fill="${BODY}"/>
+${shadow}<rect ${body} fill="${BODY}"/>
 <g clip-path="url(#bodyClip)">${flavor.backdrop ? flavor.backdrop() : ""}<g filter="url(#lift)">${mark()}</g></g>
 <rect ${rim} fill="none" stroke="url(#rim)" stroke-width="3"/>
 </svg>
@@ -178,16 +187,20 @@ function icon(flavor) {
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage({ viewport: { width: SIZE, height: SIZE } });
-  for (const flavor of Object.values(FLAVORS)) {
-    const svg = icon(flavor);
-    const svgPath = path.join(root, "assets", `${flavor.file}.svg`);
-    const pngPath = path.join(root, "assets", `${flavor.file}.png`);
-    await writeFile(svgPath, svg);
+  const render = async (svg, file) => {
+    const pngPath = path.join(root, "assets", `${file}.png`);
     await page.setContent(
       `<body style="margin:0;background:transparent">${svg.replace("<svg ", `<svg width="${SIZE}" height="${SIZE}" `)}</body>`
     );
     await page.screenshot({ path: pngPath, omitBackground: true, clip: { x: 0, y: 0, width: SIZE, height: SIZE } });
-    console.log(`Drew ${path.relative(root, svgPath)} and ${path.relative(root, pngPath)}`);
+    console.log(`Drew ${path.relative(root, pngPath)}`);
+  };
+  for (const flavor of Object.values(FLAVORS)) {
+    const svg = icon(flavor, "full");
+    await writeFile(path.join(root, "assets", `${flavor.file}.svg`), svg);
+    console.log(`Drew assets/${flavor.file}.svg`);
+    await render(svg, flavor.file);
+    if (flavor.macos) await render(icon(flavor, "macos"), `${flavor.file}-macos`);
   }
 } finally {
   await browser.close();

@@ -22,6 +22,9 @@ const sourcePng = path.join(
   "assets",
   flavor === "nightly" ? "pixvitta-nightly-icon.png" : "pixvitta-icon.png"
 );
+// macOS draws icons on its own grid, with a margin for the shadow; Linux
+// expects the icon to fill the canvas.
+const macSourcePng = path.join(root, "assets", "pixvitta-icon-macos.png");
 const sourceSvg = path.join(root, "assets", "pixvitta-icon.svg");
 const iconPng = path.join(buildDir, "icon.png");
 const iconIcns = path.join(buildDir, "icon.icns");
@@ -69,7 +72,7 @@ await copyFile(sourcePng, runtimeIconPng);
 await copyFile(sourcePng, path.join(workDir, "icon.png"));
 await copyFile(sourcePng, path.join(linuxIconsDir, "1024x1024.png"));
 if (flavor === "stable") {
-  await copyFile(sourcePng, iconPng);
+  await copyFile(macSourcePng, iconPng);
   try {
     await copyFile(sourceSvg, path.join(workDir, "icon-source.svg"));
   } catch {
@@ -89,7 +92,7 @@ if (process.platform === "darwin") {
     await execFileAsync("/usr/bin/sips", ["-z", String(size), String(size), iconPng, "--out", path.join(iconsetDir, fileName)]);
   }
   for (const size of linuxIconSizes.slice(0, -1)) {
-    await execFileAsync("/usr/bin/sips", ["-z", String(size), String(size), iconPng, "--out", path.join(linuxIconsDir, `${size}x${size}.png`)]);
+    await execFileAsync("/usr/bin/sips", ["-z", String(size), String(size), runtimeIconPng, "--out", path.join(linuxIconsDir, `${size}x${size}.png`)]);
   }
   await execFileAsync("/usr/bin/iconutil", ["-c", "icns", iconsetDir, "-o", iconIcns]);
   console.log(`Generated stable macOS and Linux application icons`);
