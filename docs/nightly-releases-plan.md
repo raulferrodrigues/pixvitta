@@ -13,9 +13,9 @@ development-only identity and data directory.
 ## Decisions
 
 - Stable remains **Pixvitta** on the `latest` updater channel.
-- Local development remains **Pixvitta Dev** with the purple icon.
-- Published builds from `dev` are **Pixvitta Nightly**, also with the purple
-  icon.
+- Local development remains **Pixvitta Dev** with the blue blueprint icon.
+- Published builds from `dev` are **Pixvitta Nightly**, with the purple
+  night-sky icon.
 - Nightly uses its own application ID, executable, package name, desktop file,
   updater cache, artifact names, updater metadata, and `nightly` channel.
 - Nightly versions use the prerelease form

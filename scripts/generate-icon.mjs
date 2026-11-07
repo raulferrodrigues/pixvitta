@@ -20,7 +20,7 @@ const iconsetDir = path.join(buildDir, "icon.iconset");
 const sourcePng = path.join(
   root,
   "assets",
-  flavor === "nightly" ? "pixvitta-dev-icon.png" : "pixvitta-icon.png"
+  flavor === "nightly" ? "pixvitta-nightly-icon.png" : "pixvitta-icon.png"
 );
 const sourceSvg = path.join(root, "assets", "pixvitta-icon.svg");
 const iconPng = path.join(buildDir, "icon.png");

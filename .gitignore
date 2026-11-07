@@ -14,3 +14,4 @@ build/icons/
 build/icons-dev/
 build/icons-nightly/
 build/runtime-icon.png
+.claude/worktrees/

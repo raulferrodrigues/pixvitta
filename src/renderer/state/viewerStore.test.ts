@@ -107,3 +107,32 @@ test("an obsolete media failure after navigation does not mark that page broken"
   store.getState().markMediaBroken("second");
   assert.equal(store.getState().mediaErrors.has("second"), true);
 });
+
+function videoCollection(sourceId: string, itemIds: string[]) {
+  return {
+    source: { id: sourceId, title: "Videos", capabilities: { canRefresh: true, canSort: true, canDownload: false, canDownloadCollection: false, canOpenOrigin: false } },
+    selectedId: itemIds[0],
+    items: itemIds.map((id) => ({ id, name: id, url: `pixvitta-media://media/${id}`, thumbnailUrl: null,
+      kind: "video" as const, sizeBytes: 1, lastOpenedMs: 0, addedMs: 0, modifiedMs: 0, createdMs: 0 }))
+  };
+}
+
+test("video playback state follows whether the video element survives the transition", () => {
+  const { store } = setup();
+  const { getState } = store;
+  getState().openCollection(videoCollection("source", ["first", "second"]));
+  getState().setVideoPlaying(true);
+
+  // A refresh that keeps the selected item keeps its playing element.
+  getState().openCollection(videoCollection("source", ["first", "second"]));
+  assert.equal(getState().isVideoPlaying, true);
+
+  // A refresh that selects a different item mounts a new, paused element.
+  getState().openCollection(videoCollection("source", ["second", "first"]));
+  assert.equal(getState().isVideoPlaying, false);
+
+  // Switching view mode unmounts the element, which then reports nothing.
+  getState().setVideoPlaying(true);
+  getState().toggleViewMode();
+  assert.equal(getState().isVideoPlaying, false);
+});

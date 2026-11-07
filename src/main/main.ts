@@ -10,8 +10,11 @@ import { startAutomaticUpdates } from "./updates";
 import { createMainWindow } from "./windows";
 
 function fileArguments(argv: string[]): string[] {
-  const start = app.isPackaged ? 1 : 2;
-  return argv.slice(start).filter((argument) => argument.length > 0 && !argument.startsWith("-"));
+  // Switches come out first because Chromium moves them ahead of the positional
+  // arguments in a second instance's argv, and development's first positional
+  // argument is the app path rather than a file.
+  const positional = argv.slice(1).filter((argument) => argument.length > 0 && !argument.startsWith("-"));
+  return app.isPackaged ? positional : positional.slice(1);
 }
 
 async function openFileArgument(

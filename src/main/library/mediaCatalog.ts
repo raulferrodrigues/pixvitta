@@ -24,6 +24,7 @@ export class MediaCatalog {
   private readonly registry = new MediaRegistry();
   private readonly providerKeys = new Map<string, string>();
   private readonly viewing: ProviderCollection["viewing"];
+  private currentKey: string | null = null;
 
   constructor(collectionId: string, providerCollection: ProviderCollection) {
     this.viewing = providerCollection.viewing;
@@ -31,15 +32,17 @@ export class MediaCatalog {
     const items: MediaItem[] = providerCollection.items.map((item) => {
       const id = createPublicMediaId(collectionId, item.key);
       this.providerKeys.set(id, item.key);
+      const { externalUrl } = item;
       registeredItems.push({
         id,
         name: item.name,
+        kind: item.kind,
         media: item.media,
         thumbnail:
           item.thumbnail.kind === "resource"
             ? item.thumbnail.resource
             : undefined,
-        externalUrl: item.externalUrl,
+        getExternalUrl: typeof externalUrl === "string" ? () => Promise.resolve(externalUrl) : externalUrl,
         localPath: item.localPath
       });
 
@@ -91,12 +94,16 @@ export class MediaCatalog {
     };
   }
 
+  /** The provider key of the item the renderer last selected. */
+  get selectedKey(): string | null {
+    return this.currentKey;
+  }
+
   selectMedia(id: string | null): void {
-    if (id === null) this.viewing?.select(null);
-    else {
-      const key = this.providerKeys.get(id);
-      if (key !== undefined) this.viewing?.select(key);
-    }
+    const key = id === null ? null : this.providerKeys.get(id);
+    if (key === undefined) return;
+    this.currentKey = key;
+    this.viewing?.select(key);
   }
 
   deactivate(): void { this.viewing?.deactivate(); }

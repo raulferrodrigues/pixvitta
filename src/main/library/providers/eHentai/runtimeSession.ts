@@ -89,6 +89,18 @@ export class EHentaiRuntimeSession {
     } catch { return emptyThumbnail(); }
   }
 
+  // Image page URLs are only known once their gallery index page is fetched.
+  // Pages already viewed are cached; otherwise this shares the index fetch
+  // that media loading uses.
+  async pageUrl(page: number): Promise<string> {
+    const known = this.pages.get(page);
+    if (known) return known.pageUrl;
+    const lease = this.options.resources.acquire(`${this.sourceKey}:page-url:${page}`, (io) => this.resolvePage(page, io), "high");
+    try {
+      return (await lease.result).pageUrl;
+    } finally { lease.release(); }
+  }
+
   private get sourceKey(): string {
     return `${this.options.cacheNamespace}:${this.options.reference.galleryId}:${this.options.reference.galleryToken}:${this.options.access?.generation ?? 0}`;
   }
