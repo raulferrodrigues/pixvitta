@@ -7,6 +7,7 @@ import {
 } from "./mediaContextMenu";
 import type { RequestPriority } from "../requestBroker";
 import { publishMainWindowDownloadActivity, publishMainWindowSourceError } from "../windows";
+import { saveMediaForClipboard } from "./clipboardFile";
 import { DownloadManager } from "./downloadManager";
 
 const downloadManager = new DownloadManager({
@@ -44,18 +45,19 @@ function showMediaContextMenu(window: BrowserWindow, mediaId: unknown): boolean 
   const item = resolveMediaId(mediaId);
   if (!item) return false;
   if (item.localPath) {
-    showLocalMediaContextMenu(window, item.localPath);
+    showLocalMediaContextMenu(window, item.localPath, item.kind);
     return true;
   }
-  if (item.externalUrl) {
-    showRemoteMediaContextMenu(window, item.externalUrl, () => {
+  showRemoteMediaContextMenu(window, item.kind, {
+    download: () => {
       if (!downloadManager.start(item)) {
         throw new Error("Pixvitta could not start this download.");
       }
-    });
-    return true;
-  }
-  return false;
+    },
+    saveFile: () => saveMediaForClipboard(item),
+    getMediaUrl: item.getExternalUrl
+  });
+  return true;
 }
 
 function downloadMedia(mediaId: unknown): boolean {

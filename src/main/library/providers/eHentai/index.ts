@@ -150,6 +150,7 @@ export class EHentaiProvider implements MediaProvider {
             priority: RequestPriority
           ) => session.respond(pageNumber, mediaRequest, priority)
         },
+        externalUrl: () => session.pageUrl(pageNumber),
         thumbnail: {
           kind: "resource" as const,
           resource: {

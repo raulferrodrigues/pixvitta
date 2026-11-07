@@ -32,15 +32,17 @@ export class MediaCatalog {
     const items: MediaItem[] = providerCollection.items.map((item) => {
       const id = createPublicMediaId(collectionId, item.key);
       this.providerKeys.set(id, item.key);
+      const { externalUrl } = item;
       registeredItems.push({
         id,
         name: item.name,
+        kind: item.kind,
         media: item.media,
         thumbnail:
           item.thumbnail.kind === "resource"
             ? item.thumbnail.resource
             : undefined,
-        externalUrl: item.externalUrl,
+        getExternalUrl: typeof externalUrl === "string" ? () => Promise.resolve(externalUrl) : externalUrl,
         localPath: item.localPath
       });
 

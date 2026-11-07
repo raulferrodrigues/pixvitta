@@ -1,11 +1,13 @@
+import type { MediaKind } from "../../shared/media";
 import type { MediaResource } from "./providers";
 
 export type RegisteredMediaItem = {
   id: string;
   name: string;
+  kind: MediaKind;
   media: MediaResource;
   thumbnail?: MediaResource;
-  externalUrl?: string;
+  getExternalUrl?: () => Promise<string>;
   localPath?: string;
 };
 
