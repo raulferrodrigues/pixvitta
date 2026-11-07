@@ -25,6 +25,7 @@
     }
   },
   "scripts": {
+    "icon:design": "node scripts/design-icon.mjs",
     "icon:generate": "node scripts/generate-icon.mjs stable",
     "icon:generate:nightly": "node scripts/generate-icon.mjs nightly",
     "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
