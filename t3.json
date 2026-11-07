@@ -1,0 +1,35 @@
+{
+  "$schema": "https://t3.codes/schema/t3.json",
+  "iconPath": "assets/pixvitta-icon.svg",
+  "scripts": [
+    {
+      "name": "Setup Worktree",
+      "command": "pnpm install --frozen-lockfile && pnpm exec install-electron",
+      "icon": "configure",
+      "runOnWorktreeCreate": true,
+      "async": false
+    },
+    {
+      "name": "Verify Diff",
+      "command": "pnpm verify",
+      "icon": "test"
+    },
+    {
+      "name": "Stage",
+      "command": "pnpm dev:stage",
+      "icon": "play",
+      "stopOnSettle": true
+    },
+    {
+      "name": "E2E Tests",
+      "command": "pnpm test:e2e",
+      "icon": "test"
+    },
+    {
+      "name": "Stop Sandbox App",
+      "command": "pnpm app stop",
+      "icon": "debug",
+      "runOnSettle": true
+    }
+  ]
+}

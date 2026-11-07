@@ -8,6 +8,15 @@ Do not create tests for every little thing. Only create tests when something act
 
 Do not create smoke tests.
 
+# Verifying your work
+Run `pnpm verify`. It picks the test layers your diff can affect, and CI runs the rest. The `test-pixvitta` skill has the full procedure, including how to see the UI in a preview tab and drive the real app. `docs/testing.md` explains the design and which layer a new test belongs in.
+
+- Never send a request to a real provider from a test or while checking your work. Every test layer and `pnpm app` answer from `src/main/testing/fakeWeb.ts`; add routes there. Run `pnpm electron:dev` against real sites only when the user asks.
+- Never use real user data. Sandboxes live under `.tmp/app` and `test-results`.
+- Never kill a process found by name or pattern; other worktrees run their own apps. Use `pnpm app stop`, or the PID of a process you started.
+- No sleeps or retries in tests. Wait on something the app does. A flaky test is a bug.
+- Selectors belong in `tests/support/viewer.ts`, never in a spec.
+
 When you see the user intends to start working on something that requires actual planning and several decisions and steps, ask the user if they want to create a planning file to keep tracking of decisions and details of the work.
 
 Ask the user questions if there's good options for solutions. Things like tech choices, artifact shapes, etc. Do not ask user for implementation details unless the user asks you to ask them for implementation details.

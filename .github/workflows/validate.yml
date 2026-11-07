@@ -40,3 +40,44 @@ jobs:
 
       - name: Validate
         run: pnpm validate
+
+  browser-tests:
+    name: Stage and E2E tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: package.json
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Electron and a virtual display
+        run: |
+          pnpm exec install-electron
+          sudo apt-get update
+          sudo apt-get install -y xvfb libnss3 libgbm1 libasound2t64 libgtk-3-0t64 libatk-bridge2.0-0t64
+
+      - name: Stage tests
+        run: pnpm test:stage
+
+      - name: E2E tests
+        run: pnpm test:e2e
+
+      - name: Upload failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: test-results/
+          retention-days: 7
