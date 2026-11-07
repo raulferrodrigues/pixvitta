@@ -71,3 +71,8 @@ How it works:
 Build artifacts are written to `release/`. Linux icon generation requires
 ImageMagick (`magick` or `convert`), and platform packages should be built on
 their target operating system.
+
+The icons themselves are drawn by `pnpm icon:design`, which writes the SVG and
+1024px PNG for each flavor (stable, nightly, dev) into `assets/`. Run it after
+changing `scripts/design-icon.mjs` and commit what it writes; packaging only
+resizes those PNGs.
