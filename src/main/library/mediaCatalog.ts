@@ -24,6 +24,7 @@ export class MediaCatalog {
   private readonly registry = new MediaRegistry();
   private readonly providerKeys = new Map<string, string>();
   private readonly viewing: ProviderCollection["viewing"];
+  private currentKey: string | null = null;
 
   constructor(collectionId: string, providerCollection: ProviderCollection) {
     this.viewing = providerCollection.viewing;
@@ -91,12 +92,16 @@ export class MediaCatalog {
     };
   }
 
+  /** The provider key of the item the renderer last selected. */
+  get selectedKey(): string | null {
+    return this.currentKey;
+  }
+
   selectMedia(id: string | null): void {
-    if (id === null) this.viewing?.select(null);
-    else {
-      const key = this.providerKeys.get(id);
-      if (key !== undefined) this.viewing?.select(key);
-    }
+    const key = id === null ? null : this.providerKeys.get(id);
+    if (key === undefined) return;
+    this.currentKey = key;
+    this.viewing?.select(key);
   }
 
   deactivate(): void { this.viewing?.deactivate(); }

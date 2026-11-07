@@ -3,7 +3,7 @@ import { mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import type { DownloadActivitySnapshot, MediaCollection, MediaItem, OpenSourceError } from "../../shared/media";
-import { defaultSettings } from "../../shared/settings";
+import { type AppSettings, defaultSettings } from "../../shared/settings";
 import { MediaLibrary } from "../library/mediaLibrary";
 import { FourChanProvider } from "../library/providers/fourChan";
 import { LocalFolderProvider } from "../library/providers/localFolder";
@@ -63,10 +63,11 @@ export async function createLibraryHarness(context: { after(callback: () => void
   const loadingStates: boolean[] = [];
   const remembered: string[] = [];
   let settledDownloads: Array<() => void> = [];
+  let settings: AppSettings = defaultSettings;
 
   const library = new MediaLibrary({
     providers: new ProviderRegistry([new FourChanProvider(), new NHentaiProvider(), new LocalFolderProvider()]),
-    getSettings: async () => defaultSettings,
+    getSettings: async () => settings,
     remember: async (source) => { remembered.push(source.location); },
     publishCollection: (collection, onDelivered) => {
       collections.push(collection);
@@ -122,6 +123,11 @@ export async function createLibraryHarness(context: { after(callback: () => void
       const opened = await library.openLocation(location);
       if (opened) library.acknowledgeRenderer();
       return opened;
+    },
+
+    /** Changes settings the way the settings view does; refresh to apply source ones. */
+    changeSettings(changes: Partial<AppSettings>): void {
+      settings = { ...settings, ...changes };
     },
 
     async refresh(): Promise<boolean> {

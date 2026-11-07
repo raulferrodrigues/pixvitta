@@ -59,10 +59,11 @@ test("thumbnails and recent sources survive a restart without being regenerated"
   expect(await thumbnailFiles(sandbox.userDataDir)).toEqual(generated);
 });
 
-test("refresh picks up files added since the folder was opened", async ({ launch, sampleFolder }) => {
+test("refresh picks up files added since the folder was opened and keeps the selected file", async ({ launch, sampleFolder }) => {
   const { viewer, app } = await launch({ dialogs: [sampleFolder] });
   await viewer.pickFolder();
-  await viewer.expectShowing("alpha.png");
+  await viewer.clickTile("bravo.png");
+  await viewer.expectShowing("bravo.png");
 
   await writeFile(path.join(sampleFolder, "aardvark.png"), syntheticPng(32, 32));
   await app.evaluate(({ BrowserWindow }) => {
@@ -71,6 +72,8 @@ test("refresh picks up files added since the folder was opened", async ({ launch
 
   await expect(viewer.filmstripTiles).toHaveCount(SAMPLE_FOLDER_MEDIA.length + 1);
   expect((await viewer.tileNames())[0]).toBe("aardvark.png");
+  // The new first file shifts bravo.png along, but it stays the one shown.
+  await viewer.expectShowing("bravo.png");
 });
 
 test("opening a file from a second launch focuses the running app on that file", async ({ launch, sampleFolder, sandbox }) => {
