@@ -102,20 +102,31 @@ export type SettingsView = "settings" | "shortcuts";
 export type ViewerStore = ViewerState & ViewerActions;
 export type ViewerStoreApi = StoreApi<ViewerStore>;
 
-function applyCollection(collection: MediaCollection): Partial<ViewerState> {
+// Every transition that swaps the media element for a new one. Elements report
+// nothing once they are unmounted, so these transitions must reset this state.
+const FRESH_MEDIA_VIEW = {
+  isVideoPlaying: false,
+  imageZoom: MIN_IMAGE_ZOOM,
+  imagePanX: 0,
+  imagePanY: 0
+} satisfies Partial<ViewerState>;
+
+function applyCollection(state: ViewerState, collection: MediaCollection): Partial<ViewerState> {
   const selectedIndex = collection.selectedId === null
     ? -1
     : collection.items.findIndex((item) => item.id === collection.selectedId);
+  const index = selectedIndex >= 0 ? selectedIndex : 0;
+  // A refresh keeps item IDs, so a selected video keeps its element and plays on
+  // without firing another play event.
+  const keepsCurrentElement = state.items[state.index]?.id === collection.items[index]?.id;
 
   return {
     source: collection.source,
     items: collection.items,
-    index: selectedIndex >= 0 ? selectedIndex : 0,
+    index,
     mediaErrors: new Set(),
-    isVideoPlaying: false,
-    imageZoom: MIN_IMAGE_ZOOM,
-    imagePanX: 0,
-    imagePanY: 0,
+    ...FRESH_MEDIA_VIEW,
+    isVideoPlaying: keepsCurrentElement && state.isVideoPlaying,
     sourceOpenError: null,
     loadState: collection.items.length > 0 ? "ready" : "empty"
   };
@@ -163,7 +174,7 @@ export function createViewerStore(
 
     const applyOpenedCollection = (collection: MediaCollection) => {
       sourceRequestRevision += 1;
-      set(applyCollection(collection));
+      set((state) => applyCollection(state, collection));
     };
 
     const openSourceRequest = async (request: OpenSourceRequest) => {
@@ -445,13 +456,7 @@ export function createViewerStore(
         set((state) => {
           const index = nextIndex(state.index, state.items.length, state.settings.wrapNavigation);
           if (index === state.index) return state;
-          return {
-            index,
-            isVideoPlaying: false,
-            imageZoom: MIN_IMAGE_ZOOM,
-            imagePanX: 0,
-            imagePanY: 0
-          };
+          return { index, ...FRESH_MEDIA_VIEW };
         });
       },
 
@@ -459,26 +464,14 @@ export function createViewerStore(
         set((state) => {
           const index = previousIndex(state.index, state.items.length, state.settings.wrapNavigation);
           if (index === state.index) return state;
-          return {
-            index,
-            isVideoPlaying: false,
-            imageZoom: MIN_IMAGE_ZOOM,
-            imagePanX: 0,
-            imagePanY: 0
-          };
+          return { index, ...FRESH_MEDIA_VIEW };
         });
       },
 
       selectMedia(index: number) {
         set((state) => {
           if (index === state.index) return state;
-          return {
-            index,
-            isVideoPlaying: false,
-            imageZoom: MIN_IMAGE_ZOOM,
-            imagePanX: 0,
-            imagePanY: 0
-          };
+          return { index, ...FRESH_MEDIA_VIEW };
         });
       },
 
@@ -545,9 +538,7 @@ export function createViewerStore(
       toggleViewMode() {
         set((state) => ({
           viewMode: state.viewMode === "single" ? "continuous" : "single",
-          imageZoom: MIN_IMAGE_ZOOM,
-          imagePanX: 0,
-          imagePanY: 0
+          ...FRESH_MEDIA_VIEW
         }));
       },
 

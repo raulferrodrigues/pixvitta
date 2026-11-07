@@ -9,7 +9,7 @@ import { getWindowIcon } from "./windowIcon";
 type MainWindowOptions = {
   rendererUrl(): string;
   onClosed(window: BrowserWindow): void;
-  onLoaded(window: BrowserWindow): void;
+  onDocumentReplaced(window: BrowserWindow): void;
   onCloseShortcut(window: BrowserWindow): void;
 };
 
@@ -53,6 +53,9 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
 
   installTextEditingContextMenu(window);
   window.on("closed", () => options.onClosed(window));
+  // Fires when a new document commits, including reloads, and not for a
+  // navigation that never commits, such as one that becomes a download.
+  window.webContents.on("did-navigate", () => options.onDocumentReplaced(window));
   window.on("enter-full-screen", () => notifyWindowChromeChanged(window));
   window.on("leave-full-screen", () => notifyWindowChromeChanged(window));
 
@@ -94,11 +97,10 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
   });
 
   // loadURL points at Vite during development and at dist/index.html in packaged
-  // builds. Once the page itself has loaded, pending macOS file-open requests can
-  // move to the next queue, which waits for React's viewer:ready signal.
-  void window.loadURL(options.rendererUrl()).then(() => {
-    if (window.isDestroyed()) return;
-    options.onLoaded(window);
+  // builds. Pending events wait for React's viewer:ready signal, not this load.
+  // Reloading while the first load runs also rejects this promise.
+  void window.loadURL(options.rendererUrl()).catch((error) => {
+    console.error("Could not finish loading the viewer.", error);
   });
 
   return window;

@@ -47,9 +47,9 @@ const WINDOW_ZOOM_STEP = 0.5;
 // native window state directly. They ask for app-level operations instead.
 let mainWindow: BrowserWindow | null = null;
 
-// loadURL finishing is not the same as React being ready to receive app events.
-// Both gates are tracked separately before queued folders are sent to renderer.
-let mainWindowLoaded = false;
+// Whether the current document has mounted React and registered its listeners.
+// Readiness belongs to a document, not a window: a reload keeps the same
+// BrowserWindow but replaces the listeners, so a new document starts not ready.
 let mainWindowReady = false;
 
 type PendingCollectionDelivery = {
@@ -59,37 +59,44 @@ type PendingCollectionDelivery = {
 
 // Authoritative library events can arrive before the main window exists, while
 // it is loading, or before React has registered its listeners. Collection
-// changes remain queued until both renderer readiness gates are open.
+// changes remain queued until the renderer is ready.
 const pendingCollectionDeliveries: PendingCollectionDelivery[] = [];
 let pendingLoadingState: boolean | null = null;
 let pendingSourceError: OpenSourceError | null = null;
+let latestLoadingState = false;
+
+// Sending before React has called viewer:ready from preload would drop the IPC
+// message. A dropped collection is fatal, because it is never acknowledged.
+function getReadyMainWindow(): BrowserWindow | null {
+  return mainWindow && !mainWindow.isDestroyed() && mainWindowReady
+    ? mainWindow
+    : null;
+}
 
 function flushMainWindowEvents(): void {
-  // The renderer only gets library events after two conditions are true:
-  // BrowserWindow.loadURL has completed and React has called viewer:ready from
-  // preload. Sending before either point risks dropping the IPC message.
-  if (!mainWindow || mainWindow.isDestroyed() || !mainWindowLoaded || !mainWindowReady) return;
+  const readyWindow = getReadyMainWindow();
+  if (!readyWindow) return;
 
   if (pendingLoadingState !== null) {
-    mainWindow.webContents.send(
+    readyWindow.webContents.send(
       "library:loading-changed",
       pendingLoadingState
     );
     pendingLoadingState = null;
   }
   if (pendingSourceError !== null) {
-    mainWindow.webContents.send("library:source-error", pendingSourceError);
+    readyWindow.webContents.send("library:source-error", pendingSourceError);
     pendingSourceError = null;
   }
   while (pendingCollectionDeliveries.length > 0) {
     const delivery = pendingCollectionDeliveries.shift()!;
-    mainWindow.webContents.send(
+    readyWindow.webContents.send(
       "library:collection-changed",
       delivery.collection
     );
     delivery.onDelivered();
   }
-  mainWindow.focus();
+  readyWindow.focus();
 }
 
 export function createMainWindow(): void {
@@ -99,23 +106,22 @@ export function createMainWindow(): void {
     return;
   }
 
-  // A newly-created BrowserWindow starts with both readiness gates closed. The
-  // load gate opens when loadURL resolves inside createViewerWindow; the React
-  // gate opens through the viewer:ready IPC handler below.
-  mainWindowLoaded = false;
+  // A newly-created BrowserWindow is not ready until viewer:ready arrives through
+  // the IPC handler below.
   mainWindowReady = false;
   const window = createMainBrowserWindow({
     rendererUrl,
     onClosed(closedWindow) {
       if (mainWindow !== closedWindow) return;
       mainWindow = null;
-      mainWindowLoaded = false;
       mainWindowReady = false;
     },
-    onLoaded(loadedWindow) {
-      if (mainWindow !== loadedWindow || loadedWindow.isDestroyed()) return;
-      mainWindowLoaded = true;
-      flushMainWindowEvents();
+    onDocumentReplaced(replacedWindow) {
+      if (mainWindow !== replacedWindow) return;
+      mainWindowReady = false;
+      // The new document's store starts out idle, so it has to hear about a
+      // source load that is still running.
+      if (latestLoadingState) pendingLoadingState = true;
     },
     onCloseShortcut: closeAppWindow
   });
@@ -132,26 +138,19 @@ export function publishMainWindowCollection(
 }
 
 export function publishMainWindowLoading(isLoading: boolean): void {
-  if (
-    mainWindow &&
-    !mainWindow.isDestroyed() &&
-    mainWindowLoaded &&
-    mainWindowReady
-  ) {
-    mainWindow.webContents.send("library:loading-changed", isLoading);
+  latestLoadingState = isLoading;
+  const readyWindow = getReadyMainWindow();
+  if (readyWindow) {
+    readyWindow.webContents.send("library:loading-changed", isLoading);
     return;
   }
   pendingLoadingState = isLoading;
 }
 
 export function publishMainWindowSourceError(error: OpenSourceError): void {
-  if (
-    mainWindow &&
-    !mainWindow.isDestroyed() &&
-    mainWindowLoaded &&
-    mainWindowReady
-  ) {
-    mainWindow.webContents.send("library:source-error", error);
+  const readyWindow = getReadyMainWindow();
+  if (readyWindow) {
+    readyWindow.webContents.send("library:source-error", error);
     return;
   }
   pendingSourceError = error;
@@ -160,30 +159,16 @@ export function publishMainWindowSourceError(error: OpenSourceError): void {
 export function publishMainWindowDownloadActivity(
   snapshot: DownloadActivitySnapshot
 ): void {
-  if (
-    mainWindow &&
-    !mainWindow.isDestroyed() &&
-    mainWindowLoaded &&
-    mainWindowReady
-  ) {
-    mainWindow.webContents.send(
-      "media:download-activity-changed",
-      snapshot
-    );
-  }
+  getReadyMainWindow()?.webContents.send(
+    "media:download-activity-changed",
+    snapshot
+  );
 }
 
 export function publishMainWindowRecentSources(
   sources: RecentSource[]
 ): void {
-  if (
-    mainWindow &&
-    !mainWindow.isDestroyed() &&
-    mainWindowLoaded &&
-    mainWindowReady
-  ) {
-    mainWindow.webContents.send("recent-sources:changed", sources);
-  }
+  getReadyMainWindow()?.webContents.send("recent-sources:changed", sources);
 }
 
 export function isMainWindow(window: BrowserWindow | null): boolean {
@@ -251,8 +236,8 @@ export function resetFocusedWindowZoom(): void {
 }
 
 ipcMain.handle("viewer:ready", (event) => {
-  // The page load event only says the bundle loaded. viewer:ready says React has
-  // mounted and registered the file-open listener exposed by preload.
+  // viewer:ready says React has mounted and registered the listeners exposed by
+  // preload.
   const window = BrowserWindow.fromWebContents(event.sender);
   if (!window || window !== mainWindow) return;
   mainWindowReady = true;

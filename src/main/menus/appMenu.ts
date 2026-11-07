@@ -85,7 +85,9 @@ export function createAppMenu(): void {
     {
       label: "View",
       submenu: [
-        { role: "reload" },
+        // The role's default accelerator is the one Refresh Source uses. On Linux
+        // the later menu item wins, which turned refreshing into a page reload.
+        { role: "reload", accelerator: "CommandOrControl+Alt+R" },
         { role: "forceReload" },
         { role: "toggleDevTools" },
         { type: "separator" },
