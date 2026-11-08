@@ -1,7 +1,7 @@
 import type { BuildFlavor } from "../../shared/appBuild";
+import type { UpdateChannel, UpdateUnavailableReason } from "../../shared/updates";
 
 export type LinuxUpdatePackageType = "appimage" | "deb";
-export type UpdateChannel = "latest" | "nightly";
 
 export type UpdateSupport = {
   isPackaged: boolean;
@@ -21,34 +21,11 @@ export function getUpdateChannel(flavor: BuildFlavor): UpdateChannel {
   return flavor === "nightly" ? "nightly" : "latest";
 }
 
-export function getUpdatesUnavailableMessage(
-  version: string,
-  support: UpdateSupport,
-  appName = "Pixvitta"
-): string {
-  const heading = `${appName} ${version}`;
-
-  if (!support.isPackaged) {
-    return [heading, "", "Automatic updates are only available in packaged builds."].join("\n");
-  }
-
-  if (support.platform !== "linux") {
-    return [
-      heading,
-      "",
-      "Automatic updates are currently available only for Linux AppImage and Debian package builds.",
-      "macOS updates will remain disabled until releases are signed and notarized."
-    ].join("\n");
-  }
-
-  if (!getLinuxUpdatePackageType(support)) {
-    return [
-      heading,
-      "",
-      "This Linux package format does not support automatic updates.",
-      "Install the Pixvitta AppImage or Debian package to receive automatic updates."
-    ].join("\n");
-  }
-
-  return "";
+/** Why this build cannot update itself, or null when it can. */
+export function getUpdatesUnavailableReason(support: UpdateSupport): UpdateUnavailableReason | null {
+  if (!support.isPackaged) return "unpackaged";
+  // macOS installs updates only into signed apps, and releases are not signed yet.
+  if (support.platform !== "linux") return "unsigned-macos";
+  if (!getLinuxUpdatePackageType(support)) return "unsupported-linux-package";
+  return null;
 }

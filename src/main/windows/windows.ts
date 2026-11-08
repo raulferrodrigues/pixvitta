@@ -14,7 +14,7 @@ import { notifyWindowChromeChanged } from "./windowChrome";
  * Windows are a main-process feature, not an object main.ts should assemble.
  *
  * This module owns the live BrowserWindow references and exposes only app-level
- * window capabilities. Other features, like the app menu or update dialogs, can
+ * window capabilities. Other features, like the app menu or message dialogs, can
  * import these operations directly without receiving a custom "window manager"
  * bag from the entry point.
  *

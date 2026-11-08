@@ -8,6 +8,7 @@ import type {
 import type { PixvittaApi, PixvittaCommand, WindowChromeState } from "../../shared/pixvittaApi";
 import type { RecentSource } from "../../shared/recentSources";
 import { defaultSettings, type AppSettings } from "../../shared/settings";
+import { createUpdateState, type UpdateState } from "../../shared/updates";
 
 /*
  * A stand-in for the main process, implementing the whole PixvittaApi. It keeps
@@ -37,6 +38,8 @@ export type StageControls = {
   defineSource(location: string, source: StageSource): void;
   setRecentSources(sources: RecentSource[]): void;
   setSettings(settings: Partial<AppSettings>): void;
+  /** Pushes an update state, as main does on every change. Update calls only record. */
+  setUpdateState(state: Partial<UpdateState>): void;
   /** Holds openSource in its loading state until releaseOpen is called. */
   holdOpens(): void;
   releaseOpens(): void;
@@ -61,6 +64,7 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
   let settings: AppSettings = defaultSettings;
   let recentSources: RecentSource[] = [];
   let downloadActivity = EMPTY_DOWNLOADS;
+  let updateState: UpdateState = createUpdateState("0.0.0-stage", "latest", null);
   let chrome: WindowChromeState = { zoomFactor: 1, isFullScreen: false, hasMacTrafficLights: false };
   let currentCollection: MediaCollection | null = null;
   let viewerReady = false;
@@ -76,6 +80,7 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
   const downloadListeners: Listeners<DownloadActivitySnapshot> = new Set();
   const recentListeners: Listeners<RecentSource[]> = new Set();
   const settingsListeners: Listeners<AppSettings> = new Set();
+  const updateListeners: Listeners<UpdateState> = new Set();
 
   function record(method: string, ...args: unknown[]): void {
     calls.push({ method, args });
@@ -216,6 +221,20 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     setSelectedMedia(mediaId) {
       record("setSelectedMedia", mediaId);
     },
+    async getUpdateState() {
+      return updateState;
+    },
+    async checkForUpdates() {
+      record("checkForUpdates");
+      return updateState;
+    },
+    async downloadUpdate() {
+      record("downloadUpdate");
+      return updateState;
+    },
+    async installUpdate() {
+      record("installUpdate");
+    },
     onWindowChromeChanged: (callback) => subscribe(chromeListeners, callback),
     onCommand: (callback) => subscribe(commandListeners, callback),
     onCollectionChanged: (callback) => subscribe(collectionListeners, callback),
@@ -223,7 +242,8 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     onSourceError: (callback) => subscribe(errorListeners, callback),
     onDownloadActivityChanged: (callback) => subscribe(downloadListeners, callback),
     onRecentSourcesChanged: (callback) => subscribe(recentListeners, callback),
-    onSettingsChanged: (callback) => subscribe(settingsListeners, callback)
+    onSettingsChanged: (callback) => subscribe(settingsListeners, callback),
+    onUpdateStateChanged: (callback) => subscribe(updateListeners, callback)
   };
 
   const controls: StageControls = {
@@ -241,6 +261,10 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     setSettings(next) {
       settings = { ...settings, ...next };
       for (const listener of settingsListeners) listener(settings);
+    },
+    setUpdateState(next) {
+      updateState = { ...updateState, ...next };
+      for (const listener of updateListeners) listener(updateState);
     },
     holdOpens() {
       held ??= [];

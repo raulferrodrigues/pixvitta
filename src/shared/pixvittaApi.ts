@@ -7,6 +7,7 @@ import type {
 } from "./media";
 import type { RecentSource } from "./recentSources";
 import type { AppSettings } from "./settings";
+import type { UpdateState } from "./updates";
 
 export type PixvittaCommand =
   | "open-folder"
@@ -17,7 +18,8 @@ export type PixvittaCommand =
   | "seek-video-backward"
   | "seek-video-forward"
   | "toggle-video-playback"
-  | "show-shortcuts";
+  | "show-shortcuts"
+  | "check-for-updates";
 
 export type WindowChromeState = {
   zoomFactor: number;
@@ -49,6 +51,10 @@ export type PixvittaApi = {
   markViewerReady(): Promise<void>;
   acknowledgeCollection(): void;
   setSelectedMedia(mediaId: string | null): void;
+  getUpdateState(): Promise<UpdateState>;
+  checkForUpdates(): Promise<UpdateState>;
+  downloadUpdate(): Promise<UpdateState>;
+  installUpdate(): Promise<void>;
   onWindowChromeChanged(callback: (state: WindowChromeState) => void): () => void;
   onCommand(callback: (command: PixvittaCommand) => void): () => void;
   onCollectionChanged(callback: (collection: MediaCollection) => void): () => void;
@@ -59,4 +65,5 @@ export type PixvittaApi = {
   ): () => void;
   onRecentSourcesChanged(callback: (sources: RecentSource[]) => void): () => void;
   onSettingsChanged(callback: (settings: AppSettings) => void): () => void;
+  onUpdateStateChanged(callback: (state: UpdateState) => void): () => void;
 };
