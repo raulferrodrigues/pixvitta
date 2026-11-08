@@ -10,6 +10,7 @@ import type {
 import type { PixvittaApi } from "../../shared/pixvittaApi";
 import type { RecentSource } from "../../shared/recentSources";
 import { defaultSettings, type AppSettings, type FileOrder } from "../../shared/settings";
+import type { UpdateState } from "../../shared/updates";
 import { clampImageZoom, MIN_IMAGE_ZOOM, roundImageTransformValue } from "./imageView";
 import { nextIndex, previousIndex } from "./navigation";
 import { createVideoController, type VideoController } from "./videoController";
@@ -50,6 +51,8 @@ export type ViewerState = {
   // The settings modal shows either the settings list or the keyboard
   // shortcuts; null means it is closed.
   settingsView: SettingsView | null;
+  // Main owns the update state and sends every change; null until it answers.
+  updateState: UpdateState | null;
 };
 
 export type ViewerActions = {
@@ -93,11 +96,17 @@ export type ViewerActions = {
   toggleDownloadPanel(): void;
   openSettings(view?: SettingsView): void;
   closeSettings(): void;
+  loadUpdateState(): Promise<void>;
+  applyUpdateState(state: UpdateState): void;
+  checkForUpdates(): Promise<void>;
+  downloadUpdate(): Promise<void>;
+  installUpdate(): Promise<void>;
   toggleFullscreen(): Promise<void>;
   exitFullscreen(): Promise<void>;
 };
 
-export type SettingsView = "settings" | "shortcuts";
+// "updates" is the settings list, scrolled to the update row.
+export type SettingsView = "settings" | "updates" | "shortcuts";
 
 export type ViewerStore = ViewerState & ViewerActions;
 export type ViewerStoreApi = StoreApi<ViewerStore>;
@@ -153,6 +162,7 @@ export function createViewerStore(
 ): ViewerStoreApi {
   let settingsSaveRevision = 0;
   let recentSourcesRevision = 0;
+  let updateStateRevision = 0;
   let sourceRequestRevision = 0;
   let videoAudioSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -220,12 +230,14 @@ export function createViewerStore(
       },
       isDownloadPanelOpen: false,
       settingsView: null,
+      updateState: null,
 
       async initialize() {
         await Promise.all([
           get().loadSettings(),
           get().refreshRecentSources(),
-          get().loadDownloadActivity()
+          get().loadDownloadActivity(),
+          get().loadUpdateState()
         ]);
       },
 
@@ -574,6 +586,47 @@ export function createViewerStore(
 
       closeSettings() {
         set({ settingsView: null });
+      },
+
+      async loadUpdateState() {
+        const revision = updateStateRevision;
+        try {
+          const updateState = await api.getUpdateState();
+          // A pushed change that arrived first is newer than this answer.
+          if (revision === updateStateRevision) set({ updateState });
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      applyUpdateState(updateState: UpdateState) {
+        updateStateRevision += 1;
+        set({ updateState });
+      },
+
+      // Main pushes each state change, so these only ask for the step.
+      async checkForUpdates() {
+        try {
+          await api.checkForUpdates();
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      async downloadUpdate() {
+        try {
+          await api.downloadUpdate();
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      async installUpdate() {
+        try {
+          await api.installUpdate();
+        } catch (error) {
+          console.error(error);
+        }
       },
 
       async toggleFullscreen() {

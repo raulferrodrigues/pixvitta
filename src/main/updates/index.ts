@@ -1,1 +1,1 @@
-export { checkForUpdates, startAutomaticUpdates } from "./updateDialog";
+export { startAutomaticUpdates } from "./updateService";

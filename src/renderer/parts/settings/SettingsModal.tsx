@@ -1,6 +1,7 @@
 import { ArrowLeft, Keyboard, Settings, X } from "lucide-react";
 import { useGT } from "gt-react";
 import { useEffect, useRef } from "react";
+import { hasPendingUpdate } from "../../../shared/updates";
 import { useViewerStore } from "../../state/ViewerStoreProvider";
 import { IconButton } from "../../ui/IconButton";
 import { SettingsList } from "./SettingsList";
@@ -12,15 +13,22 @@ export function SettingsToggle() {
   const isOpen = useViewerStore((state) => state.settingsView !== null);
   const openSettings = useViewerStore((state) => state.openSettings);
   const closeSettings = useViewerStore((state) => state.closeSettings);
+  // A found or downloaded update waits on the button in Settings, so the gear
+  // carries a dot until it is handled.
+  const updatePending = useViewerStore((state) => hasPendingUpdate(state.updateState));
   return (
     <IconButton
-      label={gt("Settings")}
+      label={updatePending ? gt("Settings, update available") : gt("Settings")}
       aria-pressed={isOpen}
-      className="settings-toggle"
+      className="settings-toggle relative"
       data-testid="settings-toggle"
-      onClick={() => (isOpen ? closeSettings() : openSettings())}
+      data-update-pending={updatePending || undefined}
+      onClick={() => (isOpen ? closeSettings() : openSettings(updatePending ? "updates" : "settings"))}
     >
       <Settings size={17} aria-hidden />
+      {updatePending ? (
+        <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-pix-accent ring-2 ring-pix-bg" aria-hidden />
+      ) : null}
     </IconButton>
   );
 }

@@ -33,8 +33,10 @@ Chromium.
 
 Linux builds are available from [GitHub Releases](https://github.com/raulferrodrigues/pixvitta/releases)
 in two editions that can be installed side by side: stable **Pixvitta** and
-prerelease **Pixvitta Nightly**. Both update themselves automatically from
-their own release channel.
+prerelease **Pixvitta Nightly**. Each checks its own release channel in the
+background. When an update is found, the gear button gets a dot, and the
+Updates row at the bottom of Settings downloads it and restarts into it. A
+downloaded update also installs when you quit.
 
 **Debian, Ubuntu, and derivatives:**
 

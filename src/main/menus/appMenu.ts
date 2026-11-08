@@ -1,6 +1,5 @@
 import { app, BrowserWindow, Menu } from "electron";
 import { MAIN_HOTKEYS } from "../app";
-import { checkForUpdates } from "../updates";
 import {
   closeAppWindow,
   resetFocusedWindowZoom,
@@ -47,9 +46,9 @@ export function createAppMenu(): void {
         {
           id: "check-for-updates",
           label: "Check for Updates...",
-          click: () => {
-            void checkForUpdates();
-          }
+          // The update button lives in Settings, so the menu opens it there and
+          // React starts the check.
+          click: () => sendViewerCommand("check-for-updates")
         },
         { type: "separator" },
         { role: "quit" }

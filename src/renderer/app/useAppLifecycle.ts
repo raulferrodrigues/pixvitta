@@ -30,6 +30,8 @@ export function useAppLifecycle(api: PixvittaApi) {
   );
   const applyRecentSources = useViewerStore((state) => state.applyRecentSources);
   const applySettings = useViewerStore((state) => state.applySettings);
+  const applyUpdateState = useViewerStore((state) => state.applyUpdateState);
+  const checkForUpdates = useViewerStore((state) => state.checkForUpdates);
 
   useEffect(() => { void initialize(); }, [initialize]);
 
@@ -60,6 +62,10 @@ export function useAppLifecycle(api: PixvittaApi) {
       if (command === "seek-video-forward") seekVideoBy(VIDEO_SEEK_SECONDS);
       if (command === "toggle-video-playback") void toggleVideoPlayback();
       if (command === "show-shortcuts") openSettings("shortcuts");
+      if (command === "check-for-updates") {
+        openSettings("updates");
+        void checkForUpdates();
+      }
     });
     const unsubscribeCollection = api.onCollectionChanged((collection) => {
       flushSync(() => openCollection(collection));
@@ -72,6 +78,7 @@ export function useAppLifecycle(api: PixvittaApi) {
     const unsubscribeRecentSources =
       api.onRecentSourcesChanged(applyRecentSources);
     const unsubscribeSettings = api.onSettingsChanged(applySettings);
+    const unsubscribeUpdateState = api.onUpdateStateChanged(applyUpdateState);
     void api.markViewerReady();
     return () => {
       unsubscribeCommand();
@@ -81,6 +88,7 @@ export function useAppLifecycle(api: PixvittaApi) {
       unsubscribeDownloadActivity();
       unsubscribeRecentSources();
       unsubscribeSettings();
+      unsubscribeUpdateState();
     };
-  }, [api, applyDownloadActivity, applyRecentSources, applySettings, goNext, goPrevious, openCollection, openFolder, openSettings, refreshSource, seekVideoBy, setSourceLoading, showSourceError, toggleVideoPlayback]);
+  }, [api, applyDownloadActivity, applyRecentSources, applySettings, applyUpdateState, checkForUpdates, goNext, goPrevious, openCollection, openFolder, openSettings, refreshSource, seekVideoBy, setSourceLoading, showSourceError, toggleVideoPlayback]);
 }

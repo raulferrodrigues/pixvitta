@@ -66,6 +66,7 @@ try {
   requireMatch(desktopEntry, new RegExp(`^Icon=${expected.iconName}$`, "m"), "desktop icon");
   requireMatch(desktopEntry, new RegExp(`^StartupWMClass=${expected.executable}$`, "m"), "window class");
   requireMatch(desktopEntry, /^MimeType=.*image\/jpeg.*video\/mp4/m, "MIME associations");
+  requireMatch(desktopEntry, /^Categories=Graphics;AudioVideo;Video;$/m, "desktop categories");
   requireMatch(updateConfig, new RegExp(`^updaterCacheDirName: ${expected.updaterCache}$`, "m"), "updater cache");
   if ("updateChannel" in expected) {
     requireMatch(

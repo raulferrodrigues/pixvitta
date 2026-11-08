@@ -9,6 +9,7 @@ import type {
 import type { PixvittaApi, PixvittaCommand, WindowChromeState } from "../shared/pixvittaApi";
 import type { RecentSource } from "../shared/recentSources";
 import type { AppSettings } from "../shared/settings";
+import type { UpdateState } from "../shared/updates";
 
 /*
  * The preload script runs in a special Electron context before the renderer's
@@ -72,6 +73,13 @@ const pixvittaApi = {
   acknowledgeCollection: (): void =>
     ipcRenderer.send("library:renderer-stable"),
 
+  // App updates run in main. The renderer reads the state and asks for the
+  // next step; main decides whether that step is allowed right now.
+  getUpdateState: (): Promise<UpdateState> => ipcRenderer.invoke("updates:get-state"),
+  checkForUpdates: (): Promise<UpdateState> => ipcRenderer.invoke("updates:check"),
+  downloadUpdate: (): Promise<UpdateState> => ipcRenderer.invoke("updates:download"),
+  installUpdate: (): Promise<void> => ipcRenderer.invoke("updates:install"),
+
   // Event subscriptions are push-style messages from main to renderer. Each one
   // returns an unsubscribe function so React effects can clean up listeners.
   onWindowChromeChanged: (callback: (state: WindowChromeState) => void): (() => void) => {
@@ -128,6 +136,11 @@ const pixvittaApi = {
     const listener = (_event: Electron.IpcRendererEvent, settings: AppSettings) => callback(settings);
     ipcRenderer.on("settings:changed", listener);
     return () => ipcRenderer.removeListener("settings:changed", listener);
+  },
+  onUpdateStateChanged: (callback: (state: UpdateState) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, state: UpdateState) => callback(state);
+    ipcRenderer.on("updates:state-changed", listener);
+    return () => ipcRenderer.removeListener("updates:state-changed", listener);
   }
 } satisfies PixvittaApi;
 
