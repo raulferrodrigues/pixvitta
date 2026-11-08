@@ -136,7 +136,7 @@
       ]
     },
     "linux": {
-      "category": "Graphics",
+      "category": "Graphics;AudioVideo;Video",
       "icon": "build/icons",
       "desktop": {
         "entry": {
