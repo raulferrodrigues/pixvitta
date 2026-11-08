@@ -23,8 +23,8 @@ import "./immersive.css";
 // zones. The top left zone holds the source and the actions on it, the top
 // right zone the current item and how it's viewed, with Fullscreen in the
 // corner. With unobtrusive mode on, the zones fade out and come back when the
-// pointer moves over them. The filmstrip tray never fades, so it always
-// matches its toggle. Only the download panel takes space of its own.
+// pointer moves over them, the filmstrip tray included. Only the download
+// panel takes space of its own.
 export function ImmersiveLayout({ buildInfo }: LayoutProps) {
   const gt = useGT();
   const hasMedia = useViewerStore(selectHasMedia);
@@ -88,7 +88,7 @@ export function ImmersiveLayout({ buildInfo }: LayoutProps) {
               <NextButton />
             </RevealZone>
             {isFilmstripVisible ? (
-              <RevealZone autoHide={false} className="immersive-zone-filmstrip">
+              <RevealZone autoHide={autoHide} className="immersive-zone-filmstrip">
                 <Filmstrip orientation="horizontal" />
               </RevealZone>
             ) : null}
