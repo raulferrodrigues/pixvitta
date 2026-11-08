@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createAppBuildInfo, resolveBuildFlavor } from "../../shared/appBuild";
-import { getLinuxUpdatePackageType, getUpdateChannel, getUpdatesUnavailableMessage } from "./updateStatus";
+import { getLinuxUpdatePackageType, getUpdateChannel, getUpdatesUnavailableReason } from "./updateStatus";
 
 const packagedLinux = {
   isPackaged: true,
@@ -14,18 +14,12 @@ test("recognizes update-capable Linux package formats", () => {
 });
 
 test("allows automatic updates for AppImage and Debian packages", () => {
-  assert.equal(
-    getUpdatesUnavailableMessage("1.0.0", { ...packagedLinux, appImagePath: "/tmp/Pixvitta.AppImage" }),
-    ""
-  );
-  assert.equal(getUpdatesUnavailableMessage("1.0.0", { ...packagedLinux, packageTypeMarker: "deb" }), "");
+  assert.equal(getUpdatesUnavailableReason({ ...packagedLinux, appImagePath: "/tmp/Pixvitta.AppImage" }), null);
+  assert.equal(getUpdatesUnavailableReason({ ...packagedLinux, packageTypeMarker: "deb" }), null);
 });
 
 test("rejects unsupported Linux package formats", () => {
-  assert.match(
-    getUpdatesUnavailableMessage("1.0.0", { ...packagedLinux, packageTypeMarker: "rpm" }),
-    /does not support automatic updates/
-  );
+  assert.equal(getUpdatesUnavailableReason({ ...packagedLinux, packageTypeMarker: "rpm" }), "unsupported-linux-package");
 });
 
 test("resolves stable, local development, and Nightly build identities", () => {

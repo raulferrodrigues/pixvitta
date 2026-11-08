@@ -14,6 +14,8 @@ export class Viewer {
   readonly filmstripTiles: Locator;
   readonly sourceError: Locator;
   readonly mediaError: Locator;
+  readonly updateRow: Locator;
+  readonly updateButton: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -23,6 +25,8 @@ export class Viewer {
     this.filmstripTiles = page.locator('[data-testid^="filmstrip-item-"]');
     this.sourceError = page.getByRole("alert");
     this.mediaError = page.getByTestId("media-error");
+    this.updateRow = page.getByTestId("update-row");
+    this.updateButton = page.getByTestId("update-button");
   }
 
   async pickFolder(): Promise<void> {
@@ -55,6 +59,25 @@ export class Viewer {
   async expectSettingsOpen(isOpen: boolean): Promise<void> {
     await expect(this.page.getByTestId("settings-toggle")).toHaveAttribute("aria-pressed", String(isOpen));
     await expect(this.page.getByTestId("settings-modal")).toBeVisible({ visible: isOpen });
+  }
+
+  async openSettings(): Promise<void> {
+    await this.page.getByTestId("settings-toggle").click();
+    await this.expectSettingsOpen(true);
+  }
+
+  /** The gear flags an update that waits on the button in Settings. */
+  async expectUpdatePending(isPending: boolean): Promise<void> {
+    const toggle = this.page.getByTestId("settings-toggle");
+    if (isPending) await expect(toggle).toHaveAttribute("data-update-pending", "true");
+    else await expect(toggle).not.toHaveAttribute("data-update-pending");
+  }
+
+  /** The step the update button offers: check, download, install, or none while busy. */
+  async expectUpdateStep(action: "check" | "download" | "install" | "none", status?: string): Promise<void> {
+    await expect(this.updateButton).toHaveAttribute("data-action", action);
+    await expect(this.updateButton).toBeEnabled({ enabled: action !== "none" });
+    if (status) await expect(this.updateRow).toHaveAttribute("data-status", status);
   }
 
   async tileNames(): Promise<string[]> {

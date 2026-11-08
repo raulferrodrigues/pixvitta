@@ -122,3 +122,37 @@ test("continuous view selects what scrolls into view and tells the library", asy
   }).toPass();
   await expect.poll(async () => (await calls("setSelectedMedia")).at(-1)).toEqual(["sunset"]);
 });
+
+test("an update found in the background walks from the gear to a restart", async ({ openStage }) => {
+  const { page, viewer, calls } = await openStage("folder");
+  await viewer.expectShowing("beach.svg");
+  await viewer.expectUpdatePending(false);
+
+  await page.evaluate(() => window.pixvittaStage.setUpdateState({ status: "available", availableVersion: "9.9.9" }));
+  await viewer.expectUpdatePending(true);
+  await viewer.openSettings();
+  await viewer.expectUpdateStep("download");
+  await viewer.updateButton.click();
+  await expect.poll(() => calls("downloadUpdate")).toHaveLength(1);
+
+  await page.evaluate(() => window.pixvittaStage.setUpdateState({ status: "downloading", downloadPercent: 40 }));
+  await viewer.expectUpdateStep("none", "downloading");
+  await page.evaluate(() =>
+    window.pixvittaStage.setUpdateState({ status: "error", errorContext: "download", message: "socket hang up", downloadPercent: null }));
+  await viewer.expectUpdateStep("download", "error");
+
+  await page.evaluate(() => window.pixvittaStage.setUpdateState({ status: "downloaded", downloadedVersion: "9.9.9", errorContext: null }));
+  await viewer.expectUpdateStep("install");
+  await viewer.updateButton.click();
+  await expect.poll(() => calls("installUpdate")).toHaveLength(1);
+});
+
+test("Check for Updates in the app menu opens Settings at the update row and checks", async ({ openStage }) => {
+  const { page, viewer, calls } = await openStage("folder");
+  await viewer.expectShowing("beach.svg");
+
+  await page.evaluate(() => window.pixvittaStage.sendCommand("check-for-updates"));
+  await viewer.expectSettingsOpen(true);
+  await expect(viewer.updateRow).toBeInViewport({ ratio: 1 });
+  await expect.poll(() => calls("checkForUpdates")).toHaveLength(1);
+});

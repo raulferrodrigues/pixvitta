@@ -4,6 +4,7 @@ import type { AppSettings } from "../../../shared/settings";
 import { useViewerStore } from "../../state/ViewerStoreProvider";
 import { Switch } from "../../ui/Switch";
 import { settingSections, type SelectSettingRow, type SettingRow } from "./settingsSections";
+import { UpdateRow } from "./UpdateRow";
 
 // Each row saves as soon as it changes. Rows only translate their labels; the
 // store owns saving and rolls back a value whose save fails.
@@ -12,16 +13,27 @@ export function SettingsList() {
   return (
     <div className="grid content-start gap-6">
       {settingSections.map((section) => (
-        <section key={section.label} className="grid gap-2" aria-label={gt(section.label)}>
-          <h3 className="m-0 px-1 text-xs font-semibold uppercase tracking-wide text-pix-section">{gt(section.label)}</h3>
-          <div className="rounded-xl border border-pix-border bg-pix-panel/40 [&>*+*]:border-t [&>*+*]:border-pix-border-subtle">
-            {section.rows.map((row) => (
-              <SettingRowControl key={row.testId} row={row} />
-            ))}
-          </div>
-        </section>
+        <SettingsSection key={section.label} label={gt(section.label)}>
+          {section.rows.map((row) => (
+            <SettingRowControl key={row.testId} row={row} />
+          ))}
+        </SettingsSection>
       ))}
+      <SettingsSection label={gt("Updates")}>
+        <UpdateRow />
+      </SettingsSection>
     </div>
+  );
+}
+
+function SettingsSection({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <section className="grid gap-2" aria-label={label}>
+      <h3 className="m-0 px-1 text-xs font-semibold uppercase tracking-wide text-pix-section">{label}</h3>
+      <div className="rounded-xl border border-pix-border bg-pix-panel/40 [&>*+*]:border-t [&>*+*]:border-pix-border-subtle">
+        {children}
+      </div>
+    </section>
   );
 }
 
