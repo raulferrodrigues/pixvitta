@@ -40,3 +40,22 @@ native/linux/build/pixvitta path/to/folder
 ```
 
 Left and Right step through the files, and Space plays or pauses a video.
+
+## Corpus
+
+[`corpus/`](corpus) holds the sample files the core must open, and
+[`corpus/corpus.toml`](corpus/corpus.toml) says what each must produce. Run
+the check from the repository root:
+
+```sh
+cargo test --release --manifest-path native/core/Cargo.toml --test corpus
+```
+
+For each sample it checks that the file opens, that its size is right, and
+for images that the pixels roughly match a reference. Videos go through the
+machine's libmpv (size and duration only). Formats the core can't decode yet
+are listed with `expected_failure`. The run fails if a sample that should
+pass doesn't, or if an expected failure starts passing (then remove the
+line). To add a sample, put the file in `corpus/samples/<format>/` and add
+a `[[sample]]` entry; [`corpus/README.md`](corpus/README.md) has the details
+and how the existing files were made.

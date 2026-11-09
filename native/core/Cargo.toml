@@ -7,11 +7,19 @@ publish = false
 
 [lib]
 name = "pixvitta_core"
-crate-type = ["staticlib"]
+# rlib lets the corpus test (tests/corpus.rs) call the C API.
+crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp"] }
 moxcms = { version = "0.8", default-features = false }
+
+[dev-dependencies]
+toml = "0.9"
+
+[[test]]
+name = "corpus"
+harness = false
 
 [profile.release]
 lto = "thin"
