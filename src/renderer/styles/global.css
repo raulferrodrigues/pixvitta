@@ -15,3 +15,8 @@ body {
 }
 
 button { font: inherit; }
+
+body {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}

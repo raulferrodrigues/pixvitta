@@ -1,3 +1,13 @@
+/* Glow effects, shown only when the setting is on. */
+:root[data-glow] .source-picker {
+  background:
+    radial-gradient(ellipse 70% 55% at 50% 0%, rgb(140 215 255 / 7%), transparent 70%),
+    radial-gradient(ellipse 60% 50% at 50% 100%, rgb(124 58 237 / 5%), transparent 70%),
+    var(--pix-bg);
+}
+:root[data-glow] .open-folder-button { box-shadow: 0 6px 20px -6px rgb(140 215 255 / 55%); }
+:root[data-glow] #source-location:focus { box-shadow: 0 0 0 3px rgb(140 215 255 / 18%); }
+
 .recent-sources-scrollbar {
   scrollbar-gutter: stable;
 }

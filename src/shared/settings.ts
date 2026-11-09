@@ -16,6 +16,7 @@ export type AppSettings = {
   unobtrusiveViewerControls: boolean;
   mediaScaleMode: MediaScaleMode;
   viewerLayout: ViewerLayout;
+  glowEffects: boolean;
 };
 
 export const defaultSettings: AppSettings = {
@@ -29,5 +30,6 @@ export const defaultSettings: AppSettings = {
   showVideoControls: true,
   unobtrusiveViewerControls: false,
   mediaScaleMode: "native-or-smaller",
-  viewerLayout: "classic"
+  viewerLayout: "classic",
+  glowEffects: false
 };

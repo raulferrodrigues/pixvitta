@@ -1,7 +1,7 @@
 import type { AppSettings } from "../../../shared/settings";
 import { FILE_ORDER_OPTIONS } from "../../settings/fileOrderOptions";
 
-type SwitchSettingKey = "videoAutoplay" | "videoLoopByDefault" | "showVideoControls" | "wrapNavigation" | "includeHidden";
+type SwitchSettingKey = "videoAutoplay" | "videoLoopByDefault" | "showVideoControls" | "wrapNavigation" | "includeHidden" | "glowEffects";
 type SelectSettingKey = "viewerLayout" | "mediaScaleMode" | "fileOrder";
 
 export type SwitchSettingRow = {
@@ -41,7 +41,8 @@ export const settingSections = [
           { value: "classic", label: "Classic" },
           { value: "immersive", label: "Immersive" }
         ]
-      }
+      },
+      { kind: "switch", setting: "glowEffects", testId: "setting-glow-effects", label: "Glow effects", description: "Add a soft accent glow to highlights and the start screen." }
     ]
   },
   {

@@ -73,7 +73,7 @@ export function SettingsModal() {
   return (
     <dialog
       ref={dialogRef}
-      className="m-auto w-[min(720px,calc(100vw-32px))] overflow-hidden rounded-xl border border-pix-border bg-pix-bg p-0 text-pix-text shadow-2xl outline-none backdrop:bg-black/70"
+      className="m-auto w-[min(720px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-pix-border bg-pix-bg p-0 text-pix-text shadow-[0_30px_80px_-20px_rgb(0_0_0/80%)] outline-none backdrop:bg-black/60 backdrop:backdrop-blur-[3px]"
       tabIndex={-1}
       aria-labelledby="settings-modal-title"
       data-testid="settings-modal"
@@ -88,7 +88,7 @@ export function SettingsModal() {
       }}
     >
       <div className="flex max-h-[min(900px,88vh)] flex-col">
-        <header className="flex items-center gap-2 border-b border-pix-border px-4 py-3">
+        <header className="flex items-center gap-2 border-b border-pix-border-subtle px-4 py-3">
           {isShortcuts ? (
             <IconButton
               ref={headerButtonRef}
