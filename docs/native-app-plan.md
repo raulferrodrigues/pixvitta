@@ -2,8 +2,8 @@
 
 ## Status
 
-Planning. Nothing is built yet. The Electron app keeps shipping while this is
-worked out. `pixvitta-rs` (Rust, Slint, libmpv) was an earlier throwaway
+The Linux thin slice is being built in `native/` (see `native/README.md`).
+The Electron app keeps shipping while this is worked out. `pixvitta-rs` (Rust, Slint, libmpv) was an earlier throwaway
 experiment; its libmpv and image decoding code is a starting point, not the
 architecture.
 
@@ -91,6 +91,12 @@ core.
   and files without extensions are not skipped.
 - **Patented decoders such as HEVC are bundled**, following normal open-source
   practice (mpv, VLC, IINA).
+- **The native code lives in this repo, under `native/`**, next to the
+  Electron app: the Rust core in `native/core` and the Linux app in
+  `native/linux`. The macOS app joins them later.
+- **The Linux app is built first.** macOS follows once the Linux thin slice
+  works, so the first version of the core API is shaped by one UI and then
+  checked against the second.
 - **Core: Rust with a plain C API**, the way libmpv and libVLC expose theirs.
   Swift and C++ both call C directly, so neither UI depends on young binding
   tools.
@@ -157,8 +163,8 @@ own OpenGL surface. There is no bridge between graphics stacks.
 
 1. Write down the supported formats and collect the sample files.
 2. Build the core's C API with folder sources and image decoding.
-3. Build a thin version on both platforms: open a folder, show an image, play
-   a video. Both UIs shape the core API from the start.
+3. Build a thin version: open a folder, show an image, play a video. Linux
+   first, then macOS, so both UIs shape the core API before it grows.
 4. Bundle and pin the decoders on both platforms.
 5. Port web sources, downloads, and thumbnails.
 6. Packaging, signing, and updates.
@@ -242,3 +248,5 @@ own OpenGL surface. There is no bridge between graphics stacks.
   UI testing deferred.
 - 2026-11-09: .deb ships first, updated from our own APT repository. AppImage
   held back until the .deb is solid. Sparkle for macOS updates.
+- 2026-11-09: The native code lives in this repo under `native/`. The Linux
+  app is built first; macOS follows once the Linux thin slice works.

@@ -1,0 +1,19 @@
+[package]
+name = "pixvitta-core"
+version = "0.0.0"
+edition = "2021"
+license = "GPL-3.0-only"
+publish = false
+
+[lib]
+name = "pixvitta_core"
+crate-type = ["staticlib"]
+
+[dependencies]
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp"] }
+moxcms = { version = "0.8", default-features = false }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+panic = "abort"
