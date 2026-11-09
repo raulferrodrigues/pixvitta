@@ -1,0 +1,237 @@
+# The sample-file corpus: what each file in samples/ must produce.
+# How the files were made, and how to add one: README.md next to this file.
+#
+# Fields:
+#   file              path under samples/
+#   width, height     size as shown, after EXIF orientation
+#   reference         image in references/ the pixels must roughly match
+#   max_error         mean difference per channel allowed, 0-255 (default 3)
+#   duration          video only: seconds, within 0.15
+#   expected_failure  why the core can't open it yet; the test fails if
+#                     it starts passing, so the line gets removed
+#   note              shown in the output, not checked
+
+# JPEG
+[[sample]]
+file = "jpeg/baseline-420.jpg"
+width = 96
+height = 64
+reference = "pattern.png"
+
+[[sample]]
+file = "jpeg/progressive.jpg"
+width = 256
+height = 192
+reference = "photo.png"
+
+[[sample]]
+file = "jpeg/orientation-3.jpg"
+width = 96
+height = 64
+reference = "pattern.png"
+
+[[sample]]
+file = "jpeg/orientation-6.jpg"
+width = 96
+height = 64
+reference = "pattern.png"
+
+[[sample]]
+file = "jpeg/cmyk.jpg"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+
+[[sample]]
+file = "jpeg/adobe-rgb.jpg"
+width = 96
+height = 64
+reference = "pattern.png"
+
+# PNG
+[[sample]]
+file = "png/rgba8.png"
+width = 96
+height = 64
+reference = "pattern-alpha.png"
+max_error = 0.5
+
+[[sample]]
+file = "png/rgb16.png"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 0.5
+
+# GIF
+[[sample]]
+file = "gif/static.gif"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 0.5
+
+[[sample]]
+file = "gif/animated.gif"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 0.5
+note = "3 frames (100, 200, 300 ms); only the first is checked, the core has no frame API yet"
+
+# WebP
+[[sample]]
+file = "webp/lossy.webp"
+width = 96
+height = 64
+reference = "pattern.png"
+
+[[sample]]
+file = "webp/lossless-alpha.webp"
+width = 96
+height = 64
+reference = "pattern-alpha.png"
+max_error = 0.5
+
+[[sample]]
+file = "webp/animated.webp"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 0.5
+note = "3 frames (100, 200, 300 ms); only the first is checked, the core has no frame API yet"
+
+# BMP
+[[sample]]
+file = "bmp/rgb24.bmp"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 0.5
+
+# AVIF
+[[sample]]
+file = "avif/yuv420.avif"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+expected_failure = "no AVIF decoder in the core"
+
+[[sample]]
+file = "avif/alpha.avif"
+width = 96
+height = 64
+reference = "pattern-alpha.png"
+max_error = 4
+expected_failure = "no AVIF decoder in the core"
+
+# SVG
+[[sample]]
+file = "svg/pattern.svg"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 1.5
+expected_failure = "no SVG renderer in the core"
+
+# ICO
+[[sample]]
+file = "ico/sizes-with-png.ico"
+width = 256
+height = 256
+reference = "square-256.png"
+max_error = 0.5
+expected_failure = "the image crate's ico feature is not enabled"
+note = "256 (PNG), 48 and 16 pixel entries; the largest should be shown"
+
+# HEIC
+[[sample]]
+file = "heic/yuv420.heic"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+expected_failure = "no HEIC decoder in the core"
+
+[[sample]]
+file = "heic/10bit.heic"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+expected_failure = "no HEIC decoder in the core"
+
+# JPEG XL
+[[sample]]
+file = "jxl/lossless-alpha.jxl"
+width = 96
+height = 64
+reference = "pattern-alpha.png"
+max_error = 0.5
+expected_failure = "no JPEG XL decoder in the core"
+
+# TIFF
+[[sample]]
+file = "tiff/lzw.tif"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 0.5
+expected_failure = "the image crate's tiff feature is not enabled"
+
+# Video: through the machine's libmpv, until the core bundles its own.
+[[sample]]
+file = "video/h264.mp4"
+width = 320
+height = 240
+duration = 2
+
+[[sample]]
+file = "video/h264.m4v"
+width = 320
+height = 240
+duration = 2
+
+[[sample]]
+file = "video/hevc-10bit.mp4"
+width = 320
+height = 240
+duration = 2
+
+[[sample]]
+file = "video/prores.mov"
+width = 320
+height = 240
+duration = 1
+
+[[sample]]
+file = "video/vp9.webm"
+width = 320
+height = 240
+duration = 2
+
+[[sample]]
+file = "video/theora.ogv"
+width = 320
+height = 240
+duration = 2
+
+[[sample]]
+file = "video/theora.ogg"
+width = 320
+height = 240
+duration = 2
+
+[[sample]]
+file = "video/hevc.mkv"
+width = 320
+height = 240
+duration = 2
+
+[[sample]]
+file = "video/mpeg4.avi"
+width = 320
+height = 240
+duration = 2
