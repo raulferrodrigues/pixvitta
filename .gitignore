@@ -15,3 +15,5 @@ build/icons-dev/
 build/icons-nightly/
 build/runtime-icon.png
 .claude/worktrees/
+native/core/target/
+native/linux/build/
