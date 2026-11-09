@@ -65,7 +65,7 @@
 .topbar-start, .topbar-end { display: flex; height: 100%; align-items: center; }
 .topbar-start { flex: 1 1 var(--filmstrip-width, 0px); justify-content: flex-start; padding-right: 12px; }
 .topbar-end { flex: 1 1 var(--download-panel-width, 0px); justify-content: flex-end; padding-left: 12px; }
-.topbar .source-counter { flex: 0 0 auto; min-width: 48px; color: var(--pix-muted); font-size: 13px; line-height: 1; text-align: right; }
+.topbar .source-counter { flex: 0 0 auto; min-width: 48px; color: var(--pix-muted); font-size: 12px; font-variant-numeric: tabular-nums; font-weight: 500; line-height: 1; text-align: right; }
 .topbar-divider { flex: 0 0 auto; width: 1px; height: 18px; margin: 0 8px; background: var(--pix-border); }
 .topbar-group { flex: 0 0 auto; -webkit-app-region: no-drag; }
 .topbar .topbar-group { gap: 2px; }

@@ -1,5 +1,6 @@
 import { LoaderCircle } from "lucide-react";
 import { T } from "gt-react";
+import { useEffect } from "react";
 import type { AppBuildInfo } from "../shared/appBuild";
 import { useAppLifecycle } from "./app/useAppLifecycle";
 import { useKeyboardShortcuts } from "./app/useKeyboardShortcuts";
@@ -17,6 +18,13 @@ export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
   const source = useViewerStore((state) => state.source);
   const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
   const viewerLayout = useViewerStore((state) => state.settings.viewerLayout);
+  const glowEffects = useViewerStore((state) => state.settings.glowEffects);
+
+  // The glow rules key off this attribute, so the setting reaches every part,
+  // including the modal dialog in the top layer, without threading props.
+  useEffect(() => {
+    document.documentElement.toggleAttribute("data-glow", glowEffects);
+  }, [glowEffects]);
 
   if (!source) {
     return (

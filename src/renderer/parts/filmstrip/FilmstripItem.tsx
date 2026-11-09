@@ -1,4 +1,4 @@
-import { Film } from "lucide-react";
+import { Film, ImageIcon } from "lucide-react";
 import { useGT } from "gt-react";
 import { type MouseEvent as ReactMouseEvent, type SyntheticEvent, useEffect, useRef, useState } from "react";
 import type { MediaItem } from "../../../shared/media";
@@ -99,7 +99,7 @@ export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps)
       onContextMenu={showMediaContextMenu}
     >
       {showFallback ? (
-        <span className="flex h-full w-full items-center justify-center p-1.5 text-[11px] font-semibold uppercase text-pix-muted">{item.kind === "video" ? gt("Video") : gt("Image")}</span>
+        <span className="flex h-full w-full flex-col items-center justify-center gap-1.5 p-1.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-pix-section">{item.kind === "video" ? <Film size={20} aria-hidden /> : <ImageIcon size={20} aria-hidden />}{item.kind === "video" ? gt("Video") : gt("Image")}</span>
       ) : (
         <>
           {showImageCapture ? (
@@ -109,7 +109,7 @@ export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps)
           ) : (
             <img className="block h-full w-full min-w-0 object-cover" src={thumbnailSrc ?? undefined} alt="" crossOrigin="anonymous" loading={isActive ? "eager" : "lazy"} fetchPriority={isActive ? "high" : "auto"} onError={handleThumbnailError} />
           )}
-          {item.kind === "video" && <span className="absolute bottom-[5px] right-[5px] inline-flex h-[22px] w-[22px] items-center justify-center rounded-full bg-pix-overlay text-pix-text" aria-hidden><Film size={14} /></span>}
+          {item.kind === "video" && <span className="absolute bottom-[6px] right-[6px] inline-flex h-[22px] w-[22px] items-center justify-center rounded-md bg-black/60 text-pix-text ring-1 ring-white/15 backdrop-blur-sm" aria-hidden><Film size={14} /></span>}
         </>
       )}
       <span className="download-thumbnail-activity">
