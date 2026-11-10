@@ -11,7 +11,7 @@ name = "pixvitta_core"
 crate-type = ["staticlib", "rlib"]
 
 [dependencies]
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp", "tiff", "ico"] }
 moxcms = { version = "0.8", default-features = false }
 
 [dev-dependencies]
