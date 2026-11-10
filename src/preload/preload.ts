@@ -72,6 +72,8 @@ const pixvittaApi = {
     ipcRenderer.send("library:select-media", mediaId),
   acknowledgeCollection: (): void =>
     ipcRenderer.send("library:renderer-stable"),
+  setTextEntryFocused: (focused: boolean): void =>
+    ipcRenderer.send("window:text-entry-focused", focused),
 
   // App updates run in main. The renderer reads the state and asks for the
   // next step; main decides whether that step is allowed right now.

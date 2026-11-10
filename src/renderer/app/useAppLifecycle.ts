@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { flushSync } from "react-dom";
 import type { PixvittaApi, PixvittaCommand } from "../../shared/pixvittaApi";
 import { useViewerStore, useViewerStoreApi } from "../state/ViewerStoreProvider";
+import { watchTextEntryFocus } from "./textEntryFocus";
 
 export const VIDEO_SEEK_SECONDS = 5;
 const SETTINGS_BLOCKED_COMMANDS: ReadonlySet<PixvittaCommand> = new Set([
@@ -50,7 +51,7 @@ export function useAppLifecycle(api: PixvittaApi) {
   }, [api, store]);
 
   useEffect(() => {
-    const unsubscribeCommand = api.onCommand((command) => {
+    const runCommand = (command: PixvittaCommand) => {
       // Keys the main process forwards should not act behind the open modal.
       if (store.getState().settingsView && SETTINGS_BLOCKED_COMMANDS.has(command)) return;
       if (command === "open-folder") void openFolder();
@@ -66,7 +67,9 @@ export function useAppLifecycle(api: PixvittaApi) {
         openSettings("updates");
         void checkForUpdates();
       }
-    });
+    };
+    const unsubscribeCommand = api.onCommand(runCommand);
+    const stopWatchingTextEntry = watchTextEntryFocus(api, runCommand);
     const unsubscribeCollection = api.onCollectionChanged((collection) => {
       flushSync(() => openCollection(collection));
       api.acknowledgeCollection();
@@ -82,6 +85,7 @@ export function useAppLifecycle(api: PixvittaApi) {
     void api.markViewerReady();
     return () => {
       unsubscribeCommand();
+      stopWatchingTextEntry();
       unsubscribeCollection();
       unsubscribeLoading();
       unsubscribeSourceError();

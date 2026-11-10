@@ -51,6 +51,9 @@ export type PixvittaApi = {
   markViewerReady(): Promise<void>;
   acknowledgeCollection(): void;
   setSelectedMedia(mediaId: string | null): void;
+  // Tells main whether a text field has focus, so it leaves viewer keys
+  // (arrows, J, K, L) to the page while one does.
+  setTextEntryFocused(focused: boolean): void;
   getUpdateState(): Promise<UpdateState>;
   checkForUpdates(): Promise<UpdateState>;
   downloadUpdate(): Promise<UpdateState>;

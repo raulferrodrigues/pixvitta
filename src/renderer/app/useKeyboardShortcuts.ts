@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { IMAGE_ZOOM_STEP } from "../state/imageView";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { selectCurrentItem } from "../state/viewerSelectors";
-import { isShortcutsSheetKey, matchesRendererHotkey, RENDERER_HOTKEYS } from "./hotkeys";
+import { isShortcutsSheetKey, isTextEntryTarget, matchesRendererHotkey, RENDERER_HOTKEYS } from "./hotkeys";
 
 export function useKeyboardShortcuts() {
   const currentItemKind = useViewerStore((state) => selectCurrentItem(state)?.kind);
@@ -26,6 +26,7 @@ export function useKeyboardShortcuts() {
       else if (currentItemKind === "image") zoomCurrentImage(multiplier);
     };
     const onKeyDown = (event: KeyboardEvent) => {
+      if (isTextEntryTarget(event.target) && !event.metaKey && !event.ctrlKey) return;
       if (isShortcutsSheetKey(event)) {
         event.preventDefault();
         if (settingsView === "shortcuts") closeSettings();
