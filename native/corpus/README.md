@@ -33,7 +33,7 @@ The samples, from those references:
 | `jpeg/orientation-N.jpg` | the pattern stored rotated, then `python3 exif_orientation.py IN OUT N` |
 | `gif/animated.gif` | `convert -delay 10 a.png -delay 20 b.png -delay 30 c.png -loop 0` (b and c are the pattern mirrored and flipped) |
 | `gif/short-delays.gif` | `convert -size 8x8 -delay 0 xc:'rgb(220,40,40)' -delay 1 xc:'rgb(40,180,60)' -delay 2 xc:'rgb(40,70,210)' -loop 0` |
-| `webp/animated.webp` | ffmpeg's concat demuxer with per-frame durations, `-fps_mode vfr -c:v libwebp_anim -lossless 1` |
+| `webp/animated.webp` | Pillow 10.2: the three frames as RGB, `save(save_all=True, append_images=..., duration=[100, 200, 300], loop=0, lossless=True)` (ffmpeg's libwebp_anim does not keep the durations it is given) |
 | `avif/yuv420.avif` | `ffmpeg -c:v libaom-av1 -crf 12 -still-picture 1` |
 | `avif/alpha.avif`, `heic/*.heic` | `heif-enc` from libheif 1.23 with aom and x265 (`-q 90`; `-b 10` for 10-bit) |
 | `jxl/lossless-alpha.jxl` | `cjxl -d 0` |
