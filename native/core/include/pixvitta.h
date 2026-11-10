@@ -72,6 +72,29 @@ int pv_image_decode(const char *path, pv_image **out);
 /* Frees the pixels. Call it from any thread once the UI is done with them. */
 void pv_image_release(pv_image *image);
 
+/* Animations ------------------------------------------------------------- */
+
+/* Plays an image frame by frame. Animated GIF and WebP have their frames;
+ * any other image is a still with a single frame. Frames are decoded one at
+ * a time as they are asked for, so an animation's memory doesn't grow with
+ * its length. */
+typedef struct pv_animation pv_animation;
+
+/* Opens any image the core can decode. Safe to call from any thread. */
+int pv_animation_open(const char *path, pv_animation **out);
+/* Decodes the next frame, as a whole composited picture in the same pixel
+ * format as pv_image_decode. After the last frame it starts again from the
+ * first, forever; the file's own loop count is ignored. *duration_ms is how
+ * long to show the frame; it is 0 when the file has a single frame (a still
+ * image), which means there is nothing more to ask for. A duration of 10 ms
+ * or less in the file is reported as 100 ms, as browsers do. Release each
+ * frame with pv_image_release; frames may outlive the animation. One thread
+ * at a time per animation. */
+int pv_animation_next_frame(pv_animation *animation, pv_image **out, uint32_t *duration_ms);
+/* Call it from any thread, but not while a pv_animation_next_frame call on
+ * the same animation is running. */
+void pv_animation_release(pv_animation *animation);
+
 /* Video ------------------------------------------------------------------ */
 
 typedef struct pv_player pv_player;

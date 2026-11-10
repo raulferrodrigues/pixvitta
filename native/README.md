@@ -2,7 +2,8 @@
 
 The native rewrite described in [`docs/native-app-plan.md`](../docs/native-app-plan.md).
 For now it is a thin slice: open a folder, show its images fitted to the
-window, step through them, and play videos through libmpv.
+window (animated GIF and WebP play), step through them, and play videos
+through libmpv.
 
 - `core/`: the Rust core, built as a static library with a plain C API
   ([`core/include/pixvitta.h`](core/include/pixvitta.h)). It lists folders,
@@ -57,7 +58,9 @@ cargo test --release --manifest-path native/core/Cargo.toml --test corpus
 ```
 
 For each sample it checks that the file opens, that its size is right, and
-for images that the pixels roughly match a reference. Videos go through the
+for images that the pixels roughly match a reference. Images are also
+played through the animation API: each frame's duration (and pixels, where
+there is a reference per frame), and that the first frame follows the last. Videos go through the
 machine's libmpv (size and duration only). Formats the core can't decode yet
 are listed with `expected_failure`. The run fails if a sample that should
 pass doesn't, or if an expected failure starts passing (then remove the
