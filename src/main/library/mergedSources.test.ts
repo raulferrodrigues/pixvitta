@@ -210,13 +210,10 @@ test("adding with nothing open opens the source", async () => {
   assert.equal(harness.latest().items[0].sourceLabel, undefined);
 });
 
-test("refresh reloads every member, keeps the selection by key, and fails as a whole", async () => {
+test("refresh reloads every member and keeps the selection by key; a member that fails keeps what it had, marked with its error", async () => {
   const sources = { a: ["a1", "a2"], b: ["b1"] };
   const harness = createLibrary(sources);
-  await harness.library.openLocation("a");
-  harness.library.acknowledgeRenderer();
-  await harness.library.addLocation("b");
-  harness.library.acknowledgeRenderer();
+  await openAll(harness, ["a", "b"]);
   harness.library.selectMedia(harness.latest().items[1].id);
 
   sources.b = ["b0", "b1"];
@@ -227,10 +224,38 @@ test("refresh reloads every member, keeps the selection by key, and fails as a w
   assert.equal(harness.selectedName(), "b1");
 
   harness.broken.add("b");
+  sources.a = ["a1", "a2", "a3"];
+  const deactivations = harness.deactivated().length;
+  assert.equal(await harness.library.refresh(), true);
+  harness.library.acknowledgeRenderer();
+  assert.deepEqual(harness.names(), ["a1", "b0", "a2", "b1", "a3"]);
+  assert.equal(harness.selectedName(), "b1");
+  assert.deepEqual(harness.latest().source.members.map((member) => member.error), [undefined, "unavailable"]);
+  assert.deepEqual(harness.errors, [], "The collection refreshed, so there is no source error.");
+  assert.deepEqual(harness.deactivated().slice(deactivations), ["a:deactivate"], "The failed member keeps its viewing.");
+
+  harness.broken.clear();
+  assert.equal(await harness.library.refresh(), true);
+  harness.library.acknowledgeRenderer();
+  assert.deepEqual(harness.latest().source.members.map((member) => member.error), [undefined, undefined], "The next refresh retries it.");
+});
+
+test("a refresh in which no member loads fails as a whole and leaves the collection alone, as it does for one source", async () => {
+  const harness = createLibrary({ a: ["a1"], b: ["b1"], c: ["c1"] });
+  await openAll(harness, ["a", "b"]);
+  harness.broken.add("a");
+  harness.broken.add("b");
   assert.equal(await harness.library.refresh(), false);
   assert.deepEqual(harness.errors, ["unavailable"]);
-  assert.equal(harness.published.length, 3);
+  assert.equal(harness.published.length, 2);
   assert.ok(harness.library.resolveMediaId(harness.latest().items[0].id));
+
+  await openAll(harness, ["c"]);
+  harness.broken.add("c");
+  assert.equal(await harness.library.refresh(), false);
+  assert.deepEqual(harness.errors, ["unavailable", "unavailable"]);
+  assert.equal(harness.published.length, 3);
+  assert.equal(harness.library.getPhase(), "idle");
 });
 
 async function openAll(harness: ReturnType<typeof createLibrary>, locations: string[]) {
@@ -273,7 +298,7 @@ test("removing keeps a selection the source did not own, else falls back to the 
   harness.library.acknowledgeRenderer();
   assert.equal(harness.selectedName(), "a2");
 
-  // a1 a2 b1 b2 b3 is now a1 b1 a2 b2 b3; select b3.
+  // Without c the order is a1 b1 a2 b2 b3; select b3.
   harness.library.selectMedia(harness.latest().items[4].id);
   assert.equal(await harness.library.removeSource(b.id), true);
   harness.library.acknowledgeRenderer();

@@ -1,7 +1,8 @@
-import { Plus, X } from "lucide-react";
+import { AlertCircle, Plus, X } from "lucide-react";
 import { useGT } from "gt-react";
 import type { MediaSourceMember } from "../../../shared/media";
 import type { RecentSource } from "../../../shared/recentSources";
+import { errorMessage } from "../../folder-picker/SourceOpenError";
 import { useViewerStore } from "../../state/ViewerStoreProvider";
 import { AddSourceField } from "./AddSourceField";
 import { SourceRowContent } from "./SourceRow";
@@ -67,7 +68,12 @@ function MemberRow({ member, number, canRemove }: { member: MediaSourceMember; n
   const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
   const removeSource = useViewerStore((state) => state.removeSource);
   return (
-    <li className="source-row source-row-member" title={member.title} data-testid="source-member">
+    <li
+      className="source-row source-row-member"
+      title={member.title}
+      data-testid="source-member"
+      data-failed={member.error ? true : undefined}
+    >
       <SourceRowContent
         kind={member.kind}
         title={member.title}
@@ -92,9 +98,18 @@ function MemberRow({ member, number, canRemove }: { member: MediaSourceMember; n
 }
 
 // How much a source brings, and for a web source the site it comes from, as
-// main names it.
+// main names it. A source whose last load failed shows why instead; it keeps
+// what it had, and the next refresh tries it again.
 function MemberDetail({ member }: { member: MediaSourceMember }) {
   const gt = useGT();
+  if (member.error) {
+    return (
+      <span className="source-row-error" role="status" data-testid="source-member-error">
+        <AlertCircle size={11} aria-hidden />
+        <span>{errorMessage(member.error, gt)}</span>
+      </span>
+    );
+  }
   const count = gt("{count, plural, one {# item} other {# items}}", { count: member.itemCount });
   return member.siteName ? <>{count} · {member.siteName}</> : <>{count}</>;
 }

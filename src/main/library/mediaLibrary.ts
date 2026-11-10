@@ -16,11 +16,20 @@ import { ProviderError } from "./providers/provider";
 export type MediaLibraryPhase = "idle" | "loading" | "awaiting-renderer";
 
 // One source behind the active collection, as its provider loaded it. The ID
-// is opaque to the renderer and survives a refresh of the member.
+// is opaque to the renderer and survives a refresh of the member. A member
+// whose last load failed carries the error and keeps what it had before.
 type LibraryMember = {
   id: string;
   provider: MediaProvider;
   collection: ProviderCollection;
+  error?: OpenSourceError;
+};
+
+// Loading one member of a collection: what to load, if anything, and the
+// member to keep if the load fails or there is nothing to load.
+type MemberLoad = {
+  kept: LibraryMember;
+  load: (() => Promise<ProviderCollection>) | null;
 };
 
 type ActiveLibraryState = {
@@ -202,9 +211,20 @@ export class MediaLibrary {
         );
       }
 
-      const members = await this.reloadMembers(
-        active.members,
-        await this.dependencies.getSettings()
+      const settings = await this.dependencies.getSettings();
+      // Members that cannot refresh are reused as they are.
+      const members = await this.loadMembers(
+        active.members.map((member) => ({
+          kept: member,
+          load: member.collection.capabilities.canRefresh
+            ? () =>
+                member.provider.load({
+                  location: member.collection.canonicalLocation,
+                  refresh: true,
+                  settings
+                })
+            : null
+        }))
       );
       return {
         collectionId: active.catalog.collection.source.id,
@@ -334,39 +354,36 @@ export class MediaLibrary {
     };
   }
 
-  // Members that can refresh reload in parallel; the rest are reused. Any
-  // failure fails the refresh, and the members it already reloaded are dropped.
-  private async reloadMembers(
-    members: readonly LibraryMember[],
-    settings: AppSettings
-  ): Promise<LibraryMember[]> {
+  /**
+   * Loads the members of a collection in parallel, each on its own. A member
+   * that fails is kept as it was, marked with its error, and the next load
+   * retries it. The result commits only if some member that did not fail has
+   * items; otherwise the whole operation fails with the first error, and what
+   * it loaded is let go. A single source therefore fails as it always has.
+   */
+  private async loadMembers(loads: readonly MemberLoad[]): Promise<LibraryMember[]> {
     const results = await Promise.allSettled(
-      members.map(async (member) =>
-        member.collection.capabilities.canRefresh
-          ? {
-              id: member.id,
-              provider: member.provider,
-              collection: await member.provider.load({
-                location: member.collection.canonicalLocation,
-                refresh: true,
-                settings
-              })
-            }
-          : member
+      loads.map(async ({ kept, load }): Promise<LibraryMember> =>
+        load
+          ? { id: kept.id, provider: kept.provider, collection: await load() }
+          : kept
       )
     );
-    const failure = results.find((result) => result.status === "rejected");
-    if (!failure) {
-      return results.map(
-        (result) => (result as PromiseFulfilledResult<LibraryMember>).value
-      );
+    const members = results.map((result, index): LibraryMember =>
+      result.status === "fulfilled"
+        ? result.value
+        : { ...loads[index].kept, error: this.sourceError(result.reason) }
+    );
+    if (members.some((member) => !member.error && member.collection.items.length > 0)) {
+      return members;
     }
     results.forEach((result, index) => {
-      if (result.status === "fulfilled" && result.value !== members[index]) {
+      if (result.status === "fulfilled" && result.value !== loads[index].kept) {
         result.value.collection.viewing?.deactivate();
       }
     });
-    throw failure.reason;
+    const failure = results.find((result) => result.status === "rejected");
+    throw failure ? failure.reason : new ProviderError("no-supported-media", "No source has any media.");
   }
 
   private async loadMember(location: string): Promise<LibraryMember> {
@@ -410,6 +427,7 @@ export class MediaLibrary {
         kind: member.provider.sourceKind,
         itemCount: member.collection.items.length,
         ...(member.provider.siteName ? { siteName: member.provider.siteName } : {}),
+        ...(member.error ? { error: member.error } : {}),
         // The location recents keep a remembered source under, so the
         // renderer can tell which recent sources are already members.
         ...(member.collection.remember

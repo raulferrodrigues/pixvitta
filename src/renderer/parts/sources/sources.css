@@ -284,3 +284,8 @@
   transform: translateX(-50%);
 }
 .source-notice-toast .source-notice-icon { margin-top: 0; }
+
+/* A source whose last load failed says why, in full, under its title. */
+.source-row-member[data-failed] .source-row-detail { white-space: normal; }
+.source-row-error { display: flex; align-items: flex-start; gap: 4px; color: rgb(252 165 165); }
+.source-row-error svg { flex: none; margin-top: 1.5px; }

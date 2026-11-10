@@ -3,7 +3,7 @@ import { useGT } from "gt-react";
 import type { OpenSourceError } from "../../shared/media";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 
-function errorMessage(
+export function errorMessage(
   error: OpenSourceError,
   gt: ReturnType<typeof useGT>
 ): string {

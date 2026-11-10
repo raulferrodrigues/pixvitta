@@ -25,6 +25,9 @@ export type MediaSourceMember = {
   // The location of the recent source this member is remembered as, matching
   // RecentSource.location. Absent for a source that is not remembered.
   recentLocation?: string;
+  // Why the source's last load failed. It still shows what it had before, and
+  // the next refresh tries it again. Absent when it loaded.
+  error?: OpenSourceError;
 };
 
 export type MediaSource = {

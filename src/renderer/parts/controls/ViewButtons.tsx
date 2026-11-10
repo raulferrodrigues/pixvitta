@@ -80,23 +80,29 @@ export function DownloadPanelToggle() {
 }
 
 // Shows the sources panel. With several sources the collection merges, so the
-// button carries their count.
+// button carries their count, in red while a source's last load failed, so
+// the failure shows with the panel closed too.
 export function SourcesPanelToggle() {
   const gt = useGT();
   const sourceCount = useViewerStore((state) => state.source?.members.length ?? 0);
+  const failedCount = useViewerStore((state) => state.source?.members.filter((member) => member.error).length ?? 0);
   const isSourcesPanelOpen = useViewerStore((state) => state.isSourcesPanelOpen);
   const toggleSourcesPanel = useViewerStore((state) => state.toggleSourcesPanel);
-  const label = isSourcesPanelOpen ? gt("Hide sources") : gt("Show sources");
+  const action = isSourcesPanelOpen ? gt("Hide sources") : gt("Show sources");
+  const counted = sourceCount > 1 ? gt("{label} ({count})", { label: action, count: sourceCount }) : action;
+  const label = failedCount > 0 ? gt("{label}, {failed} failed", { label: counted, failed: failedCount }) : counted;
   return (
     <IconButton
-      label={sourceCount > 1 ? gt("{label} ({count})", { label, count: sourceCount }) : label}
+      label={label}
       aria-pressed={isSourcesPanelOpen}
       className="sources-panel-toggle"
       data-testid="sources-panel-toggle"
       onClick={toggleSourcesPanel}
     >
       <Layers size={17} aria-hidden />
-      {sourceCount > 1 ? <span className="sources-panel-toggle-count" aria-hidden>{sourceCount}</span> : null}
+      {sourceCount > 1 ? (
+        <span className="sources-panel-toggle-count" data-failed={failedCount > 0 || undefined} aria-hidden>{sourceCount}</span>
+      ) : null}
     </IconButton>
   );
 }

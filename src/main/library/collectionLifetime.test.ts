@@ -108,11 +108,12 @@ test("adding a source keeps the loaded members active; only members a commit dro
   assert.equal(await library.addLocation("b"), "added");
   library.acknowledgeRenderer();
   failing.add("b");
-  assert.equal(await library.refresh(), false);
-  assert.deepEqual(deactivated(), ["a#1", "a#3"], "A failed refresh drops what it reloaded and keeps the active members.");
+  assert.equal(await library.refresh(), true);
+  assert.deepEqual(deactivated(), ["a#1", "a#2"], "A member that fails to refresh stays as it was, and keeps its viewing.");
+  library.acknowledgeRenderer();
 
   failing.clear();
   assert.equal(await library.openLocation("c"), true);
-  assert.deepEqual(deactivated(), ["a#1", "a#3", "a#2", "fixed#1", "b#1"], "Opening a source replaces every member.");
+  assert.deepEqual(deactivated(), ["a#1", "a#2", "a#3", "fixed#1", "b#1"], "Opening a source replaces every member.");
   library.acknowledgeRenderer();
 });

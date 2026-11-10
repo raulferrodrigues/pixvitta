@@ -110,7 +110,7 @@ const SOURCE_ERRORS: OpenSourceError[] = [
   "no-supported-media"
 ];
 
-type StageMergeMember = { title: string; location: string; kind: "folder" | "web"; count: number; siteName?: string };
+type StageMergeMember = { title: string; location: string; kind: "folder" | "web"; count: number; siteName?: string; error?: OpenSourceError };
 
 const MERGE_MEMBERS: StageMergeMember[] = [
   { title: "Holiday photos", location: "/photos/holiday", kind: "folder", count: 214 },
@@ -146,13 +146,14 @@ function mergeStageMembers(members: StageMergeMember[]): MediaCollection {
     kind: member.kind,
     itemCount: member.count,
     ...(member.siteName ? { siteName: member.siteName } : {}),
-    recentLocation: member.location
+    recentLocation: member.location,
+    ...(member.error ? { error: member.error } : {})
   }));
   return collection;
 }
 
-function mergedSources(stage: StageControls, memberCount: number) {
-  const members = MERGE_MEMBERS.slice(0, memberCount);
+function mergedSources(stage: StageControls, memberCount: number, failed: Partial<Record<string, OpenSourceError>> = {}) {
+  const members = MERGE_MEMBERS.slice(0, memberCount).map((member) => ({ ...member, error: failed[member.title] }));
   const recent = (member: Omit<StageMergeMember, "count">, openedMs: number): RecentSource => ({
     title: member.title,
     location: member.location,
@@ -162,9 +163,9 @@ function mergedSources(stage: StageControls, memberCount: number) {
   });
   stage.defineSource(CITY_WALKS.location, mergeStageMembers([...members, CITY_WALKS]));
   // Adding a member again is main's "already-added"; the others merge in.
-  for (const member of MERGE_MEMBERS) {
-    stage.defineSource(member.location, members.includes(member) ? "already-added" : mergeStageMembers([...members, member]));
-  }
+  MERGE_MEMBERS.forEach((member, index) => {
+    stage.defineSource(member.location, index < memberCount ? "already-added" : mergeStageMembers([...members, member]));
+  });
   stage.defineSource("https://boards.4chan.org/g/thread/404", "not-found");
   stage.setRecentSources([
     recent(MERGE_MEMBERS[0], 5),
@@ -205,6 +206,11 @@ const scenarios: Record<string, (stage: StageControls) => void> = {
    */
   "merged-sources"(stage) {
     mergedSources(stage, 3);
+  },
+
+  /** The same mix after a refresh in which the thread failed and kept its items. */
+  "merged-sources-failed"(stage) {
+    mergedSources(stage, 3, { "Sample thread": "unavailable" });
   },
 
   /** The same sources and recents with only one source open. */
