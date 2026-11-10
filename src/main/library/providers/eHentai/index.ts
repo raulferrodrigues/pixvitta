@@ -93,11 +93,13 @@ async function cancelResponse(response: Response): Promise<void> {
 export class EHentaiProvider implements MediaProvider {
   readonly id: string;
   readonly sourceKind = "web";
+  readonly siteName: string;
   private readonly resources = new ResourceAcquisitions();
   private readonly imageLimit: ImageLimit = { reached: false, controller: new AbortController() };
 
   constructor(private readonly site: GallerySite = eHentaiSite) {
     this.id = site.id;
+    this.siteName = site.name;
   }
 
   matches(location: string): boolean {

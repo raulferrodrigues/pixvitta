@@ -298,6 +298,7 @@ async function fileResponse(
 export class FourChanProvider implements MediaProvider {
   readonly id = "four-chan";
   readonly sourceKind = "web";
+  readonly siteName = "4chan";
   private readonly threads = new Map<string, CachedThread>();
   private readonly resources = new ResourceAcquisitions();
 

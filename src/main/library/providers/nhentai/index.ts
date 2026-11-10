@@ -105,6 +105,7 @@ async function fileResponse(
 export class NHentaiProvider implements MediaProvider {
   readonly id = "nhentai";
   readonly sourceKind = "web";
+  readonly siteName = "nhentai";
   private readonly galleries = new Map<string, NHentaiGallery>();
   private readonly resources = new ResourceAcquisitions();
   private cdn: { servers: NHentaiCdnServers; fetchedAtMs: number } | null = null;

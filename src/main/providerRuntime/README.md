@@ -37,7 +37,14 @@ media requests wait for explicit selection, then recheck it before acquiring
 work. A stale request cannot navigate the collection. Its abort signal or
 collection deactivation ends the wait.
 
-The library calls `viewing.deactivate` when a replacement collection commits.
+The library calls `viewing.deactivate` when a replacement collection commits
+without the loaded collection that owns it. A collection with several sources
+keeps each source's handle: adding a source carries the loaded ones over, a
+refresh deactivates only the sources it reloaded, and removing a source
+deactivates only that one. Selecting an item in one source selects it in that
+source only; the others keep their last selection and its prefetch window, so
+stepping through interleaved sources does not discard their prefetch. Only a
+`null` selection or deactivation releases them.
 This releases selected-media and prefetch ownership. Downloads have separate
 leases and can continue using retained resources. A failed replacement leaves
 the existing collection active.

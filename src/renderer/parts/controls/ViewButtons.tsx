@@ -1,7 +1,8 @@
-import { Eye, EyeOff, GalleryVertical, Maximize, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { Eye, EyeOff, GalleryVertical, Layers, Maximize, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useGT } from "gt-react";
 import { useViewerStore } from "../../state/ViewerStoreProvider";
 import { IconButton } from "../../ui/IconButton";
+import "./controls.css";
 
 export function FullscreenButton() {
   const gt = useGT();
@@ -74,6 +75,28 @@ export function DownloadPanelToggle() {
       ) : (
         <PanelRightOpen size={17} aria-hidden />
       )}
+    </IconButton>
+  );
+}
+
+// Shows the sources panel. With several sources the collection merges, so the
+// button carries their count.
+export function SourcesPanelToggle() {
+  const gt = useGT();
+  const sourceCount = useViewerStore((state) => state.source?.members.length ?? 0);
+  const isSourcesPanelOpen = useViewerStore((state) => state.isSourcesPanelOpen);
+  const toggleSourcesPanel = useViewerStore((state) => state.toggleSourcesPanel);
+  const label = isSourcesPanelOpen ? gt("Hide sources") : gt("Show sources");
+  return (
+    <IconButton
+      label={sourceCount > 1 ? gt("{label} ({count})", { label, count: sourceCount }) : label}
+      aria-pressed={isSourcesPanelOpen}
+      className="sources-panel-toggle"
+      data-testid="sources-panel-toggle"
+      onClick={toggleSourcesPanel}
+    >
+      <Layers size={17} aria-hidden />
+      {sourceCount > 1 ? <span className="sources-panel-toggle-count" aria-hidden>{sourceCount}</span> : null}
     </IconButton>
   );
 }

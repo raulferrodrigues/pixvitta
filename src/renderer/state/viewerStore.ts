@@ -1,5 +1,6 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type {
+  AddSourceResult,
   DownloadActivitySnapshot,
   MediaCollection,
   MediaItem,
@@ -45,9 +46,14 @@ export type ViewerState = {
   filmstripWidth: number;
   isFilmstripVisible: boolean;
   sourceOpenError: OpenSourceError | null;
+  // Not an error: main's word that a source being added is already a member.
+  // Shown where errors are, until the next source request, collection, or
+  // error.
+  sourceNotice: SourceNotice | null;
   pendingAuthenticationLocation: string | null;
   downloadActivity: DownloadActivitySnapshot;
   isDownloadPanelOpen: boolean;
+  isSourcesPanelOpen: boolean;
   // The settings modal shows either the settings list or the keyboard
   // shortcuts; null means it is closed.
   settingsView: SettingsView | null;
@@ -59,12 +65,16 @@ export type ViewerActions = {
   initialize(): Promise<void>;
   openFolder(): Promise<void>;
   openLocation(location: string): Promise<void>;
+  addFolder(): Promise<AddSourceResult>;
+  addLocation(location: string): Promise<AddSourceResult>;
+  removeSource(memberId: string): Promise<void>;
   openRecentSource(location: string): Promise<void>;
   signInExHentai(): Promise<void>;
   removeRecentSource(location: string): Promise<void>;
   openCollection(collection: MediaCollection): void;
   setSourceLoading(isLoading: boolean): void;
   showSourceError(error: OpenSourceError): void;
+  dismissSourceNotice(): void;
   refreshSource(): Promise<void>;
   downloadCurrentMedia(): Promise<void>;
   downloadCollection(): Promise<void>;
@@ -94,6 +104,7 @@ export type ViewerActions = {
   resizeFilmstrip(width: number): void;
   toggleFilmstrip(): void;
   toggleDownloadPanel(): void;
+  toggleSourcesPanel(): void;
   openSettings(view?: SettingsView): void;
   closeSettings(): void;
   loadUpdateState(): Promise<void>;
@@ -104,6 +115,8 @@ export type ViewerActions = {
   toggleFullscreen(): Promise<void>;
   exitFullscreen(): Promise<void>;
 };
+
+export type SourceNotice = "already-added";
 
 // "updates" is the settings list, scrolled to the update row.
 export type SettingsView = "settings" | "updates" | "shortcuts";
@@ -137,6 +150,7 @@ function applyCollection(state: ViewerState, collection: MediaCollection): Parti
     ...FRESH_MEDIA_VIEW,
     isVideoPlaying: keepsCurrentElement && state.isVideoPlaying,
     sourceOpenError: null,
+    sourceNotice: null,
     loadState: collection.items.length > 0 ? "ready" : "empty"
   };
 }
@@ -164,6 +178,8 @@ export function createViewerStore(
   let recentSourcesRevision = 0;
   let updateStateRevision = 0;
   let sourceRequestRevision = 0;
+  // Signing in retries the request that needed it the same way: open or add.
+  let pendingAuthenticationMode: "open" | "add" = "open";
   let videoAudioSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   return createStore<ViewerStore>((set, get) => {
@@ -187,18 +203,43 @@ export function createViewerStore(
       set((state) => applyCollection(state, collection));
     };
 
+    const failSourceRequest = (error: unknown) => {
+      console.error(error);
+      set({
+        isSourceLoading: false,
+        loadState: get().source ? get().loadState : "idle",
+        sourceOpenError: "unavailable"
+      });
+    };
+
     const openSourceRequest = async (request: OpenSourceRequest) => {
       sourceRequestRevision += 1;
       try {
-        set({ pendingAuthenticationLocation: exHentaiLocation(request) });
+        set({ pendingAuthenticationLocation: exHentaiLocation(request), sourceNotice: null });
+        pendingAuthenticationMode = "open";
         api.openSource(request);
       } catch (error) {
-        console.error(error);
-        set({
-          isSourceLoading: false,
-          loadState: get().source ? get().loadState : "idle",
-          sourceOpenError: "unavailable"
-        });
+        failSourceRequest(error);
+      }
+    };
+
+    // Main answers an add once it is done with it, so the caller always learns
+    // how it ended. Whether a source is already a member is main's call. The
+    // answer may arrive before or after main's loading and collection
+    // messages, which travel separately, so the notice is not tied to them.
+    const addSourceRequest = async (request: OpenSourceRequest): Promise<AddSourceResult> => {
+      const revision = ++sourceRequestRevision;
+      try {
+        set({ pendingAuthenticationLocation: exHentaiLocation(request), sourceNotice: null });
+        pendingAuthenticationMode = "add";
+        const result = await api.addSource(request);
+        if (result === "already-added" && revision === sourceRequestRevision) {
+          set({ sourceNotice: "already-added" });
+        }
+        return result;
+      } catch (error) {
+        failSourceRequest(error);
+        return "not-added";
       }
     };
 
@@ -221,6 +262,7 @@ export function createViewerStore(
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
       isFilmstripVisible: true,
       sourceOpenError: null,
+      sourceNotice: null,
       pendingAuthenticationLocation: null,
       downloadActivity: {
         revision: 0,
@@ -229,6 +271,7 @@ export function createViewerStore(
         collectionActive: false
       },
       isDownloadPanelOpen: false,
+      isSourcesPanelOpen: false,
       settingsView: null,
       updateState: null,
 
@@ -249,6 +292,26 @@ export function createViewerStore(
         await openSourceRequest({ kind: "location", location });
       },
 
+      async addFolder() {
+        return addSourceRequest({ kind: "pick-directory" });
+      },
+
+      async addLocation(location: string) {
+        return addSourceRequest({ kind: "location", location });
+      },
+
+      async removeSource(memberId: string) {
+        if ((get().source?.members.length ?? 0) < 2) return;
+        sourceRequestRevision += 1;
+        get().dismissSourceNotice();
+        try {
+          api.removeSource(memberId);
+        } catch (error) {
+          console.error(error);
+          set({ isSourceLoading: false, sourceOpenError: "unavailable" });
+        }
+      },
+
       async openRecentSource(location: string) {
         await openSourceRequest({ kind: "location", location });
       },
@@ -259,7 +322,9 @@ export function createViewerStore(
         try {
           const signedIn = await api.signInExHentai();
           if (signedIn && location && revision === sourceRequestRevision) {
-            await openSourceRequest({ kind: "location", location });
+            const request: OpenSourceRequest = { kind: "location", location };
+            if (pendingAuthenticationMode === "add") await addSourceRequest(request);
+            else await openSourceRequest(request);
           }
         } catch (error) {
           console.error(error);
@@ -298,8 +363,13 @@ export function createViewerStore(
       showSourceError(sourceOpenError: OpenSourceError) {
         set((state) => ({
           sourceOpenError,
+          sourceNotice: null,
           loadState: state.source ? state.loadState : "idle"
         }));
+      },
+
+      dismissSourceNotice() {
+        if (get().sourceNotice) set({ sourceNotice: null });
       },
 
       async refreshSource() {
@@ -307,6 +377,7 @@ export function createViewerStore(
         if (!source?.capabilities.canRefresh) return;
 
         sourceRequestRevision += 1;
+        get().dismissSourceNotice();
         try {
           api.refreshSource();
         } catch (error) {
@@ -578,6 +649,10 @@ export function createViewerStore(
             state.downloadActivity.rows.length > 0 &&
             !state.isDownloadPanelOpen
         }));
+      },
+
+      toggleSourcesPanel() {
+        set((state) => ({ isSourcesPanelOpen: !state.isSourcesPanelOpen }));
       },
 
       openSettings(view = "settings") {

@@ -46,7 +46,8 @@ const CMD = modifier("cmd", "CommandOrControl", (event) => (isApplePlatform() ? 
 export const RENDERER_HOTKEYS = {
   downloadCurrentMedia: hotkey({ modifiers: [], key: "0", code: "Numpad0" }),
   imageZoomIn: hotkey({ modifiers: [CMD], key: "=", aliases: ["+"] }),
-  imageZoomOut: hotkey({ modifiers: [CMD], key: "-", aliases: ["_"] })
+  imageZoomOut: hotkey({ modifiers: [CMD], key: "-", aliases: ["_"] }),
+  toggleSourcesPanel: hotkey({ modifiers: [CMD], key: "b", aliases: ["B"] })
 } as const;
 
 function expectsModifier(hotkey: RendererHotkey, modifierId: ModifierId): boolean {

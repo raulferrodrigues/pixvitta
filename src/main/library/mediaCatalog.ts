@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
-import type { MediaCollection, MediaItem } from "../../shared/media";
+import type {
+  MediaCollection,
+  MediaItem,
+  MediaSourceMember
+} from "../../shared/media";
 import {
   MediaRegistry,
   type RegisteredMediaItem
@@ -26,7 +30,11 @@ export class MediaCatalog {
   private readonly viewing: ProviderCollection["viewing"];
   private currentKey: string | null = null;
 
-  constructor(collectionId: string, providerCollection: ProviderCollection) {
+  constructor(
+    collectionId: string,
+    providerCollection: ProviderCollection,
+    members: MediaSourceMember[]
+  ) {
     this.viewing = providerCollection.viewing;
     const registeredItems: RegisteredMediaItem[] = [];
     const items: MediaItem[] = providerCollection.items.map((item) => {
@@ -55,6 +63,7 @@ export class MediaCatalog {
         addedMs: item.addedMs,
         modifiedMs: item.modifiedMs,
         createdMs: item.createdMs,
+        ...(item.sourceLabel ? { sourceLabel: item.sourceLabel } : {}),
         url: createMediaUrl("media", id),
         thumbnailUrl:
           item.thumbnail.kind === "direct"
@@ -84,7 +93,8 @@ export class MediaCatalog {
           canDownloadCollection:
             providerCollection.capabilities.canDownloadCollection,
           canOpenOrigin: !!providerCollection.origin
-        }
+        },
+        members
       },
       items,
       selectedId:
@@ -105,8 +115,6 @@ export class MediaCatalog {
     this.currentKey = key;
     this.viewing?.select(key);
   }
-
-  deactivate(): void { this.viewing?.deactivate(); }
 
   resolveId(id: string): RegisteredMediaItem | null {
     return this.registry.resolveId(id);

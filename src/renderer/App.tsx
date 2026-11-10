@@ -9,6 +9,7 @@ import { SourceOpenError } from "./folder-picker/SourceOpenError";
 import { SourcePicker } from "./folder-picker/SourcePicker";
 import { layouts } from "./layouts";
 import { SettingsModal } from "./parts/settings/SettingsModal";
+import { SourceNotice } from "./parts/sources/SourceNotice";
 import { useViewerStore } from "./state/ViewerStoreProvider";
 
 export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
@@ -17,6 +18,7 @@ export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
   useWindowChrome(window.pixvitta);
   const source = useViewerStore((state) => state.source);
   const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
+  const isSourcesPanelOpen = useViewerStore((state) => state.isSourcesPanelOpen);
   const viewerLayout = useViewerStore((state) => state.settings.viewerLayout);
   const glowEffects = useViewerStore((state) => state.settings.glowEffects);
 
@@ -50,7 +52,13 @@ export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
           <span><T>Loading source...</T></span>
         </div>
       ) : null}
-      <SourceOpenError presentation="toast" />
+      {/* The open sources panel shows source errors and notices beside its add form. */}
+      {isSourcesPanelOpen ? null : (
+        <>
+          <SourceOpenError presentation="toast" />
+          <SourceNotice presentation="toast" />
+        </>
+      )}
     </>
   );
 }

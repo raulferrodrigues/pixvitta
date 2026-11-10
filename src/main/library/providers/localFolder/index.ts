@@ -14,7 +14,8 @@ import {
 export class LocalFolderProvider implements MediaProvider {
   readonly id = "local-folder";
   readonly sourceKind = "folder";
-  private randomOrderSession: { folderPath: string; seed: string } | null = null;
+  // One seed per folder, so refreshing several merged folders keeps each order.
+  private readonly randomSeeds = new Map<string, string>();
 
   matches(location: string): boolean {
     return path.isAbsolute(location);
@@ -104,16 +105,15 @@ export class LocalFolderProvider implements MediaProvider {
     refresh: boolean
   ): string | undefined {
     if (fileOrder !== "random") {
-      this.randomOrderSession = null;
+      this.randomSeeds.clear();
       return undefined;
     }
 
-    if (refresh && this.randomOrderSession?.folderPath === folderPath) {
-      return this.randomOrderSession.seed;
-    }
+    const existingSeed = this.randomSeeds.get(folderPath);
+    if (refresh && existingSeed) return existingSeed;
 
     const seed = randomBytes(16).toString("hex");
-    this.randomOrderSession = { folderPath, seed };
+    this.randomSeeds.set(folderPath, seed);
     return seed;
   }
 }

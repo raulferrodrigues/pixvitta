@@ -56,6 +56,9 @@ export type ProviderLoadRequest = {
 export interface MediaProvider {
   readonly id: string;
   readonly sourceKind: RecentSourceKind;
+  // A short, human-readable name for the site a web provider reads from, such
+  // as "4chan", shown beside a source's item count. Local providers have none.
+  readonly siteName?: string;
   matches(location: string): boolean;
   load(request: ProviderLoadRequest): Promise<ProviderCollection>;
 }

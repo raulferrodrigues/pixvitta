@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { AppBuildInfo } from "../shared/appBuild";
 import type {
+  AddSourceResult,
   DownloadActivitySnapshot,
   MediaCollection,
   OpenSourceError,
@@ -23,6 +24,10 @@ const pixvittaApi = {
   getBuildInfo: (): Promise<AppBuildInfo> => ipcRenderer.invoke("app:get-build-info"),
   openSource: (request: OpenSourceRequest): void =>
     ipcRenderer.send("source:open", request),
+  addSource: (request: OpenSourceRequest): Promise<AddSourceResult> =>
+    ipcRenderer.invoke("source:add", request),
+  removeSource: (memberId: string): void =>
+    ipcRenderer.send("source:remove", memberId),
   refreshSource: (): void =>
     ipcRenderer.send("source:refresh"),
   openSourceOrigin: (sourceId: string): Promise<boolean> =>

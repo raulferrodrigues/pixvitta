@@ -3,13 +3,16 @@
   width: 100vw;
   height: 100vh;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) var(--download-panel-width, 0px);
+  grid-template-columns:
+    var(--sources-panel-width, 0px)
+    minmax(0, 1fr)
+    var(--download-panel-width, 0px);
   overflow: hidden;
   background: var(--pix-bg);
   color: var(--pix-text);
 }
 
-.immersive-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; container-type: inline-size; }
+.immersive-stage { grid-column: 2; grid-row: 1; position: relative; min-width: 0; min-height: 0; overflow: hidden; container-type: inline-size; }
 .immersive-stage .media-viewer { position: absolute; inset: 0; }
 
 /* Without a top bar, this strip is where the window can be dragged from. */
@@ -66,7 +69,15 @@
 .immersive-zone-filmstrip { right: 0; bottom: 0; left: 0; height: 92px; background: linear-gradient(to top, rgb(0 0 0 / 70%), transparent); }
 .immersive-zone-filmstrip .filmstrip { width: 100%; height: 100%; background: transparent; backdrop-filter: none; }
 
-.immersive-shell .download-panel { grid-column: 2; }
+.immersive-shell .download-panel { grid-column: 3; grid-row: 1; }
+.immersive-shell .sources-panel { grid-column: 1; grid-row: 1; }
+
+/* With no top bar, the panel's header is where the window is dragged from on
+   its side, and on macOS it starts after the traffic lights. The stage then no
+   longer reaches the window's corner, so its top row needs no room for them. */
+.immersive-shell .sources-panel-header { padding-left: max(var(--sources-inset), var(--pix-topbar-leading-space, 10px)); -webkit-app-region: drag; }
+.immersive-shell .sources-panel-header button { -webkit-app-region: no-drag; }
+.immersive-shell:has(> .sources-panel) .immersive-top-row { left: 10px; }
 
 @media (prefers-reduced-motion: reduce) { .immersive-zone { transition: none; } }
 

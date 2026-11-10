@@ -1,5 +1,6 @@
 import type { DownloadActivitySnapshot, MediaCollection, MediaItem, MediaSourceCapabilities, OpenSourceError } from "../../shared/media";
 import type { StageControls } from "./stageApi";
+import type { RecentSource } from "../../shared/recentSources";
 
 /*
  * Named states the UI can start in: /stage.html?scenario=<name>. Add one when a
@@ -65,7 +66,17 @@ export function stageCollection(
   capabilities: MediaSourceCapabilities = FOLDER_CAPABILITIES
 ): MediaCollection {
   return {
-    source: { id: title, title, capabilities },
+    source: {
+      id: title,
+      title,
+      capabilities,
+      members: [{
+        id: `${title}:source`,
+        title,
+        kind: capabilities === FOLDER_CAPABILITIES ? "folder" : "web",
+        itemCount: items.length
+      }]
+    },
     items,
     selectedId: items[0]?.id ?? null
   };
@@ -99,6 +110,72 @@ const SOURCE_ERRORS: OpenSourceError[] = [
   "no-supported-media"
 ];
 
+type StageMergeMember = { title: string; location: string; kind: "folder" | "web"; count: number; siteName?: string };
+
+const MERGE_MEMBERS: StageMergeMember[] = [
+  { title: "Holiday photos", location: "/photos/holiday", kind: "folder", count: 214 },
+  { title: "Sample thread", location: "https://boards.4chan.org/g/thread/1000", kind: "web", count: 87, siteName: "4chan" },
+  { title: "Long-named gallery of architecture sketches from the northern coast", location: "https://e-hentai.org/g/1/abcdef/", kind: "web", count: 1, siteName: "E-Hentai" }
+];
+const CITY_WALKS: StageMergeMember = {
+  title: "City walks",
+  location: "/home/someone/Pictures/Archive/Travel/2025/Lisbon and Porto/City walks",
+  kind: "folder",
+  count: 32
+};
+
+// Interleaves a few items of each member as the library's zipper does, with
+// the members' real counts on the source.
+function mergeStageMembers(members: StageMergeMember[]): MediaCollection {
+  const shown = members.map((member) => Math.min(member.count, 4));
+  const items: MediaItem[] = [];
+  for (let round = 0; round < Math.max(...shown); round += 1) {
+    members.forEach((member, index) => {
+      if (round < shown[index]) {
+        items.push({ ...image(`${member.title.split(" ")[0].toLowerCase()}-${round + 1}`), ...(members.length > 1 ? { sourceLabel: member.title } : {}) });
+      }
+    });
+  }
+  const collection = stageCollection(members[0].title, items);
+  collection.source.title = members.length === 1
+    ? members[0].title
+    : members.length === 2 ? `${members[0].title} + ${members[1].title}` : `${members[0].title} + ${members.length - 1} more`;
+  collection.source.members = members.map((member, index) => ({
+    id: `source-${index + 1}`,
+    title: member.title,
+    kind: member.kind,
+    itemCount: member.count,
+    ...(member.siteName ? { siteName: member.siteName } : {}),
+    recentLocation: member.location
+  }));
+  return collection;
+}
+
+function mergedSources(stage: StageControls, memberCount: number) {
+  const members = MERGE_MEMBERS.slice(0, memberCount);
+  const recent = (member: Omit<StageMergeMember, "count">, openedMs: number): RecentSource => ({
+    title: member.title,
+    location: member.location,
+    kind: member.kind,
+    providerId: member.kind === "folder" ? "local-folder" : "four-chan",
+    openedMs
+  });
+  stage.defineSource(CITY_WALKS.location, mergeStageMembers([...members, CITY_WALKS]));
+  // Adding a member again is main's "already-added"; the others merge in.
+  for (const member of MERGE_MEMBERS) {
+    stage.defineSource(member.location, members.includes(member) ? "already-added" : mergeStageMembers([...members, member]));
+  }
+  stage.defineSource("https://boards.4chan.org/g/thread/404", "not-found");
+  stage.setRecentSources([
+    recent(MERGE_MEMBERS[0], 5),
+    recent(CITY_WALKS, 4),
+    recent(MERGE_MEMBERS[1], 3),
+    recent({ title: "Missing thread", location: "https://boards.4chan.org/g/thread/404", kind: "web" }, 2),
+    recent({ title: "Watercolour studies", location: "https://nhentai.net/g/100200/", kind: "web" }, 1)
+  ]);
+  stage.deliverCollection(mergeStageMembers(members));
+}
+
 const scenarios: Record<string, (stage: StageControls) => void> = {
   /** The source picker with nothing open. The folder picker opens the sample folder. */
   empty(stage) {
@@ -117,6 +194,22 @@ const scenarios: Record<string, (stage: StageControls) => void> = {
   /** A folder of images and a video, ready to browse. */
   folder(stage) {
     stage.deliverCollection(sampleFolder());
+  },
+
+  /**
+   * A collection merged from three sources of uneven size, one with a long
+   * title, and recents to add from. Two recents are already members and stay
+   * out of the list; "City walks" (a long path) adds a fourth source,
+   * "Missing thread" fails to load, and pasting a member's location reports
+   * that it is already in the mix.
+   */
+  "merged-sources"(stage) {
+    mergedSources(stage, 3);
+  },
+
+  /** The same sources and recents with only one source open. */
+  "merged-sources-single"(stage) {
+    mergedSources(stage, 1);
   },
 
   /** A web source of 5,000 pages, for virtualization and navigation at scale. */

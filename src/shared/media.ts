@@ -1,3 +1,5 @@
+import type { RecentSourceKind } from "./recentSources";
+
 export type MediaKind = "image" | "video";
 
 export type MediaSourceCapabilities = {
@@ -8,11 +10,30 @@ export type MediaSourceCapabilities = {
   canOpenOrigin: boolean;
 };
 
+// One of the sources a collection is made of. The ID is opaque and only
+// meaningful to removeSource while this collection is open.
+export type MediaSourceMember = {
+  id: string;
+  title: string;
+  // The same kind recent sources carry, so both lists can share an icon.
+  kind: RecentSourceKind;
+  // How many items the source contributes to the collection.
+  itemCount: number;
+  // A short name for the site a web source comes from, such as "4chan", from
+  // its provider. Absent for a folder.
+  siteName?: string;
+  // The location of the recent source this member is remembered as, matching
+  // RecentSource.location. Absent for a source that is not remembered.
+  recentLocation?: string;
+};
+
 export type MediaSource = {
   id: string;
   title: string;
   originLabel?: string;
   capabilities: MediaSourceCapabilities;
+  // In the order their items interleave; a single source has one member.
+  members: MediaSourceMember[];
 };
 
 export type MediaItem = {
@@ -26,6 +47,9 @@ export type MediaItem = {
   addedMs: number;
   modifiedMs: number;
   createdMs: number;
+  // The title of the source an item came from, set only when the collection
+  // merges several sources.
+  sourceLabel?: string;
 };
 
 export type MediaCollection = {
@@ -47,6 +71,11 @@ export type OpenSourceError =
   | "unavailable"
   | "invalid-response"
   | "no-supported-media";
+
+// What became of a request to add a source. A failure is also reported through
+// the source error, like any other; a cancelled pick or a request made while
+// another source operation runs is "not-added" with nothing to show.
+export type AddSourceResult = "added" | "already-added" | "not-added";
 
 export type DownloadActivityState =
   | "queued"

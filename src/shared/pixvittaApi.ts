@@ -1,5 +1,6 @@
 import type { AppBuildInfo } from "./appBuild";
 import type {
+  AddSourceResult,
   DownloadActivitySnapshot,
   MediaCollection,
   OpenSourceError,
@@ -11,6 +12,7 @@ import type { UpdateState } from "./updates";
 
 export type PixvittaCommand =
   | "open-folder"
+  | "add-folder"
   | "refresh-source"
   | "open-settings"
   | "previous-media"
@@ -30,6 +32,11 @@ export type WindowChromeState = {
 export type PixvittaApi = {
   getBuildInfo(): Promise<AppBuildInfo>;
   openSource(request: OpenSourceRequest): void;
+  // Adds a source to the open collection; openSource replaces it. Resolves
+  // once main is done with the request, after any collection it produced.
+  addSource(request: OpenSourceRequest): Promise<AddSourceResult>;
+  // Removes one member source, by its ID in source.members, from the open collection.
+  removeSource(memberId: string): void;
   refreshSource(): void;
   openSourceOrigin(sourceId: string): Promise<boolean>;
   signInExHentai(): Promise<boolean>;
