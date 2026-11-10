@@ -12,16 +12,10 @@ Window {
     color: "black"
     title: folder.count > 0 ? folder.name + " - Pixvitta" : "Pixvitta"
 
-    Image {
+    ImageItem {
         anchors.fill: parent
         visible: !window.folder.isVideo
-        source: window.folder.count > 0 && !window.folder.isVideo
-            ? "image://pixvitta/" + window.folder.pathId : ""
-        fillMode: Image.PreserveAspectFit
-        asynchronous: true
-        cache: false
-        smooth: true
-        mipmap: true
+        source: window.folder.count > 0 && !window.folder.isVideo ? window.folder.pathId : ""
     }
 
     VideoItem {
