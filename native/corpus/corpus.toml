@@ -134,7 +134,6 @@ width = 96
 height = 64
 reference = "pattern.png"
 max_error = 4
-expected_failure = "no AVIF decoder in the core"
 
 [[sample]]
 file = "avif/alpha.avif"
@@ -142,7 +141,14 @@ width = 96
 height = 64
 reference = "pattern-alpha.png"
 max_error = 4
-expected_failure = "no AVIF decoder in the core"
+
+[[sample]]
+file = "avif/10bit-444.avif"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 1
+note = "10-bit 4:4:4, limited range, BT.709 matrix from the container's nclx"
 
 # SVG
 [[sample]]

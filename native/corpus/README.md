@@ -35,6 +35,7 @@ The samples, from those references:
 | `gif/short-delays.gif` | `convert -size 8x8 -delay 0 xc:'rgb(220,40,40)' -delay 1 xc:'rgb(40,180,60)' -delay 2 xc:'rgb(40,70,210)' -loop 0` |
 | `webp/animated.webp` | Pillow 10.2: the three frames as RGB, `save(save_all=True, append_images=..., duration=[100, 200, 300], loop=0, lossless=True)` (ffmpeg's libwebp_anim does not keep the durations it is given) |
 | `avif/yuv420.avif` | `ffmpeg -c:v libaom-av1 -crf 12 -still-picture 1` |
+| `avif/10bit-444.avif` | ffmpeg 6.1 with libaom: `-vf scale=out_color_matrix=bt709:out_range=tv,format=yuv444p10le -colorspace bt709 -color_primaries bt709 -color_trc iec61966-2-1 -color_range tv -c:v libaom-av1 -crf 12 -still-picture 1` |
 | `avif/alpha.avif`, `heic/*.heic` | `heif-enc` from libheif 1.23 with aom and x265 (`-q 90`; `-b 10` for 10-bit) |
 | `jxl/lossless-alpha.jxl` | `cjxl -d 0` |
 | `svg/pattern.svg` | written by hand: the pattern as rects and a linearGradient |
