@@ -2,7 +2,8 @@ name: Validate
 
 # Every PR is tested, typechecked, and built before it can reach a release.
 # The release builds run the same `pnpm validate`, but only after CI has
-# already committed the version.
+# already committed the version. The native core's sample-file corpus is
+# checked on every PR too.
 
 on:
   pull_request:
@@ -81,3 +82,31 @@ jobs:
           name: test-results
           path: test-results/
           retention-days: 7
+
+  native-corpus:
+    name: Native corpus check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install libmpv
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libmpv-dev
+
+      - name: Cache Cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            native/core/target
+          key: native-cargo-${{ runner.os }}-${{ hashFiles('native/core/Cargo.lock') }}
+          restore-keys: native-cargo-${{ runner.os }}-
+
+      - name: Corpus check
+        run: cargo test --release --manifest-path native/core/Cargo.toml --test corpus

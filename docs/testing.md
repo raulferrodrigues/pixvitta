@@ -145,10 +145,11 @@ the commands.
 
 ## Continuous integration
 
-The Validate workflow has two jobs on every pull request. *Test, typecheck, and
+The Validate workflow has three jobs on every pull request. *Test, typecheck, and
 build* runs `pnpm validate`, the same command the release builds run. *Stage and
 E2E tests* runs both Playwright projects on Linux under `xvfb` and uploads
-`test-results/` when something fails.
+`test-results/` when something fails. *Native corpus check* runs the native
+core's corpus check (`native/README.md`) against Ubuntu's libmpv.
 
 ## Known limits
 
