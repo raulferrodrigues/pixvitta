@@ -143,7 +143,6 @@ width = 256
 height = 256
 reference = "square-256.png"
 max_error = 0.5
-expected_failure = "the image crate's ico feature is not enabled"
 note = "256 (PNG), 48 and 16 pixel entries; the largest should be shown"
 
 # HEIC
@@ -179,7 +178,6 @@ width = 96
 height = 64
 reference = "pattern.png"
 max_error = 0.5
-expected_failure = "the image crate's tiff feature is not enabled"
 
 # Video: through the machine's libmpv, until the core bundles its own.
 [[sample]]
