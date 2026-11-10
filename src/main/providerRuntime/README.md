@@ -38,16 +38,43 @@ work. A stale request cannot navigate the collection. Its abort signal or
 collection deactivation ends the wait.
 
 The library calls `viewing.deactivate` when a replacement collection commits
-without the loaded collection that owns it. A collection with several sources
-keeps each source's handle: adding a source carries the loaded ones over, a
-refresh deactivates only the sources it reloaded, and removing a source
-deactivates only that one. Selecting an item in one source selects it in that
-source only; the others keep their last selection and its prefetch window, so
-stepping through interleaved sources does not discard their prefetch. Only a
-`null` selection or deactivation releases them.
-This releases selected-media and prefetch ownership. Downloads have separate
-leases and can continue using retained resources. A failed replacement leaves
-the existing collection active.
+without the loaded collection that owns it. This releases selected-media and
+prefetch ownership. Downloads have separate leases and can continue using
+retained resources. A failed replacement leaves the existing collection active.
+
+## Several collections on one screen
+
+A mix shows several loaded collections, one per source, as one stream, so
+only one of them owns the item on screen. The others stand by
+(`viewing.standBy`, `ProviderCollectionRuntime.standBy`):
+
+- A collection standing by keeps its selected item and its prefetch window,
+  so stepping back into it finds its next items already fetched or on the
+  way. Selecting an item in one source never releases another's window; only
+  a `null` selection or deactivation does.
+- Nothing of a collection standing by is requested at high priority: its
+  selected item drops to normal, the rest of its window keeps its usual
+  priorities. The item on screen is the only high-priority demand, so another
+  source's work cannot get ahead of it in a shared policy queue. Requests the
+  renderer made for the item that was on screen are released, as on any
+  navigation, and a high-priority media request for a standing-by item waits
+  until that item is on screen again.
+- A collection with no selected item yet, because its source was just added
+  or reloaded, takes the item the zipper reaches first as its place when it
+  stands by, and prefetches around it at normal priority instead of starting
+  cold.
+- Coming back on screen at the same place raises the selected item to high
+  priority and keeps the running prefetch. Moving to another item replaces
+  the window as usual.
+
+All of it goes through the same acquisitions and the request broker. No
+request policy changes, and nothing bypasses the broker.
+
+Two windows in one policy share its normal lane, which serves the newest
+request first, so a sequential prefetch can run several items ahead of the
+other source's before that one gets a turn. The item on screen is unaffected;
+a step into the other source may find its next item not yet fetched, and then
+requests it at high priority.
 
 ## Prefetch order
 
@@ -79,5 +106,5 @@ normal policy delay even if the request was aborted. Completed cache files may
 be reused; partial transfers never become completed cache entries.
 
 The focused tests cover ownership, dependency sharing, priority changes,
-navigation ordering, refresh lifetime, pacing after abort, and E-Hentai stream
+navigation ordering, refresh lifetime, standing by, the cold start, pacing after abort, and E-Hentai stream
 and quota behavior using synthetic responses. They make no live requests.
