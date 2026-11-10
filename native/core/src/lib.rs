@@ -10,6 +10,7 @@
 // Safety contracts for the exported functions are in pixvitta.h.
 #![allow(clippy::missing_safety_doc)]
 
+mod avif;
 mod folder;
 mod image;
 mod mpv;

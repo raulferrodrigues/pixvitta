@@ -23,7 +23,7 @@ pub struct Entry {
 }
 
 // Only what `image.rs` decodes today. The full list comes with the corpus.
-const IMAGE_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff", "ico"];
+const IMAGE_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff", "ico", "avif"];
 const VIDEO_EXTENSIONS: &[&str] = &["mp4", "m4v", "mov", "webm", "ogv", "mkv", "avi"];
 
 fn kind_of(path: &Path) -> Option<Kind> {

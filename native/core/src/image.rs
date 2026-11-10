@@ -1,7 +1,8 @@
 //! Image decoding to sRGB RGBA8, straight alpha, EXIF orientation applied.
 //! The `image` crate decodes; moxcms (which `image` already uses) converts
-//! embedded ICC profiles to sRGB. `decode` reads a still (the first frame of
-//! an animated file); `Animation` plays GIF and WebP frame by frame.
+//! embedded ICC profiles to sRGB; AVIF goes through `avif`. `decode` reads a
+//! still (the first frame of an animated file); `Animation` plays GIF and WebP
+//! frame by frame.
 
 use image::codecs::gif::GifDecoder;
 use image::codecs::webp::WebPDecoder;
@@ -42,6 +43,12 @@ pub fn decode(path: &Path) -> Result<Decoded, DecodeError> {
         .map_err(|_| DecodeError::Io)?
         .with_guessed_format()
         .map_err(|_| DecodeError::Io)?;
+    if reader.format() == Some(ImageFormat::Avif) {
+        let data = std::fs::read(path).map_err(|_| DecodeError::Io)?;
+        let (picture, icc) = crate::avif::decode(&data)?;
+        let srgb = icc.and_then(|icc| srgb_transform(&icc));
+        return Ok(finish(picture, Orientation::NoTransforms, srgb.as_deref()));
+    }
     let is_ico = reader.format() == Some(ImageFormat::Ico);
     match decode_reader(reader) {
         Err(DecodeError::Decode) if is_ico => {

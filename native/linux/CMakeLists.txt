@@ -107,6 +107,11 @@ qt_add_qml_module(pixvitta
         src/videoitem.h src/videoitem.cpp
 )
 
+# Keep the core's symbols out of the executable's exports. Its AV1 decoder
+# (rav1d) defines the same dav1d_* names as libdav1d, and libmpv's FFmpeg
+# would otherwise call ours instead of its own and fail to play AV1 video.
+target_link_options(pixvitta PRIVATE "LINKER:--exclude-libs,libpixvitta_core.a")
+
 # The generated QML type registrations include the headers by name.
 target_include_directories(pixvitta PRIVATE src)
 
