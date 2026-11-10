@@ -4,6 +4,7 @@
 
 #include <pixvitta.h>
 
+#include <QGuiApplication>
 #include <QMutex>
 #include <QQuickWindow>
 #include <QSGImageNode>
@@ -75,7 +76,15 @@ void ImageItem::stop()
 
 void ImageItem::decodeNext()
 {
-    QThreadPool::globalInstance()->start([playback = m_playback] {
+    // One thread for every item: decoding large frames on several threads
+    // makes glibc keep a few hundred MB of freed frames, one arena each.
+    static QThreadPool *pool = [] {
+        auto *single = new QThreadPool(qApp);
+        single->setMaxThreadCount(1);
+        single->setExpiryTimeout(-1);
+        return single;
+    }();
+    pool->start([playback = m_playback] {
         if (!playback->animation) {
             const int status = pv_animation_open(playback->path.constData(), &playback->animation);
             if (status != PV_OK) {

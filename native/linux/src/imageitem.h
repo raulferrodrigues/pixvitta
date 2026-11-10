@@ -8,7 +8,7 @@
 #include <memory>
 
 // A QML item that shows an image from the core, fitted to the item, and
-// plays it if it is animated. Frames are decoded on Qt's thread pool, one
+// plays it if it is animated. Frames are decoded on a worker thread, one
 // ahead of the one on screen; each is shown for as long as the core says.
 class ImageItem : public QQuickItem
 {
