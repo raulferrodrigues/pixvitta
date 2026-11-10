@@ -149,7 +149,7 @@ QSGNode *ImageItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
         m_frameChanged = true;
     }
     if (m_frameChanged) {
-        node->setTexture(window()->createTextureFromImage(m_frame));
+        node->setTexture(window()->createTextureFromImage(m_frame, QQuickWindow::TextureHasMipmaps));
         m_frameChanged = false;
     }
     // Fitted to the item, keeping the aspect ratio, centred.
