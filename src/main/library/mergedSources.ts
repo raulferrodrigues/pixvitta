@@ -26,38 +26,65 @@ export function mergeSources(
   if (!first) throw new Error("A collection needs at least one source.");
   const isMerge = members.length > 1;
 
-  const owners = new Map<string, { member: ProviderCollection; key: string }>();
+  // Each merged key's member, and the item's position and key in it.
+  const owners = new Map<string, { member: number; position: number; key: string }>();
   const items: ProviderMediaItem[] = [];
   const longest = Math.max(...members.map((member) => member.items.length));
   for (let position = 0; position < longest; position++) {
-    for (const member of members) {
+    members.forEach((member, index) => {
       const item = member.items[position];
-      if (!item) continue;
+      if (!item) return;
       const key = mergedItemKey(member.canonicalLocation, item.key);
-      owners.set(key, { member, key: item.key });
+      owners.set(key, { member: index, position, key: item.key });
       items.push(
         isMerge
           ? { ...item, key, sourceLabel: member.title }
           : { ...item, key }
       );
-    }
+    });
   }
+
+  // The item of a member the zipper reaches first from the selected item: in
+  // the same round for a member after the owner, in the next round for one
+  // before it, or the member's last item once it has run out.
+  const nextKey = (
+    member: ProviderCollection,
+    index: number,
+    owner: { member: number; position: number }
+  ): string | undefined => {
+    const position = index > owner.member ? owner.position : owner.position + 1;
+    return (member.items[position] ?? member.items.at(-1))?.key;
+  };
 
   const hasViewing = members.some((member) => member.viewing);
   return {
     viewing: hasViewing
       ? {
-          // Only the owner moves. The other members keep their last selection,
-          // and with it their prefetch window, because in a zipper the next
-          // step lands in another member: its next item is already on the way.
-          // Clearing the selection still clears it everywhere.
+          // The owner of the item takes it on screen. The other members stand
+          // by: each keeps its last selection, and with it its prefetch
+          // window, because in a zipper the next step lands in another member.
+          // A member with no selection yet, just added or reloaded, starts at
+          // the item the zipper reaches first. Clearing the selection still
+          // clears it everywhere.
           select(key) {
             if (key === null) {
               for (const member of members) member.viewing?.select(null);
               return;
             }
             const owner = owners.get(key);
-            owner?.member.viewing?.select(owner.key);
+            if (!owner) return;
+            members[owner.member].viewing?.select(owner.key);
+            members.forEach((member, index) => {
+              if (index !== owner.member) member.viewing?.standBy(nextKey(member, index, owner));
+            });
+          },
+          standBy(key) {
+            const owner = key === undefined ? undefined : owners.get(key);
+            members.forEach((member, index) => {
+              member.viewing?.standBy(
+                !owner ? undefined : index === owner.member ? owner.key : nextKey(member, index, owner)
+              );
+            });
           },
           deactivate() {
             for (const member of members) member.viewing?.deactivate();

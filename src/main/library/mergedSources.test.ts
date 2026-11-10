@@ -33,6 +33,7 @@ function member(
     selectedKey: keys[0] ?? null,
     viewing: {
       select: (key) => { log.push(`${location}:${key}`); },
+      standBy: (key) => { log.push(`${location}:stand-by:${key}`); },
       deactivate: () => { log.push(`${location}:deactivate`); }
     },
     ...options
@@ -86,20 +87,29 @@ test("a merge refreshes and sorts if any member can, downloads only if all can, 
   assert.equal(merged.remember, false);
 });
 
-// In a zipper the next step lands in another member, so the others keep their
-// selection, and with it their prefetch window, instead of releasing it.
-test("selection goes only to the member that owns the item; the others keep theirs", () => {
+// In a zipper the next step lands in another member, so the others stand by
+// instead of releasing their selection and prefetch window. A member with no
+// selection yet stands by at its item the zipper reaches first.
+test("the member that owns the selected item takes it on screen; the others stand by at the item the zipper reaches next", () => {
   const log: string[] = [];
-  const merged = mergeSources([member("a", ["a1"], {}, log), member("b", ["b1"], {}, log)]);
+  const merged = mergeSources([
+    member("a", ["a1", "a2", "a3"], {}, log),
+    member("b", ["b1"], {}, log),
+    member("c", ["c1", "c2"], {}, log)
+  ]);
+  // a1 b1 c1 a2 c2 a3
   merged.viewing?.select(mergedItemKey("a", "a1"));
-  merged.viewing?.select(mergedItemKey("b", "b1"));
-  assert.deepEqual(log.splice(0), ["a:a1", "b:b1"]);
+  assert.deepEqual(log.splice(0), ["a:a1", "b:stand-by:b1", "c:stand-by:c1"]);
+  merged.viewing?.select(mergedItemKey("c", "c1"));
+  assert.deepEqual(log.splice(0), ["c:c1", "a:stand-by:a2", "b:stand-by:b1"], "A member that has run out stands by at its last item.");
+  merged.viewing?.select(mergedItemKey("a", "a3"));
+  assert.deepEqual(log.splice(0), ["a:a3", "b:stand-by:b1", "c:stand-by:c2"]);
   merged.viewing?.select("unknown");
   assert.deepEqual(log.splice(0), []);
   merged.viewing?.select(null);
-  assert.deepEqual(log.splice(0), ["a:null", "b:null"]);
+  assert.deepEqual(log.splice(0), ["a:null", "b:null", "c:null"]);
   merged.viewing?.deactivate();
-  assert.deepEqual(log.splice(0), ["a:deactivate", "b:deactivate"]);
+  assert.deepEqual(log.splice(0), ["a:deactivate", "b:deactivate", "c:deactivate"]);
 });
 
 // Locations load the keys listed here, and a trailing slash names the same

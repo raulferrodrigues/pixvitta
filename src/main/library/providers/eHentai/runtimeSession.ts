@@ -29,6 +29,10 @@ type Options = {
   imageLimit: ImageLimit;
 };
 
+function pageNumber(key: string): number {
+  return Number(key.split(":page:")[1]);
+}
+
 type Thumbnail = { file: CachedFile; reference: EHentaiThumbnailReference } | null;
 
 // This adapter only describes the gallery's resources and site rules. The
@@ -56,8 +60,12 @@ export class EHentaiRuntimeSession {
   }
 
   select(key: string | null): void {
-    const page = key === null ? null : Number(key.split(":page:")[1]);
+    const page = key === null ? null : pageNumber(key);
     this.runtime.select(page === null ? null : page - 1);
+  }
+
+  standBy(key?: string): void {
+    this.runtime.standBy(key === undefined ? undefined : pageNumber(key) - 1);
   }
 
   deactivate(): void { this.runtime.deactivate(); }

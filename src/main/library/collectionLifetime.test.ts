@@ -18,7 +18,7 @@ test("selection uses provider keys and only a committed replacement deactivates 
       return {
         canonicalLocation: location, title: location, capabilities: { canRefresh: true, canSort: false, canDownload: false, canDownloadCollection: false }, remember: false,
         selectedKey: "page:1",
-        viewing: { select: (key) => { selected.push(`${location}:${key}`); }, deactivate: () => { deactivated.push(location); } },
+        viewing: { select: (key) => { selected.push(`${location}:${key}`); }, standBy() {}, deactivate: () => { deactivated.push(location); } },
         items: [{ key: "page:1", name: "Page 1", kind: "image", sizeBytes: 1, lastOpenedMs: 0, addedMs: 0, modifiedMs: 0, createdMs: 0,
           media: { respond: async () => new Response("image") }, thumbnail: { kind: "none" } }]
       };
@@ -67,7 +67,11 @@ test("adding a source keeps the loaded members active; only members a commit dro
         canonicalLocation: location, title: location, remember: false, selectedKey: "page:1",
         // "fixed" stands for a source that cannot refresh, so a refresh reuses it.
         capabilities: { canRefresh: location !== "fixed", canSort: false, canDownload: false, canDownloadCollection: false },
-        viewing: { select: (key) => { log.push(`${load} select ${key}`); }, deactivate: () => { log.push(`${load} deactivate`); } },
+        viewing: {
+          select: (key) => { log.push(`${load} select ${key}`); },
+          standBy: (key) => { log.push(`${load} stand by ${key}`); },
+          deactivate: () => { log.push(`${load} deactivate`); }
+        },
         items: [{ key: "page:1", name: `${location} 1`, kind: "image", sizeBytes: 1, lastOpenedMs: 0, addedMs: 0, modifiedMs: 0, createdMs: 0,
           media: { respond: async () => new Response("image") }, thumbnail: { kind: "none" } }]
       };
@@ -90,11 +94,11 @@ test("adding a source keeps the loaded members active; only members a commit dro
   assert.ok(library.resolveMediaId(firstId));
   library.acknowledgeRenderer();
 
-  // Selecting the added member's item hands demand to it; the first keeps its
-  // selection, and so its prefetch window, for the next step back into it.
+  // Selecting the added member's item puts it on screen; the first stands by,
+  // keeping its prefetch window for the next step back into it.
   log.length = 0;
   library.selectMedia(published[1].items[1].id);
-  assert.deepEqual(log, ["fixed#1 select page:1"]);
+  assert.deepEqual(log, ["fixed#1 select page:1", "a#1 stand by page:1"]);
 
   assert.equal(await library.refresh(), true);
   assert.deepEqual(deactivated(), ["a#1"], "Refresh deactivates the members it reloaded and keeps the ones it reused.");

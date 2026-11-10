@@ -271,6 +271,8 @@ export class NHentaiProvider implements MediaProvider {
           const index = indexByKey.get(key);
           if (index !== undefined) runtime.select(index);
         },
+        standBy: (key) =>
+          runtime.standBy(key === undefined ? undefined : indexByKey.get(key)),
         deactivate: () => runtime.deactivate()
       },
       canonicalLocation: reference.pageUrl,
