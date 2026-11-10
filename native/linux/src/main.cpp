@@ -1,4 +1,3 @@
-#include "imageprovider.h"
 #include "mediafolder.h"
 
 #include <QGuiApplication>
@@ -30,7 +29,6 @@ int main(int argc, char *argv[])
         return 1;
 
     QQmlApplicationEngine engine;
-    engine.addImageProvider(QStringLiteral("pixvitta"), new ImageProvider);
     engine.addImportPath(QStringLiteral("qrc:/qt/qml"));
     engine.setInitialProperties({{QStringLiteral("folder"), QVariant::fromValue(&folder)}});
     engine.load(QUrl(QStringLiteral("qrc:/qt/qml/Pixvitta/qml/Main.qml")));

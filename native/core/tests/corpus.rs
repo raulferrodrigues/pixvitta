@@ -1,6 +1,7 @@
 //! Opens every file in native/corpus/corpus.toml and checks it against what
-//! the manifest says. Images go through the core's C API; videos through
-//! libmpv, as the core's player does (the machine's libmpv for now).
+//! the manifest says. Images go through the core's C API, both as a still
+//! and frame by frame; videos through libmpv, as the core's player does (the
+//! machine's libmpv for now).
 //!
 //!   cargo test --release --test corpus
 
@@ -9,7 +10,10 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::ptr;
 
-use pixvitta_core::{pv_image_decode, pv_image_release, PvImage, PV_OK};
+use pixvitta_core::{
+    pv_animation_next_frame, pv_animation_open, pv_animation_release, pv_image_decode, pv_image_release, PvAnimation,
+    PvImage, PV_OK,
+};
 
 fn corpus() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../corpus")
@@ -24,29 +28,93 @@ struct ImageView {
     pixels: *const u8,
 }
 
+struct Picture {
+    width: u32,
+    height: u32,
+    rgba: Vec<u8>,
+}
+
+/// Copies the pixels out of a `pv_image` and releases it.
+unsafe fn take(image: *mut PvImage) -> Picture {
+    let view = &*(image as *const ImageView);
+    let (width, height) = (view.width, view.height);
+    let mut rgba = Vec::with_capacity(width as usize * height as usize * 4);
+    for row in 0..height as usize {
+        let start = view.pixels.add(row * view.stride as usize);
+        rgba.extend_from_slice(std::slice::from_raw_parts(start, width as usize * 4));
+    }
+    pv_image_release(image);
+    Picture { width, height, rgba }
+}
+
 fn check_image(path: &CStr, sample: &toml::Table) -> Result<(), String> {
     let mut image: *mut PvImage = ptr::null_mut();
     let status = unsafe { pv_image_decode(path.as_ptr(), &mut image) };
     if status != PV_OK {
         return Err(format!("does not open (error {status})"));
     }
-    let view = unsafe { &*(image as *const ImageView) };
-    let (width, height) = (view.width, view.height);
-    let mut rgba = Vec::with_capacity(width as usize * height as usize * 4);
-    for row in 0..height as usize {
-        let start = unsafe { view.pixels.add(row * view.stride as usize) };
-        rgba.extend_from_slice(unsafe { std::slice::from_raw_parts(start, width as usize * 4) });
+    let picture = unsafe { take(image) };
+    check_size(picture.width as i64, picture.height as i64, sample)?;
+    if let Some(reference) = sample.get("reference").and_then(|value| value.as_str()) {
+        check_pixels(&picture, reference, sample)?;
     }
-    unsafe { pv_image_release(image) };
-    check_size(width as i64, height as i64, sample)?;
+    check_frames(path, sample)
+}
 
-    let Some(reference) = sample.get("reference").and_then(|value| value.as_str()) else {
-        return Ok(());
+/// Plays the file through the animation API: each frame's duration and
+/// pixels, then that it starts again from the first. Samples without
+/// `frames` must be a single frame with duration 0.
+fn check_frames(path: &CStr, sample: &toml::Table) -> Result<(), String> {
+    let durations: Vec<i64> = match sample.get("frames").and_then(|value| value.as_array()) {
+        Some(frames) => frames.iter().filter_map(|value| value.as_integer()).collect(),
+        None => vec![0],
     };
+    let references = sample.get("frame_references").and_then(|value| value.as_array());
+    let mut animation: *mut PvAnimation = ptr::null_mut();
+    let status = unsafe { pv_animation_open(path.as_ptr(), &mut animation) };
+    if status != PV_OK {
+        return Err(format!("does not open as an animation (error {status})"));
+    }
+    let next = || {
+        let (mut image, mut duration): (*mut PvImage, u32) = (ptr::null_mut(), 0);
+        let status = unsafe { pv_animation_next_frame(animation, &mut image, &mut duration) };
+        if status != PV_OK {
+            return Err(format!("frame does not decode (error {status})"));
+        }
+        Ok((unsafe { take(image) }, duration))
+    };
+    let result = (|| {
+        let mut first = None;
+        for (index, &expected) in durations.iter().enumerate() {
+            let (picture, duration) = next()?;
+            if i64::from(duration) != expected {
+                return Err(format!("frame {index} lasts {duration} ms, expected {expected}"));
+            }
+            check_size(picture.width as i64, picture.height as i64, sample)?;
+            let reference = references.and_then(|references| references.get(index)?.as_str());
+            if let Some(reference) = reference {
+                check_pixels(&picture, reference, sample).map_err(|error| format!("frame {index}: {error}"))?;
+            }
+            first.get_or_insert(picture);
+        }
+        if durations != [0] {
+            let (picture, duration) = next()?;
+            if i64::from(duration) != durations[0] || first.is_none_or(|first| first.rgba != picture.rgba) {
+                let count = durations.len();
+                return Err(format!("frame {count} is not the first again; expected {count} frames"));
+            }
+        }
+        Ok(())
+    })();
+    unsafe { pv_animation_release(animation) };
+    result
+}
+
+fn check_pixels(picture: &Picture, reference: &str, sample: &toml::Table) -> Result<(), String> {
     let expected = image::open(corpus().join("references").join(reference))
         .map_err(|error| format!("reference {reference}: {error}"))?
         .to_rgba8();
-    if expected.dimensions() != (width, height) {
+    if expected.dimensions() != (picture.width, picture.height) {
         return Err(format!("reference {reference} is a different size"));
     }
     // Mean difference per channel, with colour weighted by alpha so what is
@@ -55,7 +123,8 @@ fn check_image(path: &CStr, sample: &toml::Table) -> Result<(), String> {
         let alpha = pixel[3] as f64 / 255.0;
         [pixel[0] as f64 * alpha, pixel[1] as f64 * alpha, pixel[2] as f64 * alpha, pixel[3] as f64]
     };
-    let total: f64 = rgba
+    let total: f64 = picture
+        .rgba
         .chunks_exact(4)
         .zip(expected.as_raw().chunks_exact(4))
         .map(|(a, b)| {
@@ -63,7 +132,7 @@ fn check_image(path: &CStr, sample: &toml::Table) -> Result<(), String> {
             (0..4).map(|channel| (a[channel] - b[channel]).abs()).sum::<f64>()
         })
         .sum();
-    let error = total / rgba.len() as f64;
+    let error = total / picture.rgba.len() as f64;
     let max_error = number(sample, "max_error").unwrap_or(3.0);
     if error > max_error {
         return Err(format!("pixels differ from {reference} by {error:.2} (max {max_error})"));

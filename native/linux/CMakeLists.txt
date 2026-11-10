@@ -87,7 +87,7 @@ qt_add_qml_module(pixvitta
     QML_FILES
         qml/Main.qml
     SOURCES
-        src/imageprovider.h src/imageprovider.cpp
+        src/imageitem.h src/imageitem.cpp
         src/mediafolder.h src/mediafolder.cpp
         src/videoitem.h src/videoitem.cpp
 )

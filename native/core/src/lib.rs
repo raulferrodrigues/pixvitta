@@ -124,20 +124,30 @@ pub unsafe extern "C" fn pv_image_decode(path: *const c_char, out: *mut *mut PvI
     };
     match image::decode(path) {
         Ok(decoded) => {
-            let mut result = Box::new(PvImage {
-                width: decoded.width,
-                height: decoded.height,
-                stride: decoded.width * 4,
-                pixels: ptr::null(),
-                storage: decoded.rgba,
-            });
-            result.pixels = result.storage.as_ptr();
-            *out = Box::into_raw(result);
+            *out = image_from(decoded);
             PV_OK
         }
-        Err(image::DecodeError::Io) => PV_ERROR_IO,
-        Err(image::DecodeError::Unsupported) => PV_ERROR_UNSUPPORTED,
-        Err(image::DecodeError::Decode) => PV_ERROR_DECODE,
+        Err(error) => decode_error(error),
+    }
+}
+
+fn image_from(decoded: image::Decoded) -> *mut PvImage {
+    let mut result = Box::new(PvImage {
+        width: decoded.width,
+        height: decoded.height,
+        stride: decoded.width * 4,
+        pixels: ptr::null(),
+        storage: decoded.rgba,
+    });
+    result.pixels = result.storage.as_ptr();
+    Box::into_raw(result)
+}
+
+fn decode_error(error: image::DecodeError) -> c_int {
+    match error {
+        image::DecodeError::Io => PV_ERROR_IO,
+        image::DecodeError::Unsupported => PV_ERROR_UNSUPPORTED,
+        image::DecodeError::Decode => PV_ERROR_DECODE,
     }
 }
 
@@ -145,6 +155,59 @@ pub unsafe extern "C" fn pv_image_decode(path: *const c_char, out: *mut *mut PvI
 pub unsafe extern "C" fn pv_image_release(image: *mut PvImage) {
     if !image.is_null() {
         drop(Box::from_raw(image));
+    }
+}
+
+// Animations
+
+pub struct PvAnimation(image::Animation);
+
+#[no_mangle]
+pub unsafe extern "C" fn pv_animation_open(path: *const c_char, out: *mut *mut PvAnimation) -> c_int {
+    if out.is_null() {
+        return PV_ERROR_INVALID_ARGUMENT;
+    }
+    *out = ptr::null_mut();
+    let Some(path) = path_from(path) else {
+        return PV_ERROR_INVALID_ARGUMENT;
+    };
+    match image::Animation::open(path) {
+        Ok(animation) => {
+            *out = Box::into_raw(Box::new(PvAnimation(animation)));
+            PV_OK
+        }
+        Err(error) => decode_error(error),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn pv_animation_next_frame(
+    animation: *mut PvAnimation,
+    out: *mut *mut PvImage,
+    duration_ms: *mut u32,
+) -> c_int {
+    if out.is_null() || duration_ms.is_null() {
+        return PV_ERROR_INVALID_ARGUMENT;
+    }
+    *out = ptr::null_mut();
+    *duration_ms = 0;
+    let Some(animation) = animation.as_mut() else {
+        return PV_ERROR_INVALID_ARGUMENT;
+    };
+    match animation.0.next_frame() {
+        Ok((decoded, duration)) => {
+            *out = image_from(decoded);
+            *duration_ms = duration;
+            PV_OK
+        }
+        Err(error) => decode_error(error),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn pv_animation_release(animation: *mut PvAnimation) {
+    if !animation.is_null() {
+        drop(Box::from_raw(animation));
     }
 }
 
