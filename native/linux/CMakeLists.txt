@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.23)
 project(pixvitta LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -12,6 +12,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if("$ENV{PKG_CONFIG}" STREQUAL "")
     find_program(PKG_CONFIG_EXECUTABLE NAMES pkg-config pkgconf
         PATHS /usr/bin /bin NO_DEFAULT_PATH)
+endif()
+
+# find_package also searches the prefix of each PATH entry ending in bin, so
+# with Homebrew ahead on PATH its config-mode packages would win over the
+# system's, and the app would load Homebrew's libraries. Ignore its prefix.
+# This doesn't stop find_program finding rustup in Homebrew's bin on PATH.
+# To use a Homebrew library anyway, pass
+# -DCMAKE_PREFIX_PATH=<homebrew>/opt/<formula>, or -DCMAKE_IGNORE_PREFIX_PATH=
+# (empty) to search all of Homebrew again.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT DEFINED CMAKE_IGNORE_PREFIX_PATH)
+    if(NOT "$ENV{HOMEBREW_PREFIX}" STREQUAL "")
+        set(CMAKE_IGNORE_PREFIX_PATH "$ENV{HOMEBREW_PREFIX}")
+    else()
+        set(CMAKE_IGNORE_PREFIX_PATH /home/linuxbrew/.linuxbrew)
+    endif()
 endif()
 
 find_package(Qt6 6.4 REQUIRED COMPONENTS Gui OpenGL Qml Quick)

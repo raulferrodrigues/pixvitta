@@ -34,10 +34,13 @@ No other flags are needed, even with Homebrew ahead of the system on `PATH`:
   the system's libmpv, even when another `pkg-config` comes first on `PATH`.
 - It looks for `cargo` on `PATH`, then in `~/.cargo/bin`, then asks
   `rustup which cargo`, which covers a rustup installed by Homebrew.
+- It ignores Homebrew's prefix when looking for libraries, so the app links
+  the system's copies even where Homebrew has the same package.
 
 To use a different tool, pass `-DCARGO=/path/to/cargo` or
 `-DPKG_CONFIG_EXECUTABLE=/path/to/pkg-config` (or set `PKG_CONFIG`) to the
 first command. These are cached, so remove the build directory to undo them.
+To use a library from Homebrew, pass `-DCMAKE_PREFIX_PATH=<homebrew>/opt/<formula>`.
 
 Run it on a folder:
 
