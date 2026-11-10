@@ -6,7 +6,8 @@ import type {
   MediaItem,
   MediaSource,
   OpenSourceError,
-  OpenSourceRequest
+  OpenSourceRequest,
+  ReplaceConfirmation
 } from "../../shared/media";
 import type { PixvittaApi } from "../../shared/pixvittaApi";
 import type { RecentSource } from "../../shared/recentSources";
@@ -51,6 +52,8 @@ export type ViewerState = {
   // error.
   sourceNotice: SourceNotice | null;
   pendingAuthenticationLocation: string | null;
+  // Main's question before an open replaces a mix, until the user answers.
+  replaceConfirmation: ReplaceConfirmation | null;
   downloadActivity: DownloadActivitySnapshot;
   isDownloadPanelOpen: boolean;
   isSourcesPanelOpen: boolean;
@@ -75,6 +78,8 @@ export type ViewerActions = {
   setSourceLoading(isLoading: boolean): void;
   showSourceError(error: OpenSourceError): void;
   dismissSourceNotice(): void;
+  askToReplace(confirmation: ReplaceConfirmation): void;
+  answerReplace(replace: boolean): void;
   refreshSource(): Promise<void>;
   downloadCurrentMedia(): Promise<void>;
   downloadCollection(): Promise<void>;
@@ -151,6 +156,8 @@ function applyCollection(state: ViewerState, collection: MediaCollection): Parti
     isVideoPlaying: keepsCurrentElement && state.isVideoPlaying,
     sourceOpenError: null,
     sourceNotice: null,
+    // A question about replacing another collection no longer applies.
+    ...(state.source?.id === collection.source.id ? {} : { replaceConfirmation: null }),
     loadState: collection.items.length > 0 ? "ready" : "empty"
   };
 }
@@ -178,8 +185,9 @@ export function createViewerStore(
   let recentSourcesRevision = 0;
   let updateStateRevision = 0;
   let sourceRequestRevision = 0;
-  // Signing in retries the request that needed it the same way: open or add.
-  let pendingAuthenticationMode: "open" | "add" = "open";
+  // Signing in retries the request that needed it the same way: an open, an
+  // open the user already confirmed would replace a mix, or an add.
+  let pendingAuthenticationMode: "open" | "replace" | "add" = "open";
   let videoAudioSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   return createStore<ViewerStore>((set, get) => {
@@ -212,12 +220,13 @@ export function createViewerStore(
       });
     };
 
-    const openSourceRequest = async (request: OpenSourceRequest) => {
+    const openSourceRequest = async (request: OpenSourceRequest, replaceConfirmed = false) => {
       sourceRequestRevision += 1;
       try {
         set({ pendingAuthenticationLocation: exHentaiLocation(request), sourceNotice: null });
-        pendingAuthenticationMode = "open";
-        api.openSource(request);
+        pendingAuthenticationMode = replaceConfirmed ? "replace" : "open";
+        if (replaceConfirmed) api.openSource(request, { replaceConfirmed });
+        else api.openSource(request);
       } catch (error) {
         failSourceRequest(error);
       }
@@ -264,6 +273,7 @@ export function createViewerStore(
       sourceOpenError: null,
       sourceNotice: null,
       pendingAuthenticationLocation: null,
+      replaceConfirmation: null,
       downloadActivity: {
         revision: 0,
         rows: [],
@@ -324,7 +334,7 @@ export function createViewerStore(
           if (signedIn && location && revision === sourceRequestRevision) {
             const request: OpenSourceRequest = { kind: "location", location };
             if (pendingAuthenticationMode === "add") await addSourceRequest(request);
-            else await openSourceRequest(request);
+            else await openSourceRequest(request, pendingAuthenticationMode === "replace");
           }
         } catch (error) {
           console.error(error);
@@ -370,6 +380,19 @@ export function createViewerStore(
 
       dismissSourceNotice() {
         if (get().sourceNotice) set({ sourceNotice: null });
+      },
+
+      askToReplace(replaceConfirmation: ReplaceConfirmation) {
+        set({ replaceConfirmation });
+      },
+
+      // Going ahead sends main's request back, confirmed; main still decides
+      // whether it can open now.
+      answerReplace(replace: boolean) {
+        const confirmation = get().replaceConfirmation;
+        if (!confirmation) return;
+        set({ replaceConfirmation: null });
+        if (replace) void openSourceRequest(confirmation.request, true);
       },
 
       async refreshSource() {

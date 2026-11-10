@@ -4,7 +4,8 @@ import type {
   DownloadActivitySnapshot,
   MediaCollection,
   OpenSourceError,
-  OpenSourceRequest
+  OpenSourceRequest,
+  ReplaceConfirmation
 } from "../../shared/media";
 import type { PixvittaApi, PixvittaCommand, WindowChromeState } from "../../shared/pixvittaApi";
 import type { RecentSource } from "../../shared/recentSources";
@@ -80,6 +81,7 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
   const collectionListeners: Listeners<MediaCollection> = new Set();
   const loadingListeners: Listeners<boolean> = new Set();
   const errorListeners: Listeners<OpenSourceError> = new Set();
+  const replaceListeners: Listeners<ReplaceConfirmation> = new Set();
   const commandListeners: Listeners<PixvittaCommand> = new Set();
   const chromeListeners: Listeners<WindowChromeState> = new Set();
   const downloadListeners: Listeners<DownloadActivitySnapshot> = new Set();
@@ -152,8 +154,21 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     async getBuildInfo() {
       return createAppBuildInfo({ flavorOverride: "dev", version: "0.0.0-stage" });
     },
-    openSource(request: OpenSourceRequest) {
-      record("openSource", request);
+    // Like main, an open that would replace a mix asks first.
+    openSource(request: OpenSourceRequest, options) {
+      record("openSource", request, ...(options ? [options] : []));
+      const members = currentCollection?.source.members.length ?? 0;
+      if (members > 1 && !options?.replaceConfirmed) {
+        const confirmation: ReplaceConfirmation = {
+          request,
+          title: currentCollection?.source.title ?? "",
+          sourceCount: members
+        };
+        whenViewerReady(() => {
+          for (const listener of replaceListeners) listener(confirmation);
+        });
+        return;
+      }
       void open(request.kind === "location" ? request.location : "pick-directory");
     },
     // The stage delivers whatever collection the scenario defined for the
@@ -268,6 +283,7 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     onCollectionChanged: (callback) => subscribe(collectionListeners, callback),
     onSourceLoadingChanged: (callback) => subscribe(loadingListeners, callback),
     onSourceError: (callback) => subscribe(errorListeners, callback),
+    onReplaceConfirmation: (callback) => subscribe(replaceListeners, callback),
     onDownloadActivityChanged: (callback) => subscribe(downloadListeners, callback),
     onRecentSourcesChanged: (callback) => subscribe(recentListeners, callback),
     onSettingsChanged: (callback) => subscribe(settingsListeners, callback),

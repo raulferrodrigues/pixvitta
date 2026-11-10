@@ -14,6 +14,7 @@ import {
   publishMainWindowCollection,
   publishMainWindowLoading,
   publishMainWindowRecentSources,
+  publishMainWindowReplaceConfirmation,
   publishMainWindowSourceError
 } from "../windows";
 import { MediaLibrary } from "./mediaLibrary";
@@ -149,9 +150,21 @@ export async function removeRecentSource(
   return removeStoredRecentSource(location);
 }
 
-ipcMain.on("source:open", (event, request: unknown) => {
+// Opening from inside the app asks before it replaces a mix, and goes ahead
+// only once the request comes back confirmed. Opens from the operating system
+// do not come through here and replace without asking.
+ipcMain.on("source:open", (event, request: unknown, options: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   if (!isMainWindow(window) || !isOpenSourceRequest(request)) return;
+  const confirmed =
+    typeof options === "object" &&
+    options !== null &&
+    (options as { replaceConfirmed?: unknown }).replaceConfirmed === true;
+  const replaces = confirmed ? null : mediaLibrary.replaceConfirmation();
+  if (replaces) {
+    publishMainWindowReplaceConfirmation({ request, ...replaces });
+    return;
+  }
   void openSourceForWindow(request, window);
 });
 

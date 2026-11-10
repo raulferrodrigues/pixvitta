@@ -1,5 +1,10 @@
 import { randomBytes } from "node:crypto";
-import type { AddSourceResult, MediaCollection, OpenSourceError } from "../../shared/media";
+import type {
+  AddSourceResult,
+  MediaCollection,
+  OpenSourceError,
+  ReplaceConfirmation
+} from "../../shared/media";
 import type { RecentSourceInput } from "../../shared/recentSources";
 import type { AppSettings } from "../../shared/settings";
 import { MediaCatalog } from "./mediaCatalog";
@@ -143,6 +148,20 @@ export class MediaLibrary {
 
   async openLocation(location: string): Promise<boolean> {
     return (await this.runSourceOperation(async () => this.loadOpen(location))) === "committed";
+  }
+
+  /**
+   * What opening another source would replace, when the user must confirm it
+   * first: a mix of two or more sources. Null when an open can go ahead,
+   * including while another source operation runs and would ignore it.
+   */
+  replaceConfirmation(): Omit<ReplaceConfirmation, "request"> | null {
+    const active = this.active;
+    if (this.phase !== "idle" || !active || active.members.length < 2) return null;
+    return {
+      title: active.catalog.collection.source.title,
+      sourceCount: active.members.length
+    };
   }
 
   async openPickedLocation(

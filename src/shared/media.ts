@@ -65,6 +65,15 @@ export type OpenSourceRequest =
   | { kind: "pick-directory" }
   | { kind: "location"; location: string };
 
+// Main's question before an open from inside the app replaces a mix of two or
+// more sources: what the open would replace, and the request to send again,
+// marked as confirmed, if the user goes ahead.
+export type ReplaceConfirmation = {
+  request: OpenSourceRequest;
+  title: string;
+  sourceCount: number;
+};
+
 export type OpenSourceError =
   | "invalid-location"
   | "unsupported-location"

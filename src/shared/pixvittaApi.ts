@@ -4,7 +4,8 @@ import type {
   DownloadActivitySnapshot,
   MediaCollection,
   OpenSourceError,
-  OpenSourceRequest
+  OpenSourceRequest,
+  ReplaceConfirmation
 } from "./media";
 import type { RecentSource } from "./recentSources";
 import type { AppSettings } from "./settings";
@@ -31,9 +32,13 @@ export type WindowChromeState = {
 
 export type PixvittaApi = {
   getBuildInfo(): Promise<AppBuildInfo>;
-  openSource(request: OpenSourceRequest): void;
-  // Adds a source to the open collection; openSource replaces it. Resolves
-  // once main is done with the request, after any collection it produced.
+  // Replaces the open collection. When that would replace a mix, main asks
+  // first through onReplaceConfirmation and opens only once the request comes
+  // back with replaceConfirmed.
+  openSource(request: OpenSourceRequest, options?: { replaceConfirmed: boolean }): void;
+  // Adds a source to the open collection. Resolves once main is done with the
+  // request; the reply is not ordered against main's loading and collection
+  // messages.
   addSource(request: OpenSourceRequest): Promise<AddSourceResult>;
   // Removes one member source, by its ID in source.members, from the open collection.
   removeSource(memberId: string): void;
@@ -70,6 +75,7 @@ export type PixvittaApi = {
   onCollectionChanged(callback: (collection: MediaCollection) => void): () => void;
   onSourceLoadingChanged(callback: (isLoading: boolean) => void): () => void;
   onSourceError(callback: (error: OpenSourceError) => void): () => void;
+  onReplaceConfirmation(callback: (confirmation: ReplaceConfirmation) => void): () => void;
   onDownloadActivityChanged(
     callback: (snapshot: DownloadActivitySnapshot) => void
   ): () => void;

@@ -17,6 +17,7 @@ export function useKeyboardShortcuts() {
   const toggleFullscreen = useViewerStore((state) => state.toggleFullscreen);
   const exitFullscreen = useViewerStore((state) => state.exitFullscreen);
   const settingsView = useViewerStore((state) => state.settingsView);
+  const isAskingToReplace = useViewerStore((state) => state.replaceConfirmation !== null);
   const openSettings = useViewerStore((state) => state.openSettings);
   const closeSettings = useViewerStore((state) => state.closeSettings);
   const hasSource = useViewerStore((state) => state.source !== null);
@@ -30,6 +31,9 @@ export function useKeyboardShortcuts() {
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (isTextEntryTarget(event.target) && !event.metaKey && !event.ctrlKey) return;
+      // The question about replacing a mix takes every key until it is
+      // answered; its native dialog handles Enter and Escape.
+      if (isAskingToReplace) return;
       if (isShortcutsSheetKey(event)) {
         event.preventDefault();
         if (settingsView === "shortcuts") closeSettings();
@@ -52,5 +56,5 @@ export function useKeyboardShortcuts() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [addFolder, closeSettings, currentItemKind, downloadCurrentMedia, exitFullscreen, hasSource, openFolder, openSettings, refreshSource, scaleContinuousColumn, settingsView, toggleFullscreen, toggleSourcesPanel, toggleVideoPlayback, viewMode, zoomCurrentImage]);
+  }, [addFolder, closeSettings, currentItemKind, downloadCurrentMedia, exitFullscreen, hasSource, openFolder, openSettings, refreshSource, scaleContinuousColumn, settingsView, toggleFullscreen, toggleSourcesPanel, toggleVideoPlayback, viewMode, zoomCurrentImage, isAskingToReplace]);
 }
