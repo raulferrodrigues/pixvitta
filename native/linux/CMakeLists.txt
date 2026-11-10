@@ -4,10 +4,27 @@ project(pixvitta LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Qt and libmpv come from the system's packages, which only the system's
+# pkg-config sees. Look for it in the system directories first, so one that
+# another package manager (such as Homebrew) puts ahead on PATH isn't used.
+# Qt's package files call pkg-config too, so this comes before them.
+# -DPKG_CONFIG_EXECUTABLE or the PKG_CONFIG environment variable still win.
+if("$ENV{PKG_CONFIG}" STREQUAL "")
+    find_program(PKG_CONFIG_EXECUTABLE NAMES pkg-config pkgconf
+        PATHS /usr/bin /bin NO_DEFAULT_PATH)
+endif()
+
 find_package(Qt6 6.4 REQUIRED COMPONENTS Gui OpenGL Qml Quick)
-find_package(PkgConfig REQUIRED)
 find_package(Threads REQUIRED)
-pkg_check_modules(MPV REQUIRED IMPORTED_TARGET mpv)
+find_package(PkgConfig)
+if(NOT PKG_CONFIG_FOUND)
+    message(FATAL_ERROR "pkg-config not found. Install it (on Ubuntu: sudo apt install pkg-config).")
+endif()
+pkg_check_modules(MPV IMPORTED_TARGET mpv)
+if(NOT MPV_FOUND)
+    message(FATAL_ERROR "${PKG_CONFIG_EXECUTABLE} can't find libmpv. Install its development package "
+        "(on Ubuntu: sudo apt install libmpv-dev), or pass -DPKG_CONFIG_EXECUTABLE=<pkg-config that sees it>.")
+endif()
 
 qt_standard_project_setup()
 
@@ -17,7 +34,26 @@ qt_standard_project_setup()
 set(PIXVITTA_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../core")
 set(PIXVITTA_CORE_TARGET_DIR "${CMAKE_CURRENT_BINARY_DIR}/cargo")
 set(PIXVITTA_CORE_LIB "${PIXVITTA_CORE_TARGET_DIR}/release/libpixvitta_core.a")
-find_program(CARGO cargo HINTS "$ENV{HOME}/.cargo/bin" REQUIRED)
+find_program(CARGO cargo HINTS "$ENV{HOME}/.cargo/bin")
+if(NOT CARGO)
+    # rustup installed by a package manager (Homebrew, for one) doesn't put
+    # cargo on PATH or in ~/.cargo/bin, so ask rustup where its toolchain is.
+    find_program(RUSTUP rustup HINTS "$ENV{HOME}/.cargo/bin")
+    if(RUSTUP)
+        execute_process(COMMAND "${RUSTUP}" which cargo
+            WORKING_DIRECTORY "${PIXVITTA_CORE_DIR}"
+            OUTPUT_VARIABLE PIXVITTA_RUSTUP_CARGO
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET)
+        if(EXISTS "${PIXVITTA_RUSTUP_CARGO}")
+            set(CARGO "${PIXVITTA_RUSTUP_CARGO}" CACHE FILEPATH "Path to cargo." FORCE)
+        endif()
+    endif()
+endif()
+if(NOT CARGO)
+    message(FATAL_ERROR "cargo not found. Install Rust through rustup (https://rustup.rs) and run "
+        "'rustup default stable', or pass -DCARGO=/path/to/cargo.")
+endif()
 # Cargo finds rustc on PATH, which may not hold the toolchain CARGO points at.
 get_filename_component(PIXVITTA_CARGO_DIR "${CARGO}" DIRECTORY)
 find_program(RUSTC rustc HINTS "${PIXVITTA_CARGO_DIR}" REQUIRED)

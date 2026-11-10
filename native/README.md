@@ -27,11 +27,16 @@ cmake -S native/linux -B native/linux/build -DCMAKE_BUILD_TYPE=Release
 cmake --build native/linux/build -j
 ```
 
-Add to the first command when needed:
+No other flags are needed, even with Homebrew ahead of the system on `PATH`:
 
-- `-DCARGO="$(rustup which cargo)"` if `cargo` is not on `PATH`.
-- `-DPKG_CONFIG_EXECUTABLE=/usr/bin/pkg-config` if another `pkg-config`
-  (Homebrew's, for example) comes first on `PATH` and can't find libmpv.
+- CMake uses the system's `pkg-config` (`/usr/bin`), the only one that sees
+  the system's libmpv, even when another `pkg-config` comes first on `PATH`.
+- It looks for `cargo` on `PATH`, then in `~/.cargo/bin`, then asks
+  `rustup which cargo`, which covers a rustup installed by Homebrew.
+
+To use a different tool, pass `-DCARGO=/path/to/cargo` or
+`-DPKG_CONFIG_EXECUTABLE=/path/to/pkg-config` (or set `PKG_CONFIG`) to the
+first command. These are cached, so remove the build directory to undo them.
 
 Run it on a folder:
 
