@@ -8,6 +8,13 @@ import { mixTitle, type RecentMix, type RecentSource, type RecentSourceInput } f
  * from a preview tab and from Playwright alike.
  */
 
+const STAGE_ACCOUNT = {
+  id: "exhentai",
+  label: "ExHentai",
+  description: "Opens ExHentai galleries with your E-Hentai forums account.",
+  status: "signed-out"
+} as const;
+
 const FOLDER_CAPABILITIES: MediaSourceCapabilities = {
   canRefresh: true,
   canSort: true,
@@ -147,7 +154,9 @@ function mergeStageMembers(members: StageMergeMember[], mixId = "current-mix"): 
     itemCount: member.count,
     ...(member.siteName ? { siteName: member.siteName } : {}),
     recentLocation: member.location,
-    ...(member.error ? { error: member.error } : {})
+    ...(member.error ? { error: member.error } : {}),
+    // Main names the provider's account; the stage's only one is ExHentai's.
+    ...(member.error === "authentication-required" ? { errorAccountId: STAGE_ACCOUNT.id } : {})
   }));
   // The saved mix the mix's session writes.
   if (members.length > 1) collection.source.mixId = mixId;
@@ -233,6 +242,17 @@ const scenarios: Record<string, (stage: StageControls) => void> = {
     ]);
   },
 
+  /** Settings open on the provider accounts, one in each status. */
+  accounts(stage) {
+    stage.deliverCollection(sampleFolder());
+    stage.setAccounts([
+      { ...STAGE_ACCOUNT, status: "signed-in" },
+      { id: "stage-provider", label: "Stage provider", description: "Opens stage galleries with your stage account.", status: "signed-out" },
+      { id: "stage-pending", label: "Pending provider", description: "Opens pending galleries with your pending account.", status: "signing-in" }
+    ]);
+    stage.sendCommand("open-settings");
+  },
+
   /** A folder of images and a video, ready to browse. */
   folder(stage) {
     stage.deliverCollection(sampleFolder());
@@ -264,7 +284,7 @@ const scenarios: Record<string, (stage: StageControls) => void> = {
    * in succeeds, and the refresh that follows delivers the mix again.
    */
   "merged-sources-sign-in"(stage) {
-    stage.setSignInResult(true);
+    stage.setAccounts([STAGE_ACCOUNT]);
     mergedSources(stage, 3, { [MERGE_MEMBERS[2].title]: "authentication-required" });
   },
 
@@ -317,7 +337,12 @@ const scenarios: Record<string, (stage: StageControls) => void> = {
 for (const error of SOURCE_ERRORS) {
   scenarios[`error-${error}`] = (stage) => {
     stage.deliverCollection(sampleFolder());
-    stage.showSourceError(error);
+    if (error === "authentication-required") {
+      stage.setAccounts([STAGE_ACCOUNT]);
+      stage.showSourceError(error, STAGE_ACCOUNT.id);
+    } else {
+      stage.showSourceError(error);
+    }
   };
 }
 

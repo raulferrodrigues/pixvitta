@@ -1,3 +1,4 @@
+import type { AccountState } from "./accounts";
 import type { AppBuildInfo } from "./appBuild";
 import type {
   AddSourceRequest,
@@ -45,7 +46,9 @@ export type PixvittaApi = {
   removeSource(memberId: string): void;
   refreshSource(): void;
   openSourceOrigin(sourceId: string): Promise<boolean>;
-  signInExHentai(): Promise<boolean>;
+  getAccounts(): Promise<AccountState[]>;
+  signIn(accountId: string): Promise<boolean>;
+  signOut(accountId: string): Promise<void>;
   getRecentSources(): Promise<RecentEntry[]>;
   removeRecentSource(location: string): Promise<RecentEntry[]>;
   // Saved mixes in recents, by their ID. Removing one leaves its sources in
@@ -84,7 +87,8 @@ export type PixvittaApi = {
   onCommand(callback: (command: PixvittaCommand) => void): () => void;
   onCollectionChanged(callback: (collection: MediaCollection) => void): () => void;
   onSourceLoadingChanged(callback: (isLoading: boolean) => void): () => void;
-  onSourceError(callback: (error: OpenSourceError) => void): () => void;
+  // accountId names the account to sign in to, for authentication-required.
+  onSourceError(callback: (error: OpenSourceError, accountId?: string) => void): () => void;
   onReplaceConfirmation(callback: (confirmation: ReplaceConfirmation) => void): () => void;
   onDownloadActivityChanged(
     callback: (snapshot: DownloadActivitySnapshot) => void
@@ -93,4 +97,5 @@ export type PixvittaApi = {
   onSavedMixRenameRequested(callback: (id: string) => void): () => void;
   onSettingsChanged(callback: (settings: AppSettings) => void): () => void;
   onUpdateStateChanged(callback: (state: UpdateState) => void): () => void;
+  onAccountsChanged(callback: (accounts: AccountState[]) => void): () => void;
 };

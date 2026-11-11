@@ -28,6 +28,8 @@ export type MediaSourceMember = {
   // Why the source's last load failed. It still shows what it had before, and
   // the next refresh tries it again. Absent when it loaded.
   error?: OpenSourceError;
+  // The account to sign in to, when the error is authentication-required.
+  errorAccountId?: string;
 };
 
 export type MediaSource = {

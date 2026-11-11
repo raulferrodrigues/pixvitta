@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import path from "node:path";
+import type { AccountState } from "../../shared/accounts";
 import type { AddSourceRequest, AddSourceResult, OpenSourceRequest } from "../../shared/media";
 import { isRecentMix, type RecentEntry, type RecentMix } from "../../shared/recentSources";
 import { parseDialogResponses } from "../app";
@@ -16,6 +17,7 @@ import {
 } from "../stores";
 import {
   isMainWindow,
+  publishMainWindowAccounts,
   publishMainWindowCollection,
   publishMainWindowLoading,
   publishMainWindowRecentSources,
@@ -29,12 +31,13 @@ import {
   createProviderRegistry,
   type MediaResource
 } from "./providers";
-import { openExHentaiSignIn } from "./providers/exHentai/auth";
 
 let dialogResponses = parseDialogResponses();
 
+const providers = createProviderRegistry();
+
 const mediaLibrary = new MediaLibrary({
-  providers: createProviderRegistry(),
+  providers,
   getSettings,
   remember: async (source) => {
     publishMainWindowRecentSources(await saveRecentSource(source));
@@ -253,9 +256,73 @@ ipcMain.handle("source:open-origin", (_event, sourceId: unknown) => {
   return typeof sourceId === "string" ? openSourceOrigin(sourceId) : false;
 });
 
-ipcMain.handle("exhentai:sign-in", (event) => {
+// Sign-ins in progress. A second request, from Settings or a source error,
+// focuses the open sign-in and shares its result.
+const signingIn = new Map<string, Promise<boolean>>();
+let accountsRevision = 0;
+
+async function getAccounts(): Promise<AccountState[]> {
+  return Promise.all(providers.accounts().map(async (account) => ({
+    id: account.id,
+    label: account.label,
+    description: account.description,
+    status: signingIn.has(account.id)
+      ? "signing-in"
+      : await account.isSignedIn() ? "signed-in" : "signed-out"
+  })));
+}
+
+// Statuses are read asynchronously, so a slower, older read must not be
+// published over a newer one.
+async function publishAccounts(): Promise<void> {
+  const revision = ++accountsRevision;
+  const accounts = await getAccounts();
+  if (revision === accountsRevision) publishMainWindowAccounts(accounts);
+}
+
+function signIn(accountId: string, window: BrowserWindow): Promise<boolean> {
+  const account = providers.account(accountId);
+  if (!account) return Promise.resolve(false);
+  const running = signingIn.get(accountId);
+  if (running) {
+    account.focusSignIn();
+    return running;
+  }
+  const signingInAccount = (async () => {
+    try {
+      return await account.signIn(window);
+    } catch (error) {
+      console.error(error);
+      return false;
+    } finally {
+      signingIn.delete(accountId);
+      await publishAccounts();
+    }
+  })();
+  signingIn.set(accountId, signingInAccount);
+  void publishAccounts();
+  return signingInAccount;
+}
+
+async function signOut(accountId: string): Promise<void> {
+  const account = providers.account(accountId);
+  if (!account) return;
+  try {
+    await account.signOut();
+  } finally {
+    await publishAccounts();
+  }
+}
+
+ipcMain.handle("accounts:get", () => getAccounts());
+ipcMain.handle("accounts:sign-in", (event, accountId: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
-  return isMainWindow(window) ? openExHentaiSignIn(window) : false;
+  if (!window || !isMainWindow(window) || typeof accountId !== "string") return false;
+  return signIn(accountId, window);
+});
+ipcMain.handle("accounts:sign-out", (event, accountId: unknown) => {
+  if (!isMainWindow(BrowserWindow.fromWebContents(event.sender)) || typeof accountId !== "string") return;
+  return signOut(accountId);
 });
 
 ipcMain.on("library:renderer-stable", (event) => {

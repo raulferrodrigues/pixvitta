@@ -59,9 +59,25 @@ export type ProviderLoadRequest = {
   settings: AppSettings;
 };
 
+// An account a provider signs in to. isSignedIn reads what is stored on this
+// machine and never sends a request; a sign-in the site rejects surfaces as an
+// authentication-required error the next time the provider uses it. signIn
+// resolves once the user finishes or gives up, true when it worked. The session
+// never starts a second signIn while one is running; it calls focusSignIn.
+export interface ProviderAccount {
+  readonly id: string;
+  readonly label: string;
+  readonly description: string;
+  isSignedIn(): Promise<boolean>;
+  signIn(parent: Electron.BrowserWindow | null): Promise<boolean>;
+  focusSignIn(): void;
+  signOut(): Promise<void>;
+}
+
 export interface MediaProvider {
   readonly id: string;
   readonly sourceKind: RecentSourceKind;
+  readonly account?: ProviderAccount;
   // A short, human-readable name for the site a web provider reads from, such
   // as "4chan", shown beside a source's item count. Local providers have none.
   readonly siteName?: string;
@@ -72,7 +88,9 @@ export interface MediaProvider {
 export class ProviderError extends Error {
   constructor(
     readonly code: OpenSourceError,
-    message: string
+    message: string,
+    // The account to sign in to, for authentication-required errors.
+    readonly accountId?: string
   ) {
     super(message);
     this.name = "ProviderError";

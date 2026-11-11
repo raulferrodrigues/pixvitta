@@ -66,7 +66,7 @@ type MediaLibraryDependencies = {
     onDelivered: () => void
   ): void;
   publishLoading(isLoading: boolean): void;
-  publishError(error: OpenSourceError): void;
+  publishError(error: OpenSourceError, accountId?: string): void;
   fatal(message: string): never;
   setAcknowledgementTimer(callback: () => void, timeoutMs: number): unknown;
   clearAcknowledgementTimer(timer: unknown): void;
@@ -402,7 +402,10 @@ export class MediaLibrary {
       candidate = await loadCandidate();
     } catch (error) {
       this.finishWithoutCommit();
-      this.dependencies.publishError(this.sourceError(error));
+      this.dependencies.publishError(
+        this.sourceError(error),
+        error instanceof ProviderError ? error.accountId : undefined
+      );
       return "not-committed";
     }
 
@@ -565,6 +568,9 @@ export class MediaLibrary {
         itemCount: member.collection.items.length,
         ...(member.provider.siteName ? { siteName: member.provider.siteName } : {}),
         ...(member.error ? { error: member.error } : {}),
+        ...(member.error === "authentication-required" && member.provider.account
+          ? { errorAccountId: member.provider.account.id }
+          : {}),
         // The location recents keep a remembered source under, so the
         // renderer can tell which recent sources are already members.
         ...(member.collection.remember

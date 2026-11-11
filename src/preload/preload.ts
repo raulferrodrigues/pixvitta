@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { AccountState } from "../shared/accounts";
 import type { AppBuildInfo } from "../shared/appBuild";
 import type {
   AddSourceRequest,
@@ -34,8 +35,14 @@ const pixvittaApi = {
     ipcRenderer.send("source:refresh"),
   openSourceOrigin: (sourceId: string): Promise<boolean> =>
     ipcRenderer.invoke("source:open-origin", sourceId),
-  signInExHentai: (): Promise<boolean> =>
-    ipcRenderer.invoke("exhentai:sign-in"),
+
+  // Provider accounts. Main owns the sign-in windows and stored credentials;
+  // the renderer only names the account.
+  getAccounts: (): Promise<AccountState[]> => ipcRenderer.invoke("accounts:get"),
+  signIn: (accountId: string): Promise<boolean> =>
+    ipcRenderer.invoke("accounts:sign-in", accountId),
+  signOut: (accountId: string): Promise<void> =>
+    ipcRenderer.invoke("accounts:sign-out", accountId),
 
   // Persistent app data also goes through main. The renderer gets plain objects,
   // not direct access to JSON files under Electron's userData directory.
@@ -124,8 +131,8 @@ const pixvittaApi = {
     ipcRenderer.on("library:confirm-replace", listener);
     return () => ipcRenderer.removeListener("library:confirm-replace", listener);
   },
-  onSourceError: (callback: (error: OpenSourceError) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, error: OpenSourceError) => callback(error);
+  onSourceError: (callback: (error: OpenSourceError, accountId?: string) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, error: OpenSourceError, accountId?: string) => callback(error, accountId);
     ipcRenderer.on("library:source-error", listener);
     return () => ipcRenderer.removeListener("library:source-error", listener);
   },
@@ -171,6 +178,11 @@ const pixvittaApi = {
     const listener = (_event: Electron.IpcRendererEvent, state: UpdateState) => callback(state);
     ipcRenderer.on("updates:state-changed", listener);
     return () => ipcRenderer.removeListener("updates:state-changed", listener);
+  },
+  onAccountsChanged: (callback: (accounts: AccountState[]) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, accounts: AccountState[]) => callback(accounts);
+    ipcRenderer.on("accounts:changed", listener);
+    return () => ipcRenderer.removeListener("accounts:changed", listener);
   }
 } satisfies PixvittaApi;
 

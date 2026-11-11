@@ -85,9 +85,27 @@ The providers are:
   configuration, and path validation. See [nhentai provider](nhentai-provider.md).
 
 This is intentionally not a runtime plugin system. Provider-owned React UI and
-dynamic provider installation are out of scope. ExHentai sign-in is currently
-wired specifically through IPC and the renderer; making authentication
-provider-neutral is recorded in [Future Work](future-work.md).
+dynamic provider installation are out of scope.
+
+## Accounts
+
+A provider that signs in declares a `ProviderAccount` (`provider.ts`): an id, a
+label, and `isSignedIn`, `signIn`, and `signOut`. The library session lists
+every declared account over the `accounts:*` IPC channels and pushes the list
+on each change, and Settings shows one row per account. The renderer only ever
+names an account by id.
+
+- `isSignedIn` reads what is stored on this machine and never sends a request.
+  A sign-in the site has stopped accepting shows up as an
+  `authentication-required` error the next time the provider uses it.
+- `authentication-required` errors carry the account id, so the error's Sign in
+  button runs that account's sign-in and then reopens the source.
+- A mix member that failed with `authentication-required` names its
+  provider's account in `MediaSourceMember.errorAccountId`; signing in from its
+  row refreshes the collection.
+- Signing out forgets the account locally. ExHentai clears its session
+  partition and invalidates its gallery access, so an open gallery keeps the
+  pages it already loaded and fails on the next request.
 
 ## Several sources in one collection
 

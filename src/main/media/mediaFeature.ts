@@ -33,7 +33,7 @@ async function createMediaResponse(request: Request): Promise<Response> {
   } catch (error) {
     console.error(error);
     if (error instanceof ProviderError && error.code === "authentication-required") {
-      publishMainWindowSourceError(error.code);
+      publishMainWindowSourceError(error.code, error.accountId);
     }
     return new Response(null, { status: 500 });
   }

@@ -1,3 +1,4 @@
+import type { AccountState } from "../../shared/accounts";
 import { createAppBuildInfo } from "../../shared/appBuild";
 import type {
   AddSourceRequest,
@@ -47,11 +48,11 @@ export type StageControls = {
    */
   defineSource(location: string, source: StageSource): void;
   setRecentSources(sources: RecentEntry[]): void;
-  /** What signing in to ExHentai answers; false, as if the window was closed, until set. */
-  setSignInResult(signedIn: boolean): void;
   /** Asks the renderer to rename a saved mix, as main does from the mix's menu. */
   requestMixRename(id: string): void;
   setSettings(settings: Partial<AppSettings>): void;
+  /** Replaces the provider accounts and pushes them, as main does on every change. */
+  setAccounts(accounts: AccountState[]): void;
   /** Pushes an update state, as main does on every change. Update calls only record. */
   setUpdateState(state: Partial<UpdateState>): void;
   /** Holds openSource in its loading state until releaseOpen is called. */
@@ -59,7 +60,7 @@ export type StageControls = {
   releaseOpens(): void;
   deliverCollection(collection: MediaCollection): void;
   setLoading(isLoading: boolean): void;
-  showSourceError(error: OpenSourceError): void;
+  showSourceError(error: OpenSourceError, accountId?: string): void;
   setDownloadActivity(snapshot: DownloadActivitySnapshot): void;
   sendCommand(command: PixvittaCommand): void;
 };
@@ -79,9 +80,9 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
   let recentSources: RecentEntry[] = [];
   let downloadActivity = EMPTY_DOWNLOADS;
   let updateState: UpdateState = createUpdateState("0.0.0-stage", "latest", null);
+  let accounts: AccountState[] = [];
   let chrome: WindowChromeState = { zoomFactor: 1, isFullScreen: false, hasMacTrafficLights: false };
   let currentCollection: MediaCollection | null = null;
-  let signInResult = false;
   let viewerReady = false;
   let acknowledgementTimer: ReturnType<typeof setTimeout> | null = null;
   let held: Array<() => void> | null = null;
@@ -89,7 +90,7 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
 
   const collectionListeners: Listeners<MediaCollection> = new Set();
   const loadingListeners: Listeners<boolean> = new Set();
-  const errorListeners: Listeners<OpenSourceError> = new Set();
+  const errorListeners = new Set<(error: OpenSourceError, accountId?: string) => void>();
   const replaceListeners: Listeners<ReplaceConfirmation> = new Set();
   const commandListeners: Listeners<PixvittaCommand> = new Set();
   const chromeListeners: Listeners<WindowChromeState> = new Set();
@@ -98,6 +99,7 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
   const renameListeners: Listeners<string> = new Set();
   const settingsListeners: Listeners<AppSettings> = new Set();
   const updateListeners: Listeners<UpdateState> = new Set();
+  const accountListeners: Listeners<AccountState[]> = new Set();
 
   function record(method: string, ...args: unknown[]): void {
     calls.push({ method, args });
@@ -145,10 +147,15 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     });
   }
 
-  function showSourceError(error: OpenSourceError): void {
+  function showSourceError(error: OpenSourceError, accountId?: string): void {
     whenViewerReady(() => {
-      for (const listener of errorListeners) listener(error);
+      for (const listener of errorListeners) listener(error, accountId);
     });
+  }
+
+  function setAccountStatus(accountId: string, status: AccountState["status"]): void {
+    accounts = accounts.map((account) => (account.id === accountId ? { ...account, status } : account));
+    for (const listener of accountListeners) listener(accounts);
   }
 
   // Resolves as main answers an add: after the collection or the error it
@@ -218,9 +225,19 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
       record("openSourceOrigin", sourceId);
       return true;
     },
-    async signInExHentai() {
-      record("signInExHentai");
-      return signInResult;
+    async getAccounts() {
+      return accounts;
+    },
+    // The stage has no sign-in window, so signing in succeeds at once.
+    async signIn(accountId) {
+      record("signIn", accountId);
+      if (!accounts.some((account) => account.id === accountId)) return false;
+      setAccountStatus(accountId, "signed-in");
+      return true;
+    },
+    async signOut(accountId) {
+      record("signOut", accountId);
+      setAccountStatus(accountId, "signed-out");
     },
     async getRecentSources() {
       return recentSources;
@@ -337,7 +354,8 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     onRecentSourcesChanged: (callback) => subscribe(recentListeners, callback),
     onSavedMixRenameRequested: (callback) => subscribe(renameListeners, callback),
     onSettingsChanged: (callback) => subscribe(settingsListeners, callback),
-    onUpdateStateChanged: (callback) => subscribe(updateListeners, callback)
+    onUpdateStateChanged: (callback) => subscribe(updateListeners, callback),
+    onAccountsChanged: (callback) => subscribe(accountListeners, callback)
   };
 
   const controls: StageControls = {
@@ -352,9 +370,6 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
       recentSources = next;
       for (const listener of recentListeners) listener(next);
     },
-    setSignInResult(signedIn) {
-      signInResult = signedIn;
-    },
     requestMixRename(id) {
       whenViewerReady(() => {
         for (const listener of renameListeners) listener(id);
@@ -363,6 +378,10 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     setSettings(next) {
       settings = { ...settings, ...next };
       for (const listener of settingsListeners) listener(settings);
+    },
+    setAccounts(next) {
+      accounts = next;
+      for (const listener of accountListeners) listener(accounts);
     },
     setUpdateState(next) {
       updateState = { ...updateState, ...next };

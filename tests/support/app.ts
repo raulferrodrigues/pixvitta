@@ -72,16 +72,22 @@ export async function launchPixvitta({ sandbox, dialogs = [], args = [] }: Launc
 
   // Registered at the session level rather than by patching a function, so it
   // covers everything that goes through the session, including the renderer.
-  await app.evaluate(({ net, session }, port) => {
-    session.defaultSession.protocol.handle("https", (request) => {
-      const url = new URL(request.url);
-      return net.fetch(`http://127.0.0.1:${port}/${url.hostname}${url.pathname}${url.search}`, {
-        method: request.method,
-        headers: request.headers,
-        redirect: "manual",
-        bypassCustomProtocolHandlers: true
+  // Providers' own partitions, such as a sign-in window's, are created later,
+  // so every new session is routed too.
+  await app.evaluate(({ app: electronApp, net, session }, port) => {
+    const route = (target: Electron.Session) => {
+      target.protocol.handle("https", (request) => {
+        const url = new URL(request.url);
+        return net.fetch(`http://127.0.0.1:${port}/${url.hostname}${url.pathname}${url.search}`, {
+          method: request.method,
+          headers: request.headers,
+          redirect: "manual",
+          bypassCustomProtocolHandlers: true
+        });
       });
-    });
+    };
+    route(session.defaultSession);
+    electronApp.on("session-created", route);
   }, sandbox.fakeWebPort);
 
   const page = await app.firstWindow();

@@ -1,4 +1,5 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
+import type { AccountState } from "../../shared/accounts";
 import type {
   AddSourceRequest,
   AddSourceResult,
@@ -51,11 +52,15 @@ export type ViewerState = {
   filmstripWidth: number;
   isFilmstripVisible: boolean;
   sourceOpenError: OpenSourceError | null;
+  // The account an authentication-required error asks for.
+  sourceErrorAccountId: string | null;
+  // The last location asked for, reopened after signing in from its error.
+  retryLocation: string | null;
+  accounts: AccountState[];
   // Not an error: main's word that a source being added is already a member.
   // Shown where errors are, until the next source request, collection, or
   // error.
   sourceNotice: SourceNotice | null;
-  pendingAuthenticationLocation: string | null;
   // Main's question before an open replaces a mix, until the user answers.
   replaceConfirmation: ReplaceConfirmation | null;
   downloadActivity: DownloadActivitySnapshot;
@@ -77,10 +82,14 @@ export type ViewerActions = {
   removeSource(memberId: string): Promise<void>;
   openRecentSource(location: string): Promise<void>;
   openSavedMix(id: string): Promise<void>;
-  signInExHentai(): Promise<void>;
+  signInForSource(): Promise<void>;
   // Signs in for a member of the open collection that failed because it
   // needs it, then refreshes the collection so the member is tried again.
-  signInAndRefresh(): Promise<void>;
+  signInAndRefresh(accountId: string): Promise<void>;
+  loadAccounts(): Promise<void>;
+  applyAccounts(accounts: AccountState[]): void;
+  signIn(accountId: string): Promise<void>;
+  signOut(accountId: string): Promise<void>;
   removeRecentSource(location: string): Promise<void>;
   removeSavedMix(id: string): Promise<void>;
   pinSavedMix(id: string, pinned: boolean): Promise<void>;
@@ -90,7 +99,7 @@ export type ViewerActions = {
   finishRenamingMix(name: string | null): Promise<void>;
   openCollection(collection: MediaCollection): void;
   setSourceLoading(isLoading: boolean): void;
-  showSourceError(error: OpenSourceError): void;
+  showSourceError(error: OpenSourceError, accountId?: string): void;
   dismissSourceNotice(): void;
   askToReplace(confirmation: ReplaceConfirmation): void;
   answerReplace(replace: boolean): void;
@@ -180,17 +189,6 @@ function settingsRequireSourceRefresh(previousSettings: AppSettings, nextSetting
   return previousSettings.fileOrder !== nextSettings.fileOrder || previousSettings.includeHidden !== nextSettings.includeHidden;
 }
 
-function exHentaiLocation(request: OpenSourceRequest): string | null {
-  if (request.kind !== "location") return null;
-  try {
-    return new URL(request.location.trim()).hostname === "exhentai.org"
-      ? request.location
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 export function createViewerStore(
   api: PixvittaApi,
   videoController: VideoController = createVideoController()
@@ -198,10 +196,12 @@ export function createViewerStore(
   let settingsSaveRevision = 0;
   let recentSourcesRevision = 0;
   let updateStateRevision = 0;
+  let accountsRevision = 0;
   let sourceRequestRevision = 0;
   // Signing in retries the request that needed it the same way: an open, an
   // open the user already confirmed would replace a mix, or an add.
-  let pendingAuthenticationMode: "open" | "replace" | "add" = "open";
+  // How the request in retryLocation was made, so a retry makes it the same way.
+  let retryMode: "open" | "replace" | "add" = "open";
   let videoAudioSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   return createStore<ViewerStore>((set, get) => {
@@ -249,8 +249,8 @@ export function createViewerStore(
     const openSourceRequest = async (request: OpenSourceRequest, replaceConfirmed = false) => {
       sourceRequestRevision += 1;
       try {
-        set({ pendingAuthenticationLocation: exHentaiLocation(request), sourceNotice: null });
-        pendingAuthenticationMode = replaceConfirmed ? "replace" : "open";
+        set({ retryLocation: request.kind === "location" ? request.location : null, sourceNotice: null });
+        retryMode = replaceConfirmed ? "replace" : "open";
         if (replaceConfirmed) api.openSource(request, { replaceConfirmed });
         else api.openSource(request);
       } catch (error) {
@@ -265,8 +265,8 @@ export function createViewerStore(
     const addSourceRequest = async (request: AddSourceRequest): Promise<AddSourceResult> => {
       const revision = ++sourceRequestRevision;
       try {
-        set({ pendingAuthenticationLocation: exHentaiLocation(request), sourceNotice: null });
-        pendingAuthenticationMode = "add";
+        set({ retryLocation: request.kind === "location" ? request.location : null, sourceNotice: null });
+        retryMode = "add";
         const result = await api.addSource(request);
         if (result === "already-added" && revision === sourceRequestRevision) {
           set({ sourceNotice: "already-added" });
@@ -298,8 +298,10 @@ export function createViewerStore(
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
       isFilmstripVisible: true,
       sourceOpenError: null,
+      sourceErrorAccountId: null,
+      retryLocation: null,
+      accounts: [],
       sourceNotice: null,
-      pendingAuthenticationLocation: null,
       replaceConfirmation: null,
       downloadActivity: {
         revision: 0,
@@ -317,7 +319,8 @@ export function createViewerStore(
           get().loadSettings(),
           get().refreshRecentSources(),
           get().loadDownloadActivity(),
-          get().loadUpdateState()
+          get().loadUpdateState(),
+          get().loadAccounts()
         ]);
       },
 
@@ -357,30 +360,69 @@ export function createViewerStore(
         await openSourceRequest({ kind: "saved-mix", id });
       },
 
-      async signInExHentai() {
-        const location = get().pendingAuthenticationLocation;
+      async signInForSource() {
+        const { retryLocation: location, sourceErrorAccountId: accountId } = get();
+        if (!accountId) return;
         const revision = sourceRequestRevision;
         try {
-          const signedIn = await api.signInExHentai();
+          const signedIn = await api.signIn(accountId);
           if (signedIn && location && revision === sourceRequestRevision) {
             const request: AddSourceRequest = { kind: "location", location };
-            if (pendingAuthenticationMode === "add") await addSourceRequest(request);
-            else await openSourceRequest(request, pendingAuthenticationMode === "replace");
+            if (retryMode === "add") await addSourceRequest(request);
+            else await openSourceRequest(request, retryMode === "replace");
           }
         } catch (error) {
           console.error(error);
         }
       },
 
-      // No request is pending here, unlike signInExHentai: the member already
+      // No request is pending here, unlike signInForSource: the member already
       // failed in a refresh or a reopen, and the next refresh retries it.
-      async signInAndRefresh() {
+      async signInAndRefresh(accountId: string) {
         const sourceId = get().source?.id;
         try {
-          const signedIn = await api.signInExHentai();
+          const signedIn = await api.signIn(accountId);
           if (signedIn && sourceId !== undefined && get().source?.id === sourceId) {
             await get().refreshSource();
           }
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      async loadAccounts() {
+        const revision = accountsRevision;
+        try {
+          const accounts = await api.getAccounts();
+          // A pushed change that arrived first is newer than this answer.
+          if (revision === accountsRevision) set({ accounts });
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      applyAccounts(accounts: AccountState[]) {
+        accountsRevision += 1;
+        set((state) => {
+          // Signing in elsewhere, such as from Settings, answers the error.
+          const answered = state.sourceOpenError === "authentication-required" &&
+            accounts.some((account) => account.id === state.sourceErrorAccountId && account.status === "signed-in");
+          return answered ? { accounts, sourceOpenError: null, sourceErrorAccountId: null } : { accounts };
+        });
+      },
+
+      // Main pushes each status change, so these only ask for the step.
+      async signIn(accountId: string) {
+        try {
+          await api.signIn(accountId);
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      async signOut(accountId: string) {
+        try {
+          await api.signOut(accountId);
         } catch (error) {
           console.error(error);
         }
@@ -439,9 +481,10 @@ export function createViewerStore(
         }));
       },
 
-      showSourceError(sourceOpenError: OpenSourceError) {
+      showSourceError(sourceOpenError: OpenSourceError, accountId?: string) {
         set((state) => ({
           sourceOpenError,
+          sourceErrorAccountId: accountId ?? null,
           sourceNotice: null,
           loadState: state.source ? state.loadState : "idle"
         }));

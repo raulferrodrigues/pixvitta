@@ -11,20 +11,26 @@ function setup() {
   let completeSignIn!: (signedIn: boolean) => void;
   const api = {
     openSource(request: OpenSourceRequest) { requests.push(request); },
-    signInExHentai: () => new Promise<boolean>((resolve) => { completeSignIn = resolve; }),
+    signIn: () => new Promise<boolean>((resolve) => { completeSignIn = resolve; }),
     refreshSource() {}
-  } satisfies Pick<PixvittaApi, "openSource" | "signInExHentai" | "refreshSource">;
+  } satisfies Pick<PixvittaApi, "openSource" | "signIn" | "refreshSource">;
+  const store = createViewerStore(api as unknown as PixvittaApi);
   return {
-    store: createViewerStore(api as PixvittaApi),
+    store,
+    // Main answers an ExHentai gallery without a sign-in with this error.
+    async openGallery() {
+      await store.getState().openLocation(gallery);
+      store.getState().showSourceError("authentication-required", "exhentai");
+    },
     requests,
     completeSignIn(signedIn: boolean) { completeSignIn(signedIn); }
   };
 }
 
 test("successful sign-in retries the gallery when its source request is still current", async () => {
-  const { store, requests, completeSignIn } = setup();
-  await store.getState().openLocation(gallery);
-  const pending = store.getState().signInExHentai();
+  const { store, requests, completeSignIn, openGallery } = setup();
+  await openGallery();
+  const pending = store.getState().signInForSource();
   completeSignIn(true);
   await pending;
   assert.deepEqual(requests, [
@@ -35,9 +41,9 @@ test("successful sign-in retries the gallery when its source request is still cu
 
 test("successful sign-in cannot override a newer source command", async () => {
   for (const nextLocation of ["/new/folder", "https://exhentai.org/g/43/abcdef1234/", gallery]) {
-    const { store, requests, completeSignIn } = setup();
-    await store.getState().openLocation(gallery);
-    const pending = store.getState().signInExHentai();
+    const { store, requests, completeSignIn, openGallery } = setup();
+    await openGallery();
+    const pending = store.getState().signInForSource();
     await store.getState().openLocation(nextLocation);
     completeSignIn(true);
     await pending;
@@ -47,18 +53,18 @@ test("successful sign-in cannot override a newer source command", async () => {
 });
 
 test("cancelled sign-in does not retry the gallery", async () => {
-  const { store, requests, completeSignIn } = setup();
-  await store.getState().openLocation(gallery);
-  const pending = store.getState().signInExHentai();
+  const { store, requests, completeSignIn, openGallery } = setup();
+  await openGallery();
+  const pending = store.getState().signInForSource();
   completeSignIn(false);
   await pending;
   assert.equal(requests.length, 1);
 });
 
 test("a collection delivered while sign-in is open prevents a stale retry", async () => {
-  const { store, requests, completeSignIn } = setup();
-  await store.getState().openLocation(gallery);
-  const pending = store.getState().signInExHentai();
+  const { store, requests, completeSignIn, openGallery } = setup();
+  await openGallery();
+  const pending = store.getState().signInForSource();
   store.getState().openCollection({
     source: {
       id: "new-source",
@@ -76,8 +82,8 @@ test("a collection delivered while sign-in is open prevents a stale retry", asyn
 });
 
 test("refreshing the current source while signing in prevents a stale retry", async () => {
-  const { store, requests, completeSignIn } = setup();
-  await store.getState().openLocation(gallery);
+  const { store, requests, completeSignIn, openGallery } = setup();
+  await openGallery();
   store.getState().openCollection({
     source: {
       id: "current-source",
@@ -88,7 +94,7 @@ test("refreshing the current source while signing in prevents a stale retry", as
     items: [],
     selectedId: null
   });
-  const pending = store.getState().signInExHentai();
+  const pending = store.getState().signInForSource();
   await store.getState().refreshSource();
   completeSignIn(true);
   await pending;
@@ -147,34 +153,34 @@ test("signing in for a failed member refreshes the collection it belongs to, and
   let refreshes = 0;
   const api = {
     openSource(request: OpenSourceRequest) { requests.push(request); },
-    signInExHentai: () => new Promise<boolean>((resolve) => { signIns.push(resolve); }),
+    signIn: () => new Promise<boolean>((resolve) => { signIns.push(resolve); }),
     refreshSource() { refreshes += 1; }
-  } satisfies Pick<PixvittaApi, "openSource" | "signInExHentai" | "refreshSource">;
-  const store = createViewerStore(api as PixvittaApi);
+  } satisfies Pick<PixvittaApi, "openSource" | "signIn" | "refreshSource">;
+  const store = createViewerStore(api as unknown as PixvittaApi);
   const collection = (id: string) => ({
     source: {
       id,
       title: id,
       capabilities: { canRefresh: true, canSort: false, canDownload: false, canDownloadCollection: false, canOpenOrigin: false },
-      members: [{ id: "source-1", title: "Gallery", kind: "web" as const, itemCount: 0, error: "authentication-required" as const }]
+      members: [{ id: "source-1", title: "Gallery", kind: "web" as const, itemCount: 0, error: "authentication-required" as const, errorAccountId: "exhentai" }]
     },
     items: [],
     selectedId: null
   });
   store.getState().openCollection(collection("mix"));
 
-  const closed = store.getState().signInAndRefresh();
+  const closed = store.getState().signInAndRefresh("exhentai");
   signIns[0](false);
   await closed;
   assert.equal(refreshes, 0, "Closing the sign-in window changes nothing.");
 
-  const signedIn = store.getState().signInAndRefresh();
+  const signedIn = store.getState().signInAndRefresh("exhentai");
   signIns[1](true);
   await signedIn;
   assert.equal(refreshes, 1);
 
   // Another collection opened during sign-in is not refreshed on its behalf.
-  const replaced = store.getState().signInAndRefresh();
+  const replaced = store.getState().signInAndRefresh("exhentai");
   store.getState().openCollection(collection("other"));
   signIns[2](true);
   await replaced;

@@ -1,3 +1,4 @@
+import { ProviderError } from "../provider";
 import type { GalleryAccess } from "./galleryAccess";
 
 export type GallerySite = {
@@ -7,7 +8,8 @@ export type GallerySite = {
   apiUrl: string;
   /** Static host that serves images and thumbnails besides H@H and ehgt.org. */
   assetOrigin?: string;
-  authenticated: boolean;
+  /** The account the site signs in with. Sites without one are anonymous. */
+  accountId?: string;
   prepare?: () => Promise<GalleryAccess>;
 };
 
@@ -15,9 +17,11 @@ export const eHentaiSite: GallerySite = {
   id: "e-hentai",
   name: "E-Hentai",
   origin: "https://e-hentai.org",
-  apiUrl: "https://api.e-hentai.org/api.php",
-  authenticated: false
+  apiUrl: "https://api.e-hentai.org/api.php"
 };
+
+// The account ExHentai's provider declares; its errors name it.
+export const exHentaiAccountId = "exhentai";
 
 export const exHentaiSite: GallerySite = {
   id: "exhentai",
@@ -25,7 +29,7 @@ export const exHentaiSite: GallerySite = {
   origin: "https://exhentai.org",
   apiUrl: "https://s.exhentai.org/api.php",
   assetOrigin: "https://s.exhentai.org",
-  authenticated: true
+  accountId: exHentaiAccountId
 };
 
 export function galleryRequest(
@@ -35,12 +39,16 @@ export function galleryRequest(
 ): globalThis.Request {
   return new globalThis.Request(url, {
     ...init,
-    credentials: site.authenticated ? "include" : "same-origin",
-    redirect: site.authenticated ? "manual" : init.redirect
+    credentials: site.accountId ? "include" : "same-origin",
+    redirect: site.accountId ? "manual" : init.redirect
   });
 }
 
 export function isAuthenticationResponse(response: Response): boolean {
   return response.status === 401 || response.status === 403 ||
     (response.status >= 300 && response.status < 400);
+}
+
+export function authenticationRequired(site: GallerySite, message: string): ProviderError {
+  return new ProviderError("authentication-required", message, site.accountId);
 }

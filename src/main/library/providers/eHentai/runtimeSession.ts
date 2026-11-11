@@ -4,9 +4,8 @@ import { ResourceAcquisitions, ProviderCollectionRuntime, type ProviderIO } from
 import { RequestCancelledError, type RequestPriority } from "../../../requestBroker";
 import type { CachedFile } from "../../../resourceCache";
 import { mediaFileTypes } from "../../../utils/mediaTypes";
-import { ProviderError } from "../provider";
 import { GalleryAccessExpiredError, type GalleryAccess } from "./galleryAccess";
-import { galleryRequest, isAuthenticationResponse, type GallerySite } from "./gallerySite";
+import { authenticationRequired, galleryRequest, isAuthenticationResponse, type GallerySite } from "./gallerySite";
 import type { EHentaiGalleryReference } from "./galleryUrl";
 import { parseGalleryImagePages, parseDisplayedImageUrl, type EHentaiImagePageReference, type EHentaiThumbnailReference } from "./html";
 import { IMAGES_POLICY, PAGES_POLICY, THUMBNAILS_POLICY } from "./requestPolicies";
@@ -129,7 +128,7 @@ export class EHentaiRuntimeSession {
         await this.checkResponse(response);
         const references = parseGalleryImagePages(await response.text(), this.options.reference.pageUrl, this.options.reference.galleryId, this.options.site.origin);
         if (references.size === 0) {
-          if (this.options.site.authenticated) throw new ProviderError("authentication-required", `${this.options.site.name} did not accept the saved sign-in.`);
+          if (this.options.site.accountId) throw authenticationRequired(this.options.site, `${this.options.site.name} did not accept the saved sign-in.`);
           throw new Error("The gallery index did not contain image pages.");
         }
         return references;
@@ -154,7 +153,7 @@ export class EHentaiRuntimeSession {
         handleResponse: async (response) => { await this.checkResponse(response, true); return response.text(); }
       });
       const delivery = parseDisplayedImageUrl(html, page.pageUrl);
-      if (!delivery && this.options.site.authenticated) throw new ProviderError("authentication-required", `${this.options.site.name} did not accept the saved sign-in.`);
+      if (!delivery && this.options.site.accountId) throw authenticationRequired(this.options.site, `${this.options.site.name} did not accept the saved sign-in.`);
       if (!delivery || !this.approvedUrl(delivery, false)) throw new Error("The image page did not expose a safe image URL.");
       return io.requestFile({
         cacheKey, policy: IMAGES_POLICY, timeoutMs: 60_000, fetch: this.options.access?.fetch,
@@ -195,7 +194,7 @@ export class EHentaiRuntimeSession {
   private async checkResponse(response: Response, fullImage = false): Promise<void> {
     if (response.ok) return;
     await response.body?.cancel().catch(() => {});
-    if (this.options.site.authenticated && isAuthenticationResponse(response)) throw new ProviderError("authentication-required", `Sign in to ${this.options.site.name} again.`);
+    if (this.options.site.accountId && isAuthenticationResponse(response)) throw authenticationRequired(this.options.site, `Sign in to ${this.options.site.name} again.`);
     if (fullImage && response.status === 509) {
       this.options.imageLimit.reached = true;
       this.options.imageLimit.controller.abort(new Error("E-Hentai image viewing limits have been reached."));

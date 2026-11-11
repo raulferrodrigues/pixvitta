@@ -179,7 +179,7 @@ function MemberDetail({ member }: { member: MediaSourceMember }) {
         <AlertCircle size={11} aria-hidden />
         <span>
           {errorMessage(member.error, gt)}
-          {member.error === "authentication-required" ? (
+          {member.error === "authentication-required" && member.errorAccountId ? (
             <>
               {" "}
               <button
@@ -188,7 +188,7 @@ function MemberDetail({ member }: { member: MediaSourceMember }) {
                 aria-label={gt("Sign in for {title}", { title: member.title })}
                 data-testid="member-sign-in"
                 disabled={isSourceLoading}
-                onClick={() => void signInAndRefresh()}
+                onClick={() => member.errorAccountId && void signInAndRefresh(member.errorAccountId)}
               >
                 {gt("Sign in")}
               </button>

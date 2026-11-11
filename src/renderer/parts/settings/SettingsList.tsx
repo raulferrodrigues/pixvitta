@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { AppSettings } from "../../../shared/settings";
 import { useViewerStore } from "../../state/ViewerStoreProvider";
 import { Switch } from "../../ui/Switch";
+import { AccountRow } from "./AccountRow";
 import { settingSections, type SelectSettingRow, type SettingRow } from "./settingsSections";
 import { UpdateRow } from "./UpdateRow";
 
@@ -10,6 +11,7 @@ import { UpdateRow } from "./UpdateRow";
 // store owns saving and rolls back a value whose save fails.
 export function SettingsList() {
   const gt = useGT();
+  const accounts = useViewerStore((state) => state.accounts);
   return (
     <div className="grid content-start gap-6">
       {settingSections.map((section) => (
@@ -19,6 +21,13 @@ export function SettingsList() {
           ))}
         </SettingsSection>
       ))}
+      {accounts.length > 0 ? (
+        <SettingsSection label={gt("Accounts")}>
+          {accounts.map((account) => (
+            <AccountRow key={account.id} account={account} />
+          ))}
+        </SettingsSection>
+      ) : null}
       <SettingsSection label={gt("Updates")}>
         <UpdateRow />
       </SettingsSection>
