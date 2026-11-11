@@ -4,24 +4,32 @@ name: Validate
 # The release builds run the same `pnpm validate`, but only after CI has
 # already committed the version. The native core's sample-file corpus is
 # checked on every PR too.
+#
+# It also runs on every push to dev. PRs can only restore caches saved on their
+# own branch or their base branch, so this is what lets the Cargo and apt
+# caches carry over from one PR to the next.
 
 on:
   pull_request:
     branches:
       - dev
       - main
+  push:
+    branches:
+      - dev
 
 permissions:
   contents: read
 
 concurrency:
-  group: pixvitta-validate-${{ github.event.pull_request.number }}
+  group: pixvitta-validate-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   validate:
     name: Test, typecheck, and build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -63,11 +71,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Electron and a virtual display
-        run: |
-          pnpm exec install-electron
-          sudo apt-get update
-          sudo apt-get install -y xvfb libnss3 libgbm1 libasound2t64 libgtk-3-0t64 libatk-bridge2.0-0t64
+      - name: Install Electron
+        run: pnpm exec install-electron
+
+      - name: Install a virtual display and Electron's libraries
+        uses: ./.github/actions/apt-install
+        with:
+          packages: xvfb libnss3 libgbm1 libasound2t64 libgtk-3-0t64 libatk-bridge2.0-0t64
 
       - name: Stage tests
         run: pnpm test:stage
@@ -93,9 +103,9 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install libmpv
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libmpv-dev
+        uses: ./.github/actions/apt-install
+        with:
+          packages: libmpv-dev
 
       - name: Cache Cargo
         uses: actions/cache@v6
