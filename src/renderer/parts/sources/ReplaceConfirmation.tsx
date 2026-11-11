@@ -5,7 +5,8 @@ import { useViewerStore } from "../../state/ViewerStoreProvider";
 import { PrimaryButton } from "../../ui/PrimaryButton";
 
 // Main's question before an open from inside the app replaces a mix, however
-// the open started: a folder, a web address, a recent, or the menu. Enter
+// the open started: a folder, a web address, a recent source or mix, or the
+// menu. Enter
 // replaces and Escape keeps the mix. Mounted once by the app; as a modal
 // dialog it sits above any other open dialog, such as the web source one.
 export function ReplaceConfirmationDialog() {
@@ -42,10 +43,14 @@ export function ReplaceConfirmationDialog() {
             {gt("Replace the mix?")}
           </h2>
           <p id="replace-confirmation-message" className="m-0 text-sm leading-relaxed text-pix-muted">
-            {gt("Opening another source closes {title}, a mix of {count} sources.", {
+            {gt("This closes {title}, a mix of {count} sources.", {
               title: confirmation.title,
               count: confirmation.sourceCount
-            })}
+            })}{" "}
+            {/* Main says whether the mix is saved: it needs two sources recents keep. */}
+            {confirmation.saved
+              ? gt("It stays in your recent sources, so you can open it again.")
+              : gt("It is not saved, so it cannot be opened again.")}
           </p>
           <div className="flex justify-end gap-2">
             <PrimaryButton

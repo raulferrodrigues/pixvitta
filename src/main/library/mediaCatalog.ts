@@ -33,7 +33,8 @@ export class MediaCatalog {
   constructor(
     collectionId: string,
     providerCollection: ProviderCollection,
-    members: MediaSourceMember[]
+    members: MediaSourceMember[],
+    mixId?: string
   ) {
     this.viewing = providerCollection.viewing;
     const registeredItems: RegisteredMediaItem[] = [];
@@ -94,7 +95,8 @@ export class MediaCatalog {
             providerCollection.capabilities.canDownloadCollection,
           canOpenOrigin: !!providerCollection.origin
         },
-        members
+        members,
+        ...(mixId ? { mixId } : {})
       },
       items,
       selectedId:

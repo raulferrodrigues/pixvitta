@@ -1,6 +1,6 @@
 import type { DownloadActivitySnapshot, MediaCollection, MediaItem, MediaSourceCapabilities, OpenSourceError } from "../../shared/media";
 import type { StageControls } from "./stageApi";
-import type { RecentSource } from "../../shared/recentSources";
+import { mixTitle, type RecentMix, type RecentSource, type RecentSourceInput } from "../../shared/recentSources";
 
 /*
  * Named states the UI can start in: /stage.html?scenario=<name>. Add one when a
@@ -126,7 +126,7 @@ const CITY_WALKS: StageMergeMember = {
 
 // Interleaves a few items of each member as the library's zipper does, with
 // the members' real counts on the source.
-function mergeStageMembers(members: StageMergeMember[]): MediaCollection {
+function mergeStageMembers(members: StageMergeMember[], mixId = "current-mix"): MediaCollection {
   const shown = members.map((member) => Math.min(member.count, 4));
   const items: MediaItem[] = [];
   for (let round = 0; round < Math.max(...shown); round += 1) {
@@ -149,8 +149,27 @@ function mergeStageMembers(members: StageMergeMember[]): MediaCollection {
     recentLocation: member.location,
     ...(member.error ? { error: member.error } : {})
   }));
+  // The saved mix the mix's session writes.
+  if (members.length > 1) collection.source.mixId = mixId;
   return collection;
 }
+
+function savedMix(id: string, members: RecentSourceInput[], openedMs: number, label: { name?: string; pinned?: boolean } = {}): RecentMix {
+  return {
+    kind: "mix",
+    id,
+    ...(label.name ? { name: label.name } : {}),
+    pinned: label.pinned ?? false,
+    members,
+    openedMs,
+    title: label.name ?? mixTitle(members.map((member) => member.title))
+  };
+}
+
+const HOLIDAY: RecentSourceInput = { location: "/photos/holiday", title: "Holiday photos", providerId: "local-folder", kind: "folder" };
+const SAMPLE_THREAD: RecentSourceInput = { location: "https://boards.4chan.org/g/thread/1000", title: "Sample thread", providerId: "four-chan", kind: "web" };
+const WATERCOLOURS: RecentSourceInput = { location: "https://nhentai.net/g/100200/", title: "Watercolour studies", providerId: "nhentai", kind: "web" };
+const SKETCHES: RecentSourceInput = { location: "/photos/sketches", title: "Sketchbook", providerId: "local-folder", kind: "folder" };
 
 function mergedSources(stage: StageControls, memberCount: number, failed: Partial<Record<string, OpenSourceError>> = {}) {
   const members = MERGE_MEMBERS.slice(0, memberCount).map((member) => ({ ...member, error: failed[member.title] }));
@@ -167,7 +186,18 @@ function mergedSources(stage: StageControls, memberCount: number, failed: Partia
     stage.defineSource(member.location, index < memberCount ? "already-added" : mergeStageMembers([...members, member]));
   });
   stage.defineSource("https://boards.4chan.org/g/thread/404", "not-found");
+  stage.defineSource("saved-mix:studies", mergeStageMembers([
+    { ...WATERCOLOURS, count: 24, siteName: "nhentai" },
+    { ...SKETCHES, count: 40 }
+  ], "studies"));
+  // The mix on screen is in recents too, and stays out of the panel's list.
   stage.setRecentSources([
+    savedMix("studies", [WATERCOLOURS, SKETCHES], 7, { name: "Studies", pinned: true }),
+    ...(memberCount > 1 ? [savedMix("current-mix", members.map(({ title, location, kind }) => {
+      const { openedMs, ...member } = recent({ title, location, kind }, 0);
+      void openedMs;
+      return member;
+    }), 6)] : []),
     recent(MERGE_MEMBERS[0], 5),
     recent(CITY_WALKS, 4),
     recent(MERGE_MEMBERS[1], 3),
@@ -183,12 +213,18 @@ const scenarios: Record<string, (stage: StageControls) => void> = {
     stage.defineSource("pick-directory", sampleFolder());
   },
 
-  /** The source picker with a history to choose from. */
+  /** The source picker with a history to choose from: sources, a saved mix, and a pinned, renamed one. */
   recents(stage) {
     stage.defineSource("/photos/holiday", sampleFolder());
+    stage.defineSource("saved-mix:weekend", mergeStageMembers([
+      { ...HOLIDAY, count: 214 },
+      { ...SAMPLE_THREAD, count: 87, siteName: "4chan" }
+    ], "weekend"));
     stage.setRecentSources([
-      { location: "/photos/holiday", title: "Holiday photos", providerId: "local-folder", kind: "folder", openedMs: 0 },
-      { location: "https://boards.4chan.org/g/thread/1000", title: "Sample thread", providerId: "four-chan", kind: "web", openedMs: 0 }
+      savedMix("studies", [WATERCOLOURS, SKETCHES, HOLIDAY], 3, { name: "Studies", pinned: true }),
+      savedMix("weekend", [HOLIDAY, SAMPLE_THREAD], 2),
+      { ...HOLIDAY, openedMs: 1 },
+      { ...SAMPLE_THREAD, openedMs: 0 }
     ]);
   },
 

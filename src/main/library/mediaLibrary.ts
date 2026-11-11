@@ -5,7 +5,7 @@ import type {
   OpenSourceError,
   ReplaceConfirmation
 } from "../../shared/media";
-import type { RecentSourceInput } from "../../shared/recentSources";
+import type { RecentSourceInput, SavedMixInput } from "../../shared/recentSources";
 import type { AppSettings } from "../../shared/settings";
 import { MediaCatalog } from "./mediaCatalog";
 import { mergedItemKey, mergeSources } from "./mergedSources";
@@ -41,12 +41,26 @@ type ActiveLibraryState = {
   members: LibraryMember[];
   originUrl?: string;
   catalog: MediaCatalog;
+  // The saved mix this collection's session writes to. A session starts when
+  // a second source is added, or when a saved mix is reopened, and lasts as
+  // long as the collection: until another open replaces it.
+  mixId: string | null;
+};
+
+// What to write to recents once the renderer acknowledges a commit.
+type PendingRecents = {
+  source: RecentSourceInput | null;
+  mix: SavedMixInput | null;
 };
 
 type MediaLibraryDependencies = {
   providers: ProviderRegistry;
   getSettings(): Promise<AppSettings>;
   remember(source: RecentSourceInput): Promise<void>;
+  // Writes a session's mix as it now is: its remembered members in order.
+  // With fewer than two, recents take it out of the list.
+  saveMix(mix: SavedMixInput): Promise<void>;
+  savedMix(id: string): Promise<SavedMixInput | null>;
   publishCollection(
     collection: MediaCollection,
     onDelivered: () => void
@@ -57,6 +71,7 @@ type MediaLibraryDependencies = {
   setAcknowledgementTimer(callback: () => void, timeoutMs: number): unknown;
   clearAcknowledgementTimer(timer: unknown): void;
   createCollectionId?: () => string;
+  createMixId?: () => string;
   acknowledgementTimeoutMs?: number;
 };
 
@@ -67,6 +82,9 @@ type LoadedCandidate = {
   // active collection in place. Absent, the first member's selection stands.
   selectedKey?: string | null;
   rememberedMember: LibraryMember | null;
+  mixId: string | null;
+  // Whether this commit changes the mix, so its session writes it again.
+  savesMix: boolean;
 };
 
 // What loading a candidate can come to besides a collection to commit: null
@@ -119,6 +137,48 @@ function selectionAfterRemoving(
   );
 }
 
+// How recents keep a member: under the location and title it loaded with.
+function recentSource(member: LibraryMember): RecentSourceInput {
+  return {
+    location: member.collection.canonicalLocation,
+    title: member.collection.title,
+    providerId: member.provider.id,
+    kind: member.provider.sourceKind
+  };
+}
+
+// The members a saved mix keeps: those whose provider asks to be remembered.
+function rememberedSources(members: readonly LibraryMember[]): RecentSourceInput[] {
+  return members.filter((member) => member.collection.remember).map(recentSource);
+}
+
+// A saved source before it loads, and as it stays if it fails: present, with
+// no items. It can be refreshed, which retries it, and having nothing to
+// download, it does not stop the rest of the mix downloading.
+function unloadedSource(source: RecentSourceInput): ProviderCollection {
+  return {
+    canonicalLocation: source.location,
+    title: source.title,
+    capabilities: { canRefresh: true, canSort: false, canDownload: true, canDownloadCollection: true },
+    remember: true,
+    items: [],
+    selectedKey: null
+  };
+}
+
+// Stands in for the provider of a saved source that no installed provider
+// takes any more, so the source is still a member, marked as failed.
+function missingProvider(source: RecentSourceInput): MediaProvider {
+  return {
+    id: source.providerId,
+    sourceKind: source.kind,
+    matches: () => false,
+    async load() {
+      throw new ProviderError("unsupported-location", "No installed provider supports this location.");
+    }
+  };
+}
+
 function addResult(result: SourceOperationResult): AddSourceResult {
   if (result === "committed") return "added";
   return result === "already-member" ? "already-added" : "not-added";
@@ -128,15 +188,18 @@ export class MediaLibrary {
   private phase: MediaLibraryPhase = "idle";
   private active: ActiveLibraryState | null = null;
   private previousCatalog: MediaCatalog | null = null;
-  private pendingRecentSource: RecentSourceInput | null = null;
+  private pendingRecents: PendingRecents | null = null;
   private acknowledgementTimer: unknown | null = null;
   private memberCount = 0;
   private readonly createCollectionId: () => string;
+  private readonly createMixId: () => string;
   private readonly acknowledgementTimeoutMs: number;
 
   constructor(private readonly dependencies: MediaLibraryDependencies) {
     this.createCollectionId =
       dependencies.createCollectionId ?? (() => randomBytes(16).toString("hex"));
+    this.createMixId =
+      dependencies.createMixId ?? (() => randomBytes(16).toString("hex"));
     this.acknowledgementTimeoutMs =
       dependencies.acknowledgementTimeoutMs ??
       DEFAULT_ACKNOWLEDGEMENT_TIMEOUT_MS;
@@ -160,8 +223,19 @@ export class MediaLibrary {
     if (this.phase !== "idle" || !active || active.members.length < 2) return null;
     return {
       title: active.catalog.collection.source.title,
-      sourceCount: active.members.length
+      sourceCount: active.members.length,
+      saved: active.mixId !== null && rememberedSources(active.members).length >= 2
     };
+  }
+
+  /**
+   * Opens a saved mix in place of the open collection, and resumes its
+   * session: changes from here on rewrite the same saved mix. Every member
+   * loads through its provider; one that fails is present with no items,
+   * marked with its error, and stays in the saved mix.
+   */
+  async openSavedMix(id: string): Promise<boolean> {
+    return (await this.runSourceOperation(async () => this.loadSavedMix(id))) === "committed";
   }
 
   async openPickedLocation(
@@ -215,7 +289,9 @@ export class MediaLibrary {
         removed.collection,
         active.catalog.selectedKey
       ),
-      rememberedMember: null
+      rememberedMember: null,
+      mixId: active.mixId,
+      savesMix: true
     }));
     return result === "committed";
   }
@@ -250,7 +326,10 @@ export class MediaLibrary {
         members,
         // Read after the load, so navigation during it is kept too.
         selectedKey: active.catalog.selectedKey,
-        rememberedMember: null
+        rememberedMember: null,
+        // A refresh does not change what the mix is made of.
+        mixId: active.mixId,
+        savesMix: false
       };
     });
     return result === "committed";
@@ -272,15 +351,11 @@ export class MediaLibrary {
     );
     this.acknowledgementTimer = null;
     this.previousCatalog = null;
-    const recentSource = this.pendingRecentSource;
-    this.pendingRecentSource = null;
+    const recents = this.pendingRecents;
+    this.pendingRecents = null;
     this.phase = "idle";
     this.dependencies.publishLoading(false);
-    if (recentSource) {
-      void this.dependencies.remember(recentSource).catch((error) => {
-        console.error("Could not save recent source.", error);
-      });
-    }
+    if (recents) this.saveRecents(recents);
   }
 
   selectMedia(mediaId: string | null): void {
@@ -345,7 +420,43 @@ export class MediaLibrary {
     return {
       collectionId: this.createCollectionId(),
       members: [member],
-      rememberedMember: member.collection.remember ? member : null
+      rememberedMember: member.collection.remember ? member : null,
+      mixId: null,
+      savesMix: false
+    };
+  }
+
+  private async loadSavedMix(id: string): Promise<LoadedCandidate> {
+    const saved = await this.dependencies.savedMix(id);
+    if (!saved) {
+      throw new ProviderError("not-found", "The mix is no longer saved.");
+    }
+    const settings = await this.dependencies.getSettings();
+    const loaded = await this.loadMembers(
+      saved.members.map((source) => {
+        const provider =
+          this.dependencies.providers.find(source.location) ?? missingProvider(source);
+        return {
+          kept: { id: this.nextMemberId(), provider, collection: unloadedSource(source) },
+          load: () => provider.load({ location: source.location, refresh: false, settings })
+        };
+      })
+    );
+    // Two saved locations can load as the same source; it is a member once.
+    const members = loaded.filter((member, index) => {
+      const first = loaded.findIndex(
+        (other) => other.collection.canonicalLocation === member.collection.canonicalLocation
+      );
+      if (first === index) return true;
+      member.collection.viewing?.deactivate();
+      return false;
+    });
+    return {
+      collectionId: this.createCollectionId(),
+      members,
+      rememberedMember: null,
+      mixId: saved.id,
+      savesMix: true
     };
   }
 
@@ -369,7 +480,10 @@ export class MediaLibrary {
       collectionId: active.catalog.collection.source.id,
       members: [...active.members, member],
       selectedKey: active.catalog.selectedKey,
-      rememberedMember: member.collection.remember ? member : null
+      rememberedMember: member.collection.remember ? member : null,
+      // The second source starts the session; later ones continue it.
+      mixId: active.mixId ?? this.createMixId(),
+      savesMix: true
     };
   }
 
@@ -426,7 +540,11 @@ export class MediaLibrary {
       refresh: false,
       settings: await this.dependencies.getSettings()
     });
-    return { id: `source-${++this.memberCount}`, provider, collection };
+    return { id: this.nextMemberId(), provider, collection };
+  }
+
+  private nextMemberId(): string {
+    return `source-${++this.memberCount}`;
   }
 
   private commit(candidate: LoadedCandidate): void {
@@ -452,7 +570,8 @@ export class MediaLibrary {
         ...(member.collection.remember
           ? { recentLocation: member.collection.canonicalLocation }
           : {})
-      }))
+      })),
+      candidate.mixId ?? undefined
     );
     const previous = this.active;
 
@@ -472,22 +591,23 @@ export class MediaLibrary {
     this.active = {
       members: candidate.members,
       originUrl: providerCollection.origin?.url,
-      catalog
+      catalog,
+      mixId: candidate.mixId
     };
     // Establish demand on every commit, including refreshes whose public item
     // IDs are unchanged and therefore produce no renderer selection change.
     catalog.selectMedia(catalog.collection.selectedId);
     this.previousCatalog = previous?.catalog ?? null;
-    // An added source is remembered on its own; the merge itself is not.
+    // An added source is remembered on its own, and the session's mix is
+    // written as it now is, after it, so it is the newer of the two.
     const remembered = candidate.rememberedMember;
-    this.pendingRecentSource = remembered
-      ? {
-          location: remembered.collection.canonicalLocation,
-          title: remembered.collection.title,
-          providerId: remembered.provider.id,
-          kind: remembered.provider.sourceKind
-        }
-      : null;
+    this.pendingRecents = {
+      source: remembered ? recentSource(remembered) : null,
+      mix:
+        candidate.savesMix && candidate.mixId !== null
+          ? { id: candidate.mixId, members: rememberedSources(candidate.members) }
+          : null
+    };
     this.phase = "awaiting-renderer";
 
     try {
@@ -521,8 +641,24 @@ export class MediaLibrary {
       }, this.acknowledgementTimeoutMs);
   }
 
+  // Each on its own, so a failure to write one does not stop the other. The
+  // store applies them in the order they are made, so the mix, written
+  // second, is the newer entry.
+  private saveRecents({ source, mix }: PendingRecents): void {
+    if (source) {
+      void this.dependencies.remember(source).catch((error) => {
+        console.error("Could not save recent source.", error);
+      });
+    }
+    if (mix) {
+      void this.dependencies.saveMix(mix).catch((error) => {
+        console.error("Could not save the mix.", error);
+      });
+    }
+  }
+
   private finishWithoutCommit(): void {
-    this.pendingRecentSource = null;
+    this.pendingRecents = null;
     this.phase = "idle";
     this.dependencies.publishLoading(false);
   }

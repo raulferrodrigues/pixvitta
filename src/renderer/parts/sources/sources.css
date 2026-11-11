@@ -289,3 +289,36 @@
 .source-row-member[data-failed] .source-row-detail { white-space: normal; }
 .source-row-error { display: flex; align-items: flex-start; gap: 4px; color: rgb(252 165 165); }
 .source-row-error svg { flex: none; margin-top: 1.5px; }
+
+/* A saved mix in Recent opens in place of the collection. Its end says
+   "Open" in a neutral pill, where a source's has the accent "+", so the two
+   do not read as the same action. */
+.source-row-title-line { display: flex; min-width: 0; align-items: center; gap: 5px; }
+.source-row-pin { display: inline-flex; flex: none; color: var(--pix-accent); }
+.source-row-recent .source-row-open {
+  width: auto;
+  padding: 0 8px;
+  background: rgb(255 255 255 / 6%);
+  color: var(--pix-muted);
+  font-size: 11px;
+  font-weight: 600;
+  transition: background 120ms ease, color 120ms ease;
+}
+.source-row-recent:hover:not(:disabled) .source-row-open { background: rgb(255 255 255 / 11%); color: var(--pix-text); }
+
+/* Renaming a pinned mix puts a field where its title was. */
+.source-row-mix[data-renaming] { cursor: default; }
+.source-row-rename {
+  width: 100%;
+  min-width: 0;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--pix-accent);
+  border-radius: 4px;
+  background: rgb(0 0 0 / 22%);
+  color: var(--pix-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+}

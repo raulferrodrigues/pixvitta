@@ -6,8 +6,13 @@
  */
 export {
   getRecentSources,
+  getSavedMix,
   getSettings,
+  pinSavedMix,
   removeRecentSource,
+  removeSavedMix,
+  renameSavedMix,
+  saveMix,
   saveRecentSource,
   saveSettings
 } from "./stores";

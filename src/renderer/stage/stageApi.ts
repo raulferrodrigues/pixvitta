@@ -1,5 +1,6 @@
 import { createAppBuildInfo } from "../../shared/appBuild";
 import type {
+  AddSourceRequest,
   AddSourceResult,
   DownloadActivitySnapshot,
   MediaCollection,
@@ -8,7 +9,7 @@ import type {
   ReplaceConfirmation
 } from "../../shared/media";
 import type { PixvittaApi, PixvittaCommand, WindowChromeState } from "../../shared/pixvittaApi";
-import type { RecentSource } from "../../shared/recentSources";
+import { isRecentMix, mixTitle, type RecentEntry } from "../../shared/recentSources";
 import { defaultSettings, type AppSettings } from "../../shared/settings";
 import { createUpdateState, type UpdateState } from "../../shared/updates";
 
@@ -40,9 +41,14 @@ export type StageControls = {
   /** Every PixvittaApi method the renderer called, with arguments, in order. */
   callsTo(method: string): unknown[][];
   isViewerReady(): boolean;
-  /** Defines what openSource and addSource do for a location, or for the folder picker with "pick-directory". */
+  /**
+   * Defines what openSource and addSource do for a location, for the folder
+   * picker with "pick-directory", or for a saved mix with "saved-mix:<id>".
+   */
   defineSource(location: string, source: StageSource): void;
-  setRecentSources(sources: RecentSource[]): void;
+  setRecentSources(sources: RecentEntry[]): void;
+  /** Asks the renderer to rename a saved mix, as main does from the mix's menu. */
+  requestMixRename(id: string): void;
   setSettings(settings: Partial<AppSettings>): void;
   /** Pushes an update state, as main does on every change. Update calls only record. */
   setUpdateState(state: Partial<UpdateState>): void;
@@ -68,7 +74,7 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
   const violations: string[] = [];
   const sources = new Map<string, StageSource>();
   let settings: AppSettings = defaultSettings;
-  let recentSources: RecentSource[] = [];
+  let recentSources: RecentEntry[] = [];
   let downloadActivity = EMPTY_DOWNLOADS;
   let updateState: UpdateState = createUpdateState("0.0.0-stage", "latest", null);
   let chrome: WindowChromeState = { zoomFactor: 1, isFullScreen: false, hasMacTrafficLights: false };
@@ -85,12 +91,28 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
   const commandListeners: Listeners<PixvittaCommand> = new Set();
   const chromeListeners: Listeners<WindowChromeState> = new Set();
   const downloadListeners: Listeners<DownloadActivitySnapshot> = new Set();
-  const recentListeners: Listeners<RecentSource[]> = new Set();
+  const recentListeners: Listeners<RecentEntry[]> = new Set();
+  const renameListeners: Listeners<string> = new Set();
   const settingsListeners: Listeners<AppSettings> = new Set();
   const updateListeners: Listeners<UpdateState> = new Set();
 
   function record(method: string, ...args: unknown[]): void {
     calls.push({ method, args });
+  }
+
+  function requestKey(request: OpenSourceRequest): string {
+    if (request.kind === "location") return request.location;
+    return request.kind === "saved-mix" ? `saved-mix:${request.id}` : "pick-directory";
+  }
+
+  // Changes a saved mix as main's store would, and returns the new list.
+  function changeMix(id: string, change: (mix: Extract<RecentEntry, { kind: "mix" }>) => RecentEntry | null): RecentEntry[] {
+    recentSources = recentSources.flatMap((entry) => {
+      if (!isRecentMix(entry) || entry.id !== id) return [entry];
+      const changed = change(entry);
+      return changed ? [changed] : [];
+    });
+    return recentSources;
   }
 
   // Like the real main process, nothing reaches the renderer before viewer:ready,
@@ -162,20 +184,21 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
         const confirmation: ReplaceConfirmation = {
           request,
           title: currentCollection?.source.title ?? "",
-          sourceCount: members
+          sourceCount: members,
+          saved: currentCollection?.source.mixId !== undefined
         };
         whenViewerReady(() => {
           for (const listener of replaceListeners) listener(confirmation);
         });
         return;
       }
-      void open(request.kind === "location" ? request.location : "pick-directory");
+      void open(requestKey(request));
     },
     // The stage delivers whatever collection the scenario defined for the
     // location, so a scenario defines the merged collection an add produces.
-    addSource(request: OpenSourceRequest) {
+    addSource(request: AddSourceRequest) {
       record("addSource", request);
-      return open(request.kind === "location" ? request.location : "pick-directory");
+      return open(requestKey(request));
     },
     // Removing needs the library's merge, which the stage does not have; a
     // scenario delivers the resulting collection itself if it needs one.
@@ -201,8 +224,31 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     },
     async removeRecentSource(location) {
       record("removeRecentSource", location);
-      recentSources = recentSources.filter((source) => source.location !== location);
+      recentSources = recentSources.filter((source) => isRecentMix(source) || source.location !== location);
       return recentSources;
+    },
+    async removeSavedMix(id) {
+      record("removeSavedMix", id);
+      return changeMix(id, () => null);
+    },
+    async pinSavedMix(id, pinned) {
+      record("pinSavedMix", id, pinned);
+      return changeMix(id, (mix) => ({ ...mix, pinned }));
+    },
+    async renameSavedMix(id, name) {
+      record("renameSavedMix", id, name);
+      return changeMix(id, (mix) => {
+        if (!mix.pinned) return mix;
+        const { name: previousName, ...rest } = mix;
+        void previousName;
+        const trimmed = name.trim();
+        return trimmed
+          ? { ...rest, name: trimmed, title: trimmed }
+          : { ...rest, title: mixTitle(mix.members.map((member) => member.title)) };
+      });
+    },
+    showSavedMixMenu(id, position) {
+      record("showSavedMixMenu", id, ...(position ? [position] : []));
     },
     async getSettings() {
       return settings;
@@ -286,6 +332,7 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     onReplaceConfirmation: (callback) => subscribe(replaceListeners, callback),
     onDownloadActivityChanged: (callback) => subscribe(downloadListeners, callback),
     onRecentSourcesChanged: (callback) => subscribe(recentListeners, callback),
+    onSavedMixRenameRequested: (callback) => subscribe(renameListeners, callback),
     onSettingsChanged: (callback) => subscribe(settingsListeners, callback),
     onUpdateStateChanged: (callback) => subscribe(updateListeners, callback)
   };
@@ -301,6 +348,11 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     setRecentSources(next) {
       recentSources = next;
       for (const listener of recentListeners) listener(next);
+    },
+    requestMixRename(id) {
+      whenViewerReady(() => {
+        for (const listener of renameListeners) listener(id);
+      });
     },
     setSettings(next) {
       settings = { ...settings, ...next };

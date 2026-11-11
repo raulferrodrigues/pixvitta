@@ -6,7 +6,7 @@ import type {
   ReplaceConfirmation
 } from "../../shared/media";
 import type { PixvittaCommand } from "../../shared/pixvittaApi";
-import type { RecentSource } from "../../shared/recentSources";
+import type { RecentEntry } from "../../shared/recentSources";
 import { rendererUrl } from "../app";
 import { createMainWindow as createMainBrowserWindow } from "./mainWindow";
 import { notifyWindowChromeChanged } from "./windowChrome";
@@ -174,9 +174,14 @@ export function publishMainWindowDownloadActivity(
 }
 
 export function publishMainWindowRecentSources(
-  sources: RecentSource[]
+  sources: RecentEntry[]
 ): void {
   getReadyMainWindow()?.webContents.send("recent-sources:changed", sources);
+}
+
+// Only ever an answer to the window's own menu on a saved mix, so it is ready.
+export function publishMainWindowSavedMixRename(id: string): void {
+  getReadyMainWindow()?.webContents.send("saved-mixes:rename-requested", id);
 }
 
 export function isMainWindow(window: BrowserWindow | null): boolean {

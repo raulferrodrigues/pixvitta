@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { MediaCollection } from "../../shared/media";
+import type { SavedMixInput } from "../../shared/recentSources";
 import { defaultSettings } from "../../shared/settings";
 import { MediaLibrary } from "./mediaLibrary";
 import { mergedItemKey, mergeSources } from "./mergedSources";
@@ -115,7 +116,8 @@ test("the member that owns the selected item takes it on screen; the others stan
 // Locations load the keys listed here, and a trailing slash names the same
 // source; "broken" members fail once they are marked broken, so a refresh can
 // fail after a successful add. Sources listed in unremembered do not ask to be
-// kept in recents.
+// kept in recents. Saved mixes are written to `mixes` in order, and the ones
+// in `saved` can be reopened.
 function createLibrary(sources: Record<string, string[]>, unremembered: string[] = []) {
   const log: string[] = [];
   const loads: string[] = [];
@@ -123,7 +125,10 @@ function createLibrary(sources: Record<string, string[]>, unremembered: string[]
   const errors: string[] = [];
   const published: MediaCollection[] = [];
   const broken = new Set<string>();
+  const mixes: SavedMixInput[] = [];
+  const saved = new Map<string, SavedMixInput>();
   let generation = 0;
+  let mixGeneration = 0;
   const provider = {
     id: "trial", sourceKind: "web" as const, siteName: "Trial", matches: () => true,
     async load({ location }: { location: string }): Promise<ProviderCollection> {
@@ -137,6 +142,9 @@ function createLibrary(sources: Record<string, string[]>, unremembered: string[]
   const library = new MediaLibrary({
     providers: new ProviderRegistry([provider]), getSettings: async () => defaultSettings,
     remember: async (source) => { recents.push(source.location); },
+    saveMix: async (mix) => { mixes.push(mix); },
+    savedMix: async (id) => saved.get(id) ?? null,
+    createMixId: () => `mix-${++mixGeneration}`,
     publishCollection: (collection, delivered) => { published.push(collection); delivered(); },
     publishLoading() {}, publishError: (error) => { errors.push(error); }, fatal: (message): never => { throw new Error(message); },
     setAcknowledgementTimer: () => 1, clearAcknowledgementTimer() {}, createCollectionId: () => `collection-${++generation}`
@@ -145,7 +153,9 @@ function createLibrary(sources: Record<string, string[]>, unremembered: string[]
   const names = () => latest().items.map((entry) => entry.name);
   const selectedName = () => latest().items.find((entry) => entry.id === latest().selectedId)?.name;
   const deactivated = () => log.filter((entry) => entry.endsWith(":deactivate"));
-  return { library, loads, recents, errors, published, broken, latest, names, selectedName, deactivated };
+  // Each saved mix written, as its ID and its members' locations.
+  const writes = () => mixes.map((mix) => `${mix.id}: ${mix.members.map((member) => member.location).join(" ")}`);
+  return { library, loads, recents, errors, published, broken, mixes, saved, writes, latest, names, selectedName, deactivated };
 }
 
 test("adding a source keeps the collection, its item IDs and the selection, and remembers only the added source", async () => {
@@ -258,11 +268,15 @@ test("a refresh in which no member loads fails as a whole and leaves the collect
   assert.equal(harness.library.getPhase(), "idle");
 });
 
-async function openAll(harness: ReturnType<typeof createLibrary>, locations: string[]) {
+// Opens the first location and adds the rest, each acknowledged; with no
+// locations to open, adds to what is open.
+async function openAll(harness: ReturnType<typeof createLibrary>, locations: string[], additions: string[] = []) {
   const [first, ...rest] = locations;
-  assert.equal(await harness.library.openLocation(first), true);
-  harness.library.acknowledgeRenderer();
-  for (const location of rest) {
+  if (first !== undefined) {
+    assert.equal(await harness.library.openLocation(first), true);
+    harness.library.acknowledgeRenderer();
+  }
+  for (const location of [...rest, ...additions]) {
     assert.equal(await harness.library.addLocation(location), "added");
     harness.library.acknowledgeRenderer();
   }
@@ -319,3 +333,116 @@ test("removing the last source or an unknown one is ignored", async () => {
   assert.equal(harness.library.getPhase(), "idle");
   assert.deepEqual(harness.deactivated(), []);
 });
+
+// Saved mixes. The session is the save: one saved mix per collection, from the
+// moment it has a second source, rewritten on every change once the renderer
+// has acknowledged it.
+
+test("the second source starts a session, and every add and remove rewrites the same saved mix, after the renderer acknowledges it", async () => {
+  const harness = createLibrary({ a: ["a1"], b: ["b1"], c: ["c1"], d: ["d1"] }, ["c"]);
+  await openAll(harness, ["a"]);
+  assert.deepEqual(harness.writes(), [], "One source is not a mix.");
+  assert.equal(harness.latest().source.mixId, undefined);
+
+  assert.equal(await harness.library.addLocation("b"), "added");
+  assert.deepEqual(harness.writes(), [], "Nothing is written before the renderer acknowledges the collection.");
+  assert.equal(harness.latest().source.mixId, "mix-1");
+  harness.library.acknowledgeRenderer();
+  assert.deepEqual(harness.writes(), ["mix-1: a b"]);
+
+  // A source that does not ask to be remembered is left out of the saved mix.
+  await openAll(harness, [], ["c", "d"]);
+  const [, b] = harness.latest().source.members;
+  assert.equal(await harness.library.removeSource(b.id), true);
+  harness.library.acknowledgeRenderer();
+  assert.equal(await harness.library.refresh(), true);
+  harness.library.acknowledgeRenderer();
+  assert.deepEqual(harness.writes(), ["mix-1: a b", "mix-1: a b", "mix-1: a b d", "mix-1: a d"], "A refresh does not change the mix, so it is not written.");
+  assert.equal(harness.latest().source.mixId, "mix-1");
+  assert.deepEqual(harness.recents, ["a", "b", "d"], "Each added source is still remembered on its own.");
+});
+
+test("going down to one source writes the mix with one member, and adding again writes the same mix; another open starts over", async () => {
+  const harness = createLibrary({ a: ["a1"], b: ["b1"], c: ["c1"] });
+  await openAll(harness, ["a", "b"]);
+  const [, b] = harness.latest().source.members;
+  assert.equal(await harness.library.removeSource(b.id), true);
+  harness.library.acknowledgeRenderer();
+  assert.equal(harness.latest().source.mixId, "mix-1", "The session outlasts going down to one source.");
+  await openAll(harness, [], ["c"]);
+  assert.deepEqual(harness.writes(), ["mix-1: a b", "mix-1: a", "mix-1: a c"]);
+
+  // Building the same sources by hand after another open is a new mix.
+  await openAll(harness, ["a", "b"]);
+  assert.deepEqual(harness.writes().slice(3), ["mix-2: a b"]);
+});
+
+test("the replace question says whether the mix is saved, which needs two remembered sources", async () => {
+  const harness = createLibrary({ a: ["a1"], b: ["b1"], c: ["c1"] }, ["b"]);
+  await openAll(harness, ["a", "b"]);
+  assert.deepEqual(harness.library.replaceConfirmation(), { title: "a + b", sourceCount: 2, saved: false });
+  await openAll(harness, [], ["c"]);
+  assert.deepEqual(harness.library.replaceConfirmation(), { title: "a + 2 more", sourceCount: 3, saved: true });
+});
+
+test("reopening a saved mix loads every member into one collection and resumes its session", async () => {
+  const harness = createLibrary({ a: ["a1", "a2"], b: ["b1"], c: ["c1"] });
+  harness.saved.set("saved", { id: "saved", members: [recent("a"), recent("b")] });
+  await openAll(harness, ["c"]);
+
+  assert.equal(await harness.library.openSavedMix("saved"), true);
+  harness.library.acknowledgeRenderer();
+  assert.deepEqual(harness.names(), ["a1", "b1", "a2"]);
+  assert.equal(harness.selectedName(), "a1");
+  assert.equal(harness.latest().source.mixId, "saved");
+  assert.deepEqual(harness.deactivated(), ["c:deactivate"]);
+  assert.deepEqual(harness.recents, ["c"], "Reopening a mix moves the mix to the front, not each of its sources.");
+
+  await openAll(harness, [], ["c"]);
+  assert.deepEqual(harness.writes(), ["saved: a b", "saved: a b c"]);
+});
+
+test("a member that fails to reopen is present with no items and its error, stays in the saved mix, and a refresh retries it", async () => {
+  const harness = createLibrary({ a: ["a1"], b: ["b1"] });
+  harness.saved.set("saved", { id: "saved", members: [recent("b", "Thread b"), recent("a")] });
+  harness.broken.add("b");
+
+  assert.equal(await harness.library.openSavedMix("saved"), true);
+  harness.library.acknowledgeRenderer();
+  assert.deepEqual(harness.names(), ["a1"]);
+  assert.equal(harness.selectedName(), "a1");
+  assert.deepEqual(
+    harness.latest().source.members.map(({ title, itemCount, error, recentLocation }) => ({ title, itemCount, error, recentLocation })),
+    [
+      { title: "Thread b", itemCount: 0, error: "unavailable", recentLocation: "b" },
+      { title: "a", itemCount: 1, error: undefined, recentLocation: "a" }
+    ]
+  );
+  assert.deepEqual(harness.errors, []);
+  assert.deepEqual(harness.mixes.at(-1)?.members.map((member) => member.title), ["Thread b", "a"]);
+
+  harness.broken.clear();
+  assert.equal(await harness.library.refresh(), true);
+  harness.library.acknowledgeRenderer();
+  assert.deepEqual(harness.names(), ["b1", "a1"]);
+  assert.deepEqual(harness.latest().source.members.map((member) => member.error), [undefined, undefined]);
+});
+
+test("a saved mix in which nothing loads, or that is no longer saved, fails and leaves the open collection alone", async () => {
+  const harness = createLibrary({ a: ["a1"], b: ["b1"], c: ["c1"] });
+  harness.saved.set("saved", { id: "saved", members: [recent("a"), recent("b")] });
+  await openAll(harness, ["c"]);
+  harness.broken.add("a");
+  harness.broken.add("b");
+
+  assert.equal(await harness.library.openSavedMix("saved"), false);
+  assert.equal(await harness.library.openSavedMix("gone"), false);
+  assert.deepEqual(harness.errors, ["unavailable", "not-found"]);
+  assert.equal(harness.published.length, 1);
+  assert.deepEqual(harness.deactivated(), []);
+  assert.equal(harness.library.getPhase(), "idle");
+});
+
+function recent(location: string, title = location) {
+  return { location, title, providerId: "trial", kind: "web" as const };
+}

@@ -1,5 +1,6 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type {
+  AddSourceRequest,
   AddSourceResult,
   DownloadActivitySnapshot,
   MediaCollection,
@@ -10,7 +11,7 @@ import type {
   ReplaceConfirmation
 } from "../../shared/media";
 import type { PixvittaApi } from "../../shared/pixvittaApi";
-import type { RecentSource } from "../../shared/recentSources";
+import { isRecentMix, type RecentEntry } from "../../shared/recentSources";
 import { defaultSettings, type AppSettings, type FileOrder } from "../../shared/settings";
 import type { UpdateState } from "../../shared/updates";
 import { clampImageZoom, MIN_IMAGE_ZOOM, roundImageTransformValue } from "./imageView";
@@ -43,7 +44,10 @@ export type ViewerState = {
   viewMode: ViewMode;
   continuousColumnScale: number;
   settings: AppSettings;
-  recentSources: RecentSource[];
+  // Sources and saved mixes, in main's order.
+  recentSources: RecentEntry[];
+  // The saved mix whose name is being edited, wherever it is listed.
+  renamingMixId: string | null;
   filmstripWidth: number;
   isFilmstripVisible: boolean;
   sourceOpenError: OpenSourceError | null;
@@ -72,8 +76,15 @@ export type ViewerActions = {
   addLocation(location: string): Promise<AddSourceResult>;
   removeSource(memberId: string): Promise<void>;
   openRecentSource(location: string): Promise<void>;
+  openSavedMix(id: string): Promise<void>;
   signInExHentai(): Promise<void>;
   removeRecentSource(location: string): Promise<void>;
+  removeSavedMix(id: string): Promise<void>;
+  pinSavedMix(id: string, pinned: boolean): Promise<void>;
+  showSavedMixMenu(id: string, position?: { x: number; y: number }): void;
+  startRenamingMix(id: string): void;
+  // Saves the name, or with null leaves it as it was.
+  finishRenamingMix(name: string | null): Promise<void>;
   openCollection(collection: MediaCollection): void;
   setSourceLoading(isLoading: boolean): void;
   showSourceError(error: OpenSourceError): void;
@@ -86,7 +97,7 @@ export type ViewerActions = {
   loadDownloadActivity(): Promise<void>;
   applyDownloadActivity(snapshot: DownloadActivitySnapshot): void;
   refreshRecentSources(): Promise<void>;
-  applyRecentSources(sources: RecentSource[]): void;
+  applyRecentSources(sources: RecentEntry[]): void;
   loadSettings(): Promise<void>;
   applySettings(settings: AppSettings): void;
   setFileOrder(fileOrder: FileOrder): Promise<void>;
@@ -206,6 +217,18 @@ export function createViewerStore(
       }
     };
 
+    // A change to recents answers with the new list, unless main has
+    // published a newer one in the meantime.
+    const changeRecents = async (change: () => Promise<RecentEntry[]>) => {
+      const revision = ++recentSourcesRevision;
+      try {
+        const recentSources = await change();
+        if (revision === recentSourcesRevision) set({ recentSources });
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
     const applyOpenedCollection = (collection: MediaCollection) => {
       sourceRequestRevision += 1;
       set((state) => applyCollection(state, collection));
@@ -236,7 +259,7 @@ export function createViewerStore(
     // how it ended. Whether a source is already a member is main's call. The
     // answer may arrive before or after main's loading and collection
     // messages, which travel separately, so the notice is not tied to them.
-    const addSourceRequest = async (request: OpenSourceRequest): Promise<AddSourceResult> => {
+    const addSourceRequest = async (request: AddSourceRequest): Promise<AddSourceResult> => {
       const revision = ++sourceRequestRevision;
       try {
         set({ pendingAuthenticationLocation: exHentaiLocation(request), sourceNotice: null });
@@ -268,6 +291,7 @@ export function createViewerStore(
       continuousColumnScale: MAX_CONTINUOUS_COLUMN_SCALE,
       settings: defaultSettings,
       recentSources: [],
+      renamingMixId: null,
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
       isFilmstripVisible: true,
       sourceOpenError: null,
@@ -326,13 +350,17 @@ export function createViewerStore(
         await openSourceRequest({ kind: "location", location });
       },
 
+      async openSavedMix(id: string) {
+        await openSourceRequest({ kind: "saved-mix", id });
+      },
+
       async signInExHentai() {
         const location = get().pendingAuthenticationLocation;
         const revision = sourceRequestRevision;
         try {
           const signedIn = await api.signInExHentai();
           if (signedIn && location && revision === sourceRequestRevision) {
-            const request: OpenSourceRequest = { kind: "location", location };
+            const request: AddSourceRequest = { kind: "location", location };
             if (pendingAuthenticationMode === "add") await addSourceRequest(request);
             else await openSourceRequest(request, pendingAuthenticationMode === "replace");
           }
@@ -342,13 +370,37 @@ export function createViewerStore(
       },
 
       async removeRecentSource(location: string) {
-        const revision = ++recentSourcesRevision;
+        await changeRecents(() => api.removeRecentSource(location));
+      },
+
+      async removeSavedMix(id: string) {
+        await changeRecents(() => api.removeSavedMix(id));
+      },
+
+      async pinSavedMix(id: string, pinned: boolean) {
+        await changeRecents(() => api.pinSavedMix(id, pinned));
+      },
+
+      showSavedMixMenu(id: string, position?: { x: number; y: number }) {
         try {
-          const recentSources = await api.removeRecentSource(location);
-          if (revision === recentSourcesRevision) set({ recentSources });
+          if (position) api.showSavedMixMenu(id, position);
+          else api.showSavedMixMenu(id);
         } catch (error) {
           console.error(error);
         }
+      },
+
+      // Main says which mixes can be renamed by listing them as pinned.
+      startRenamingMix(id: string) {
+        const mix = get().recentSources.find((entry) => isRecentMix(entry) && entry.id === id);
+        if (mix && isRecentMix(mix) && mix.pinned) set({ renamingMixId: id });
+      },
+
+      async finishRenamingMix(name: string | null) {
+        const id = get().renamingMixId;
+        if (id === null) return;
+        set({ renamingMixId: null });
+        if (name !== null) await changeRecents(() => api.renameSavedMix(id, name));
       },
 
       openCollection(collection: MediaCollection) {
@@ -473,7 +525,7 @@ export function createViewerStore(
         }
       },
 
-      applyRecentSources(recentSources: RecentSource[]) {
+      applyRecentSources(recentSources: RecentEntry[]) {
         recentSourcesRevision += 1;
         set({ recentSources });
       },

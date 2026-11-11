@@ -2,8 +2,9 @@
 
 ## Status
 
-PR 1 (text-field keys) and PR 2 (mixing) are built; PR 2 is stacked on PR 1.
-PR 3 (saved mixes) is not started. The experiment log is reduced to its
+PR 1 (text-field keys), PR 2 (mixing), and PR 3 (saved mixes) are built; each
+is stacked on the one before. The shipped behaviour of saved mixes is in
+[Recent sources](recent-sources.md). The experiment log is reduced to its
 decisions in [merged-sources-plan.md](merged-sources-plan.md), and the shipped
 design is in [Media Provider Architecture](media-provider-architecture.md) and
 the [provider runtime](../src/main/providerRuntime/README.md).
@@ -167,6 +168,24 @@ mixes by ID.
 Main loads every member through the usual providers and the request broker,
 then commits one collection, under the failed-source rule above. A failed
 member stays in the saved mix until the user removes it.
+
+### Built (PR 3)
+
+- The library keeps the session as a saved-mix ID on the active collection
+  and, after each acknowledged add or remove, writes the mix's remembered
+  members; the recents store applies the list rules. A mix that goes down to
+  one source is held in memory with its name and pin until the session saves
+  it again; after a restart it is gone.
+- Entries are a union on `kind`: a mix has `kind: "mix"`, which sources never
+  had, so old files read as sources.
+- Pin, rename, and remove are in a native menu on mix rows (right-click, the
+  menu key, Shift+F10), with F2 to rename; the first-run screen also shows a
+  pin button. The panel's mix rows end in "Open" where source rows end in "+".
+- Unpinning puts the mix at the front of the unpinned entries, so it does not
+  drop off a full list at once.
+- Reopening a mix moves the mix to the front, not its sources.
+- A mix being viewed cannot be pinned or renamed from the panel, since it is
+  not listed there; that waits for the next time it is closed.
 
 ## Docs (PR 2 and 3)
 

@@ -26,7 +26,7 @@ test("selection uses provider keys and only a committed replacement deactivates 
   };
   const library = new MediaLibrary({
     providers: new ProviderRegistry([provider]), getSettings: async () => defaultSettings,
-    remember: async () => {}, publishCollection: (collection, delivered) => { published.push(collection); delivered(); },
+    remember: async () => {}, saveMix: async () => {}, savedMix: async () => null, publishCollection: (collection, delivered) => { published.push(collection); delivered(); },
     publishLoading() {}, publishError() {}, fatal: (message): never => { throw new Error(message); },
     setAcknowledgementTimer: () => 1, clearAcknowledgementTimer() {}, createCollectionId: (() => { let id = 0; return () => String(++id); })()
   });
@@ -80,7 +80,7 @@ test("adding a source keeps the loaded members active; only members a commit dro
   const published: MediaCollection[] = [];
   const library = new MediaLibrary({
     providers: new ProviderRegistry([provider]), getSettings: async () => defaultSettings,
-    remember: async () => {}, publishCollection: (collection, delivered) => { published.push(collection); delivered(); },
+    remember: async () => {}, saveMix: async () => {}, savedMix: async () => null, publishCollection: (collection, delivered) => { published.push(collection); delivered(); },
     publishLoading() {}, publishError() {}, fatal: (message): never => { throw new Error(message); },
     setAcknowledgementTimer: () => 1, clearAcknowledgementTimer() {}
   });

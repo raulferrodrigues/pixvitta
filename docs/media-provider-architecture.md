@@ -33,6 +33,7 @@ only these source operations:
 
 - open a directory through the native picker;
 - open a typed location;
+- open a saved mix from recents;
 - open an operating-system path;
 - add a source to the open collection, by picker or location;
 - remove one member source from a mix;
@@ -43,8 +44,9 @@ Opening replaces the collection. An open from inside the app that would
 replace a mix of two or more sources is not carried out: main answers with a
 question (`library:confirm-replace`) carrying the request, and opens only
 when the renderer sends that request back marked as confirmed. Main decides
-when to ask; the renderer only shows the question. Opens from the operating
-system replace without asking.
+when to ask, and says whether the mix is saved, so the question can say it
+stays in recents; the renderer only shows the question. Opens from the
+operating system replace without asking; the mix is saved either way.
 
 Provider matching, canonical locations, rate limits, remote request headers,
 resource delivery, local path authorization, recents policy, and error mapping
@@ -120,7 +122,23 @@ next refresh retries it. The result commits if at least one member that did
 not fail has items; otherwise the operation fails as a whole, the active
 collection is untouched, and the error is published as usual. A single
 source therefore fails exactly as it did before mixes. Reopening a saved mix
-is meant to use the same rule, with a failed member present and empty.
+uses the same rule: every member loads through its provider, and one that
+fails is present with no items, marked with its error, and stays in the saved
+mix until the user removes it. A saved source no installed provider takes any
+more is a failed member too.
+
+### Saved mixes
+
+The session is the save. The library gives a collection a saved-mix ID when
+its second source is added, or the saved mix's own ID when it is reopened, and
+keeps it for as long as the collection lives: adds and removes keep the
+collection, so they keep the session, and only another open ends it. After
+each add or remove, once the renderer acknowledges the collection, the library
+writes the saved mix as it now is: its members in order, leaving out any whose
+provider does not ask to be remembered. A refresh writes nothing. Recents
+decide what that means for the list (see [Recent sources](recent-sources.md)):
+fewer than two members take the mix out of the list, and the next write in
+the same session brings it back with its name and pin.
 
 ## Renderer contract
 
@@ -132,6 +150,8 @@ The renderer receives a provider-neutral collection:
 - its members in zipper order: an opaque ID, title, kind, item count, site
   name, the recent location it is remembered under, and the error of a failed
   load, but no provider IDs;
+- the ID of the saved mix the collection's session writes, so the sources
+  panel can leave that mix out of its recents;
 - opaque media IDs and `pixvitta-media://` resource URLs, each item carrying
   its source's title in a mix.
 
@@ -191,8 +211,8 @@ used entries above 2 GB.
 
 - The existing folder picker layout remains; its URL field becomes
   provider-neutral.
-- Recents store any source whose provider asks to be remembered; see
-  [Recent sources](recent-sources.md).
+- Recents store any source whose provider asks to be remembered, and saved
+  mixes of such sources; see [Recent sources](recent-sources.md).
 - A 4chan board catalog is not implemented yet. A future browsing result may
   add child sources without changing how media collections are viewed.
 
@@ -205,6 +225,9 @@ live requests:
   replacement commits, including which members of a mix a commit releases;
 - mixes: zipper order, key stability, capabilities, adding, removing, the
   selection rules, and the failed-member rule;
+- saved mixes: one saved mix per session rewritten on each change after the
+  acknowledgement, reopening and resuming a session, and a failed member
+  kept; the recents store's shape, migration, ordering, cap, and pins;
 - request broker scheduling, cancellation, pacing, and the 429 halt;
 - provider runtime ownership, sharing, prefetch order, refresh lifetime,
   standing by, and the cold start of a new source;
