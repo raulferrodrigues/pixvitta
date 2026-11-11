@@ -28,7 +28,7 @@ runs:
           fi
         done
         missing="${missing# }"
-        echo "Already installed: everything but '${missing}'"
+        echo "To install: ${missing:-nothing, the image already has every package}"
         echo "packages=${missing}" >> "$GITHUB_OUTPUT"
         if [ -n "$missing" ]; then
           # The image version decides which dependencies are already present,

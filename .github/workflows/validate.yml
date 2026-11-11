@@ -4,18 +4,25 @@ name: Validate
 # The release builds run the same `pnpm validate`, but only after CI has
 # already committed the version. The native core's sample-file corpus is
 # checked on every PR too.
+#
+# It also runs on every push to dev. PRs can only restore caches saved on their
+# own branch or their base branch, so this is what lets the Cargo and apt
+# caches carry over from one PR to the next.
 
 on:
   pull_request:
     branches:
       - dev
       - main
+  push:
+    branches:
+      - dev
 
 permissions:
   contents: read
 
 concurrency:
-  group: pixvitta-validate-${{ github.event.pull_request.number }}
+  group: pixvitta-validate-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
