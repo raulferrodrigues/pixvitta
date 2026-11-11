@@ -163,8 +163,10 @@ ipcMain.handle("source:open-origin", (_event, sourceId: unknown) => {
   return typeof sourceId === "string" ? openSourceOrigin(sourceId) : false;
 });
 
-// Accounts whose sign-in window is open. A second click only focuses it.
-const signingIn = new Set<string>();
+// Sign-ins in progress. A second request, from Settings or a source error,
+// focuses the open sign-in and shares its result.
+const signingIn = new Map<string, Promise<boolean>>();
+let accountsRevision = 0;
 
 async function getAccounts(): Promise<AccountState[]> {
   return Promise.all(providers.accounts().map(async (account) => ({
@@ -177,22 +179,36 @@ async function getAccounts(): Promise<AccountState[]> {
   })));
 }
 
+// Statuses are read asynchronously, so a slower, older read must not be
+// published over a newer one.
 async function publishAccounts(): Promise<void> {
-  publishMainWindowAccounts(await getAccounts());
+  const revision = ++accountsRevision;
+  const accounts = await getAccounts();
+  if (revision === accountsRevision) publishMainWindowAccounts(accounts);
 }
 
-async function signIn(accountId: string, window: BrowserWindow): Promise<boolean> {
+function signIn(accountId: string, window: BrowserWindow): Promise<boolean> {
   const account = providers.account(accountId);
-  if (!account) return false;
-  if (signingIn.has(accountId)) return account.signIn(window);
-  signingIn.add(accountId);
-  void publishAccounts();
-  try {
-    return await account.signIn(window);
-  } finally {
-    signingIn.delete(accountId);
-    await publishAccounts();
+  if (!account) return Promise.resolve(false);
+  const running = signingIn.get(accountId);
+  if (running) {
+    account.focusSignIn();
+    return running;
   }
+  const signingInAccount = (async () => {
+    try {
+      return await account.signIn(window);
+    } catch (error) {
+      console.error(error);
+      return false;
+    } finally {
+      signingIn.delete(accountId);
+      await publishAccounts();
+    }
+  })();
+  signingIn.set(accountId, signingInAccount);
+  void publishAccounts();
+  return signingInAccount;
 }
 
 async function signOut(accountId: string): Promise<void> {

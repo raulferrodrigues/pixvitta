@@ -10,7 +10,7 @@ function errorMessage(
   if (error === "invalid-location") return gt("Enter a complete supported location.");
   if (error === "unsupported-location") return gt("No installed provider supports that location.");
   if (error === "not-found") return gt("That source could not be found.");
-  if (error === "authentication-required") return gt("This source needs you to sign in. Close the sign-in window when you're done.");
+  if (error === "authentication-required") return gt("Sign in to open this source.");
   if (error === "rate-limited") return gt("The provider asked Pixvitta to slow down. Try again shortly.");
   if (error === "invalid-response") return gt("The provider returned an unexpected response.");
   if (error === "no-supported-media") return gt("That source has no supported images or videos.");

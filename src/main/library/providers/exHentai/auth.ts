@@ -1,23 +1,28 @@
 import { app, BrowserWindow, session } from "electron";
 import { ProviderError, type ProviderAccount } from "../provider";
 import { GalleryAuthentication, type GalleryAccess } from "../eHentai/galleryAccess";
+import { exHentaiAccountId as accountId } from "../eHentai/gallerySite";
 
 const partition = "persist:exhentai";
 const forumUrl = "https://forums.e-hentai.org/";
 const exHentaiUrl = "https://exhentai.org/";
 const accountCookieNames = ["ipb_member_id", "ipb_pass_hash"] as const;
-const accountId = "exhentai";
-
 let signInWindow: BrowserWindow | null = null;
+let pendingSignIn: Promise<boolean> | null = null;
+// Set by signing out, so a sign-in it interrupts does not copy cookies back.
+let signInCancelled = false;
 const authentication = new GalleryAuthentication();
 
 export function getExHentaiSession(): Electron.Session {
   return session.fromPartition(partition);
 }
 
-function isAccountCookie(cookies: Electron.Cookie[], name: string): boolean {
-  const value = cookies.find((cookie) => cookie.name === name)?.value;
-  return !!value && value !== "0" && value !== "deleted";
+// The forum can hold several cookies of one name, such as host and domain
+// scoped ones, so any usable one counts.
+function accountCookie(cookies: Electron.Cookie[], name: string): Electron.Cookie | undefined {
+  return cookies.find((cookie) =>
+    cookie.name === name && !!cookie.value && cookie.value !== "0" && cookie.value !== "deleted"
+  );
 }
 
 function validLoginNavigation(rawUrl: string): boolean {
@@ -47,8 +52,8 @@ export async function prepareExHentaiSession(): Promise<GalleryAccess> {
   const exCookies = await cookies.get({ url: exHentaiUrl });
   preparation.assertCurrent();
   const accountCookies = accountCookieNames.map((name) => {
-    const source = forumCookies.find((cookie) => cookie.name === name && cookie.value);
-    if (!source || !isAccountCookie(forumCookies, name)) {
+    const source = accountCookie(forumCookies, name);
+    if (!source) {
       authentication.invalidate();
       throw new ProviderError("authentication-required", "Sign in to the E-Hentai forums first.", accountId);
     }
@@ -89,13 +94,20 @@ export async function prepareExHentaiSession(): Promise<GalleryAccess> {
   return access;
 }
 
-async function openExHentaiSignIn(parent: BrowserWindow | null): Promise<boolean> {
-  await app.whenReady();
-  if (signInWindow && !signInWindow.isDestroyed()) {
-    signInWindow.focus();
-    return false;
-  }
+function openExHentaiSignIn(parent: BrowserWindow | null): Promise<boolean> {
+  pendingSignIn ??= runSignIn(parent).finally(() => {
+    pendingSignIn = null;
+  });
+  return pendingSignIn;
+}
 
+function focusExHentaiSignIn(): void {
+  if (signInWindow && !signInWindow.isDestroyed()) signInWindow.focus();
+}
+
+async function runSignIn(parent: BrowserWindow | null): Promise<boolean> {
+  await app.whenReady();
+  signInCancelled = false;
   authentication.invalidate();
   const window = new BrowserWindow({
     width: 960,
@@ -137,6 +149,7 @@ async function openExHentaiSignIn(parent: BrowserWindow | null): Promise<boolean
   } finally {
     if (signInWindow === window) signInWindow = null;
   }
+  if (signInCancelled) return false;
   try {
     await prepareExHentaiSession();
     return true;
@@ -148,7 +161,7 @@ async function openExHentaiSignIn(parent: BrowserWindow | null): Promise<boolean
 async function isExHentaiSignedIn(): Promise<boolean> {
   await app.whenReady();
   const forumCookies = await getExHentaiSession().cookies.get({ url: forumUrl });
-  return accountCookieNames.every((name) => isAccountCookie(forumCookies, name));
+  return accountCookieNames.every((name) => !!accountCookie(forumCookies, name));
 }
 
 // Signing out forgets the account on this machine only. The forum's own log
@@ -157,7 +170,14 @@ async function isExHentaiSignedIn(): Promise<boolean> {
 async function signOutOfExHentai(): Promise<void> {
   await app.whenReady();
   authentication.invalidate();
-  if (signInWindow && !signInWindow.isDestroyed()) signInWindow.destroy();
+  // Let an interrupted sign-in finish before clearing, so it cannot copy the
+  // account cookies into the session after they are gone.
+  const running = pendingSignIn;
+  if (running) {
+    signInCancelled = true;
+    if (signInWindow && !signInWindow.isDestroyed()) signInWindow.destroy();
+    await running;
+  }
   const browserSession = getExHentaiSession();
   await browserSession.clearStorageData();
   await browserSession.clearCache();
@@ -170,5 +190,6 @@ export const exHentaiAccount: ProviderAccount = {
   description: "Opens ExHentai galleries with your E-Hentai forums account.",
   isSignedIn: isExHentaiSignedIn,
   signIn: openExHentaiSignIn,
+  focusSignIn: focusExHentaiSignIn,
   signOut: signOutOfExHentai
 };

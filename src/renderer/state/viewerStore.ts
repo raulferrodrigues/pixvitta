@@ -282,7 +282,12 @@ export function createViewerStore(
 
       applyAccounts(accounts: AccountState[]) {
         accountsRevision += 1;
-        set({ accounts });
+        set((state) => {
+          // Signing in elsewhere, such as from Settings, answers the error.
+          const answered = state.sourceOpenError === "authentication-required" &&
+            accounts.some((account) => account.id === state.sourceErrorAccountId && account.status === "signed-in");
+          return answered ? { accounts, sourceOpenError: null, sourceErrorAccountId: null } : { accounts };
+        });
       },
 
       // Main pushes each status change, so these only ask for the step.

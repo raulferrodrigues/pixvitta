@@ -56,13 +56,15 @@ export type ProviderLoadRequest = {
 // An account a provider signs in to. isSignedIn reads what is stored on this
 // machine and never sends a request; a sign-in the site rejects surfaces as an
 // authentication-required error the next time the provider uses it. signIn
-// resolves once the user finishes or gives up, true when it worked.
+// resolves once the user finishes or gives up, true when it worked. The session
+// never starts a second signIn while one is running; it calls focusSignIn.
 export interface ProviderAccount {
   readonly id: string;
   readonly label: string;
   readonly description: string;
   isSignedIn(): Promise<boolean>;
   signIn(parent: Electron.BrowserWindow | null): Promise<boolean>;
+  focusSignIn(): void;
   signOut(): Promise<void>;
 }
 

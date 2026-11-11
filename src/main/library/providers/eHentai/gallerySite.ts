@@ -20,13 +20,16 @@ export const eHentaiSite: GallerySite = {
   apiUrl: "https://api.e-hentai.org/api.php"
 };
 
+// The account ExHentai's provider declares; its errors name it.
+export const exHentaiAccountId = "exhentai";
+
 export const exHentaiSite: GallerySite = {
   id: "exhentai",
   name: "ExHentai",
   origin: "https://exhentai.org",
   apiUrl: "https://s.exhentai.org/api.php",
   assetOrigin: "https://s.exhentai.org",
-  accountId: "exhentai"
+  accountId: exHentaiAccountId
 };
 
 export function galleryRequest(
