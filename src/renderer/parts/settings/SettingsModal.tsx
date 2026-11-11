@@ -11,7 +11,7 @@ import "./settings.css";
 
 type SettingsToggleProps = Pick<ComponentProps<typeof IconButton>, "variant" | "className">;
 
-export function SettingsToggle({ variant, className }: SettingsToggleProps = {}) {
+export function SettingsToggle({ variant, className }: SettingsToggleProps) {
   const gt = useGT();
   const isOpen = useViewerStore((state) => state.settingsView !== null);
   const openSettings = useViewerStore((state) => state.openSettings);

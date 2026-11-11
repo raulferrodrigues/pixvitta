@@ -54,8 +54,8 @@ export function SourcePicker({ buildInfo }: { buildInfo: AppBuildInfo }) {
             <PrimaryButton className="open-folder-button" data-testid="open-folder-empty" onClick={() => void openFolder()}>
               <FolderOpen size={19} aria-hidden /><span><T>Open Folder</T></span>
             </PrimaryButton>
-            {/* Sized to the Open Folder button beside it. */}
-            <SettingsToggle variant="primary" className="h-11! w-11!" />
+            {/* Sized and colored to match the Open Folder button beside it. */}
+            <SettingsToggle variant="primary" className="size-11! bg-pix-panel! hover:bg-pix-panel-hover!" />
           </div>
         </div>
         <div className="rounded-xl border border-pix-border bg-pix-recent p-4 shadow-[0_18px_40px_-24px_rgb(0_0_0/70%)]">
