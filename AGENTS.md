@@ -52,7 +52,7 @@ Before you start any work, check which branch you are on (`git branch --show-cur
 
 - If the thread is not in a worktree, move it with `t3_worktree_handoff`: branch `<prefix>/<short-name>`, `baseRef: "dev"` with `startFromOrigin: true`, or `main` for a hotfix.
 - If the branch does not follow the naming rule below, rename it with `git branch -m <prefix>/<short-name>` before you edit anything. T3 names new branches `t3/...`, both as an id (`t3/c2430f95`) and as a slug (`t3/fix-thumbnails`). Neither form is valid.
-- Check that the branch starts from `dev` (or `main` for a hotfix). T3 can create new worktrees from `main`, which is behind `dev` and has an older copy of this file. Run `git fetch origin dev` and `git merge-base --is-ancestor origin/dev HEAD`. If it fails and the branch has no commits of its own yet, move it with `git reset --hard origin/dev`, then read this file again, because the `dev` copy may have rules this one lacks.
+- If a new branch is not based on `origin/dev` (except a hotfix), run `git reset --hard origin/dev` and read this file again.
 
 Branch names are one prefix plus a short kebab-case name, like `feat/saved-mixes`:
 
