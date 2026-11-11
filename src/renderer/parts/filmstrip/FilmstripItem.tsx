@@ -93,7 +93,7 @@ export function FilmstripItem({ item, itemIndex, isActive }: FilmstripItemProps)
       type="button"
       aria-label={gt("Show {name}", { name: item.name })}
       aria-current={isActive ? "true" : undefined}
-      title={item.name}
+      title={item.sourceLabel ? `${item.name} · ${item.sourceLabel}` : item.name}
       data-testid={`filmstrip-item-${itemIndex}`}
       onClick={() => selectMedia(itemIndex)}
       onContextMenu={showMediaContextMenu}

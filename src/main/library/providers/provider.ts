@@ -26,8 +26,14 @@ export type ProviderMediaItem = Omit<MediaItem, "id" | "url" | "thumbnailUrl"> &
 };
 
 export type ProviderCollection = {
+  // Viewing demand for a provider that fetches media on demand.
   viewing?: {
+    // The item on screen, or null when none of this collection is needed.
     select(key: string | null): void;
+    // Nothing of this collection is on screen, as when another source of a
+    // mix owns the item shown. It keeps its selected item and prefetch window
+    // at prefetch priority; one with no selected item yet takes `key`.
+    standBy(key?: string): void;
     deactivate(): void;
   };
   canonicalLocation: string;
@@ -72,6 +78,9 @@ export interface MediaProvider {
   readonly id: string;
   readonly sourceKind: RecentSourceKind;
   readonly account?: ProviderAccount;
+  // A short, human-readable name for the site a web provider reads from, such
+  // as "4chan", shown beside a source's item count. Local providers have none.
+  readonly siteName?: string;
   matches(location: string): boolean;
   load(request: ProviderLoadRequest): Promise<ProviderCollection>;
 }

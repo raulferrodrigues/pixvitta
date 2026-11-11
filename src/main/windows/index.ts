@@ -14,6 +14,8 @@ export {
   publishMainWindowDownloadActivity,
   publishMainWindowLoading,
   publishMainWindowRecentSources,
+  publishMainWindowReplaceConfirmation,
+  publishMainWindowSavedMixRename,
   publishMainWindowSourceError,
   resetFocusedWindowZoom,
   sendMenuCommand,

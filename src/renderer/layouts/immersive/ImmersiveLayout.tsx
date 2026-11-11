@@ -6,11 +6,12 @@ import { NextButton, PreviousButton } from "../../parts/controls/NavigationButto
 import { FileOrderButton, OpenFolderButton, RefreshButton } from "../../parts/controls/SourceActions";
 import { Counter, SourceOrigin, SourceTitle } from "../../parts/controls/SourceInfo";
 import { LoopButton, PlayButton } from "../../parts/controls/VideoButtons";
-import { DownloadPanelToggle, FilmstripToggle, FullscreenButton, UnobtrusiveToggle, ViewModeToggle } from "../../parts/controls/ViewButtons";
+import { DownloadPanelToggle, FilmstripToggle, FullscreenButton, SourcesPanelToggle, UnobtrusiveToggle, ViewModeToggle } from "../../parts/controls/ViewButtons";
 import { WebSourceDialog } from "../../parts/controls/WebSourceDialog";
 import { DownloadPanel } from "../../parts/downloads/DownloadPanel";
 import { Filmstrip } from "../../parts/filmstrip/Filmstrip";
 import { MediaViewer } from "../../parts/media-viewer/MediaViewer";
+import { SourcesPanel } from "../../parts/sources/SourcesPanel";
 import { SettingsToggle } from "../../parts/settings/SettingsModal";
 import { useViewerStore } from "../../state/ViewerStoreProvider";
 import { selectHasMedia } from "../../state/viewerSelectors";
@@ -23,8 +24,8 @@ import "./immersive.css";
 // zones. The top left zone holds the source and the actions on it, the top
 // right zone the current item and how it's viewed, with Fullscreen in the
 // corner. With unobtrusive mode on, the zones fade out and come back when the
-// pointer moves over them, the filmstrip tray included. Only the download
-// panel takes space of its own.
+// pointer moves over them, the filmstrip tray included. Only the sources panel,
+// on the left, and the download panel, on the right, take space of their own.
 export function ImmersiveLayout({ buildInfo }: LayoutProps) {
   const gt = useGT();
   const hasMedia = useViewerStore(selectHasMedia);
@@ -37,13 +38,19 @@ export function ImmersiveLayout({ buildInfo }: LayoutProps) {
     (state) => state.downloadActivity.rows.length > 0
   );
 
+  // A layout only shows while a collection is open, so the sources panel is
+  // available whenever it does, even for a collection with nothing in it.
+  const isSourcesPanelOpen = useViewerStore((state) => state.isSourcesPanelOpen);
+
   const showDownloadPanel = isDownloadPanelOpen && hasDownloadActivity;
   const style = {
+    "--sources-panel-width": isSourcesPanelOpen ? "var(--sources-panel-open-width)" : "0px",
     "--download-panel-width": showDownloadPanel ? "248px" : "0px"
   } as CSSProperties;
 
   return (
     <main className="immersive-shell" style={style} data-testid="app-shell">
+      {isSourcesPanelOpen ? <SourcesPanel /> : null}
       <div className="immersive-stage">
         <MediaViewer />
         <div className="immersive-drag-region" aria-hidden />
@@ -58,6 +65,7 @@ export function ImmersiveLayout({ buildInfo }: LayoutProps) {
                 <ControlGroup label={gt("Library controls")}>
                   <OpenFolderButton />
                   <WebSourceDialog />
+                  <SourcesPanelToggle />
                   <RefreshButton />
                   <DownloadCollectionButton />
                   <FileOrderButton />

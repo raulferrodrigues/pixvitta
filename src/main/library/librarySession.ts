@@ -1,13 +1,18 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import path from "node:path";
 import type { AccountState } from "../../shared/accounts";
-import type { OpenSourceRequest } from "../../shared/media";
-import type { RecentSource } from "../../shared/recentSources";
+import type { AddSourceRequest, AddSourceResult, OpenSourceRequest } from "../../shared/media";
+import { isRecentMix, type RecentEntry, type RecentMix } from "../../shared/recentSources";
 import { parseDialogResponses } from "../app";
 import { getSettings } from "../settings";
 import {
   getRecentSources as getStoredRecentSources,
+  getSavedMix,
+  pinSavedMix,
   removeRecentSource as removeStoredRecentSource,
+  removeSavedMix,
+  renameSavedMix,
+  saveMix,
   saveRecentSource
 } from "../stores";
 import {
@@ -16,6 +21,8 @@ import {
   publishMainWindowCollection,
   publishMainWindowLoading,
   publishMainWindowRecentSources,
+  publishMainWindowReplaceConfirmation,
+  publishMainWindowSavedMixRename,
   publishMainWindowSourceError
 } from "../windows";
 import { MediaLibrary } from "./mediaLibrary";
@@ -33,9 +40,12 @@ const mediaLibrary = new MediaLibrary({
   providers,
   getSettings,
   remember: async (source) => {
-    const sources = await saveRecentSource(source);
-    publishMainWindowRecentSources(sources);
+    publishMainWindowRecentSources(await saveRecentSource(source));
   },
+  saveMix: async (mix) => {
+    publishMainWindowRecentSources(await saveMix(mix));
+  },
+  savedMix: getSavedMix,
   publishCollection: publishMainWindowCollection,
   publishLoading: publishMainWindowLoading,
   publishError: publishMainWindowSourceError,
@@ -50,11 +60,17 @@ const mediaLibrary = new MediaLibrary({
     clearTimeout(timer as ReturnType<typeof setTimeout>)
 });
 
-function isOpenSourceRequest(value: unknown): value is OpenSourceRequest {
+function isAddSourceRequest(value: unknown): value is AddSourceRequest {
   if (!value || typeof value !== "object") return false;
-  const request = value as Partial<OpenSourceRequest>;
+  const request = value as Partial<AddSourceRequest>;
   if (request.kind === "pick-directory") return true;
   return request.kind === "location" && typeof request.location === "string";
+}
+
+function isOpenSourceRequest(value: unknown): value is OpenSourceRequest {
+  if (isAddSourceRequest(value)) return true;
+  const request = value as Partial<OpenSourceRequest> | null;
+  return request?.kind === "saved-mix" && typeof request.id === "string";
 }
 
 // Electron dialogs open in Downloads unless given a defaultPath, so the picker
@@ -90,6 +106,7 @@ async function openSourceForWindow(
   request: OpenSourceRequest,
   window?: BrowserWindow | null
 ): Promise<boolean> {
+  if (request.kind === "saved-mix") return mediaLibrary.openSavedMix(request.id);
   return request.kind === "pick-directory"
     ? mediaLibrary.openPickedLocation(() => chooseDirectory(window))
     : mediaLibrary.openLocation(request.location);
@@ -99,6 +116,15 @@ export async function openSource(
   request: OpenSourceRequest
 ): Promise<boolean> {
   return openSourceForWindow(request);
+}
+
+async function addSourceForWindow(
+  request: AddSourceRequest,
+  window?: BrowserWindow | null
+): Promise<AddSourceResult> {
+  return request.kind === "pick-directory"
+    ? mediaLibrary.addPickedLocation(() => chooseDirectory(window))
+    : mediaLibrary.addLocation(request.location);
 }
 
 export async function refreshSource(): Promise<boolean> {
@@ -133,20 +159,87 @@ export function resolveMediaUrl(url: string): MediaResource | null {
   return mediaLibrary.resolveMediaUrl(url);
 }
 
-export async function getRecentSources(): Promise<RecentSource[]> {
+export async function getRecentSources(): Promise<RecentEntry[]> {
   return getStoredRecentSources();
 }
 
 export async function removeRecentSource(
   location: string
-): Promise<RecentSource[]> {
+): Promise<RecentEntry[]> {
   return removeStoredRecentSource(location);
 }
 
-ipcMain.on("source:open", (event, request: unknown) => {
+// A saved mix's native menu: pin or unpin, rename once pinned, and remove.
+// Main carries out what it can and publishes the list; renaming needs a text
+// field, so main asks the renderer to show one.
+async function showSavedMixMenu(
+  window: BrowserWindow,
+  id: string,
+  position: { x: number; y: number } | null
+): Promise<void> {
+  const mix = (await getStoredRecentSources()).find(
+    (entry): entry is RecentMix => isRecentMix(entry) && entry.id === id
+  );
+  if (!mix || window.isDestroyed()) return;
+  const publishAfter = (change: Promise<RecentEntry[]>) => {
+    void change.then(publishMainWindowRecentSources, (error: unknown) => {
+      console.error("Could not change the saved mix.", error);
+    });
+  };
+  Menu.buildFromTemplate([
+    {
+      label: mix.pinned ? "Unpin" : "Pin",
+      click: () => publishAfter(pinSavedMix(id, !mix.pinned))
+    },
+    {
+      label: "Rename…",
+      enabled: mix.pinned,
+      click: () => publishMainWindowSavedMixRename(id)
+    },
+    { type: "separator" },
+    {
+      label: "Remove from Recents",
+      click: () => publishAfter(removeSavedMix(id))
+    }
+  ]).popup({
+    window,
+    ...(position ? { x: Math.round(position.x), y: Math.round(position.y) } : {})
+  });
+}
+
+function isMenuPosition(value: unknown): value is { x: number; y: number } {
+  if (!value || typeof value !== "object") return false;
+  const { x, y } = value as { x?: unknown; y?: unknown };
+  return typeof x === "number" && Number.isFinite(x) && typeof y === "number" && Number.isFinite(y);
+}
+
+// Opening from inside the app asks before it replaces a mix, and goes ahead
+// only once the request comes back confirmed. Opens from the operating system
+// do not come through here and replace without asking.
+ipcMain.on("source:open", (event, request: unknown, options: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   if (!isMainWindow(window) || !isOpenSourceRequest(request)) return;
+  const confirmed =
+    typeof options === "object" &&
+    options !== null &&
+    (options as { replaceConfirmed?: unknown }).replaceConfirmed === true;
+  const replaces = confirmed ? null : mediaLibrary.replaceConfirmation();
+  if (replaces) {
+    publishMainWindowReplaceConfirmation({ request, ...replaces });
+    return;
+  }
   void openSourceForWindow(request, window);
+});
+
+ipcMain.handle("source:add", async (event, request: unknown): Promise<AddSourceResult> => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!isMainWindow(window) || !isAddSourceRequest(request)) return "not-added";
+  return addSourceForWindow(request, window);
+});
+
+ipcMain.on("source:remove", (event, memberId: unknown) => {
+  if (!isMainWindow(BrowserWindow.fromWebContents(event.sender))) return;
+  if (typeof memberId === "string") void mediaLibrary.removeSource(memberId);
 });
 
 ipcMain.on("library:select-media", (event, mediaId: unknown) => {
@@ -243,3 +336,24 @@ ipcMain.handle("recent-sources:remove", (_event, location: unknown) =>
     ? removeRecentSource(location)
     : getRecentSources()
 );
+ipcMain.handle("saved-mixes:remove", (event, id: unknown) => {
+  void event;
+  return typeof id === "string" ? removeSavedMix(id) : getRecentSources();
+});
+ipcMain.handle("saved-mixes:pin", (event, id: unknown, pinned: unknown) => {
+  void event;
+  return typeof id === "string" && typeof pinned === "boolean"
+    ? pinSavedMix(id, pinned)
+    : getRecentSources();
+});
+ipcMain.handle("saved-mixes:rename", (event, id: unknown, name: unknown) => {
+  void event;
+  return typeof id === "string" && typeof name === "string"
+    ? renameSavedMix(id, name)
+    : getRecentSources();
+});
+ipcMain.on("saved-mixes:show-menu", (event, id: unknown, position: unknown) => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!window || !isMainWindow(window) || typeof id !== "string") return;
+  void showSavedMixMenu(window, id, isMenuPosition(position) ? position : null);
+});

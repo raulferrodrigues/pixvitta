@@ -1,5 +1,6 @@
 import type { DownloadActivitySnapshot, MediaCollection, MediaItem, MediaSourceCapabilities, OpenSourceError } from "../../shared/media";
 import type { StageControls } from "./stageApi";
+import { mixTitle, type RecentMix, type RecentSource, type RecentSourceInput } from "../../shared/recentSources";
 
 /*
  * Named states the UI can start in: /stage.html?scenario=<name>. Add one when a
@@ -72,7 +73,17 @@ export function stageCollection(
   capabilities: MediaSourceCapabilities = FOLDER_CAPABILITIES
 ): MediaCollection {
   return {
-    source: { id: title, title, capabilities },
+    source: {
+      id: title,
+      title,
+      capabilities,
+      members: [{
+        id: `${title}:source`,
+        title,
+        kind: capabilities === FOLDER_CAPABILITIES ? "folder" : "web",
+        itemCount: items.length
+      }]
+    },
     items,
     selectedId: items[0]?.id ?? null
   };
@@ -106,18 +117,128 @@ const SOURCE_ERRORS: OpenSourceError[] = [
   "no-supported-media"
 ];
 
+type StageMergeMember = { title: string; location: string; kind: "folder" | "web"; count: number; siteName?: string; error?: OpenSourceError };
+
+const MERGE_MEMBERS: StageMergeMember[] = [
+  { title: "Holiday photos", location: "/photos/holiday", kind: "folder", count: 214 },
+  { title: "Sample thread", location: "https://boards.4chan.org/g/thread/1000", kind: "web", count: 87, siteName: "4chan" },
+  { title: "Long-named gallery of architecture sketches from the northern coast", location: "https://e-hentai.org/g/1/abcdef/", kind: "web", count: 1, siteName: "E-Hentai" }
+];
+const CITY_WALKS: StageMergeMember = {
+  title: "City walks",
+  location: "/home/someone/Pictures/Archive/Travel/2025/Lisbon and Porto/City walks",
+  kind: "folder",
+  count: 32
+};
+
+// Interleaves a few items of each member as the library's zipper does, with
+// the members' real counts on the source.
+function mergeStageMembers(members: StageMergeMember[], mixId = "current-mix"): MediaCollection {
+  const shown = members.map((member) => Math.min(member.count, 4));
+  const items: MediaItem[] = [];
+  for (let round = 0; round < Math.max(...shown); round += 1) {
+    members.forEach((member, index) => {
+      if (round < shown[index]) {
+        items.push({ ...image(`${member.title.split(" ")[0].toLowerCase()}-${round + 1}`), ...(members.length > 1 ? { sourceLabel: member.title } : {}) });
+      }
+    });
+  }
+  const collection = stageCollection(members[0].title, items);
+  collection.source.title = members.length === 1
+    ? members[0].title
+    : members.length === 2 ? `${members[0].title} + ${members[1].title}` : `${members[0].title} + ${members.length - 1} more`;
+  collection.source.members = members.map((member, index) => ({
+    id: `source-${index + 1}`,
+    title: member.title,
+    kind: member.kind,
+    itemCount: member.count,
+    ...(member.siteName ? { siteName: member.siteName } : {}),
+    recentLocation: member.location,
+    ...(member.error ? { error: member.error } : {}),
+    // Main names the provider's account; the stage's only one is ExHentai's.
+    ...(member.error === "authentication-required" ? { errorAccountId: STAGE_ACCOUNT.id } : {})
+  }));
+  // The saved mix the mix's session writes.
+  if (members.length > 1) collection.source.mixId = mixId;
+  return collection;
+}
+
+function savedMix(id: string, members: RecentSourceInput[], openedMs: number, label: { name?: string; pinned?: boolean } = {}): RecentMix {
+  return {
+    kind: "mix",
+    id,
+    ...(label.name ? { name: label.name } : {}),
+    pinned: label.pinned ?? false,
+    members,
+    openedMs,
+    title: label.name ?? mixTitle(members.map((member) => member.title))
+  };
+}
+
+const HOLIDAY: RecentSourceInput = { location: "/photos/holiday", title: "Holiday photos", providerId: "local-folder", kind: "folder" };
+const SAMPLE_THREAD: RecentSourceInput = { location: "https://boards.4chan.org/g/thread/1000", title: "Sample thread", providerId: "four-chan", kind: "web" };
+const WATERCOLOURS: RecentSourceInput = { location: "https://nhentai.net/g/100200/", title: "Watercolour studies", providerId: "nhentai", kind: "web" };
+const SKETCHES: RecentSourceInput = { location: "/photos/sketches", title: "Sketchbook", providerId: "local-folder", kind: "folder" };
+
+function mergedSources(
+  stage: StageControls,
+  memberCount: number,
+  failed: Partial<Record<string, OpenSourceError>> = {},
+  currentMix: { name?: string; pinned?: boolean } = {}
+) {
+  const members = MERGE_MEMBERS.slice(0, memberCount).map((member) => ({ ...member, error: failed[member.title] }));
+  const recent = (member: Omit<StageMergeMember, "count">, openedMs: number): RecentSource => ({
+    title: member.title,
+    location: member.location,
+    kind: member.kind,
+    providerId: member.kind === "folder" ? "local-folder" : "four-chan",
+    openedMs
+  });
+  stage.defineSource(CITY_WALKS.location, mergeStageMembers([...members, CITY_WALKS]));
+  // Adding a member again is main's "already-added"; the others merge in.
+  MERGE_MEMBERS.forEach((member, index) => {
+    stage.defineSource(member.location, index < memberCount ? "already-added" : mergeStageMembers([...members, member]));
+  });
+  stage.defineSource("https://boards.4chan.org/g/thread/404", "not-found");
+  stage.defineSource("saved-mix:studies", mergeStageMembers([
+    { ...WATERCOLOURS, count: 24, siteName: "nhentai" },
+    { ...SKETCHES, count: 40 }
+  ], "studies"));
+  // The mix on screen is in recents too, and stays out of the panel's list.
+  stage.setRecentSources([
+    savedMix("studies", [WATERCOLOURS, SKETCHES], 7, { name: "Studies", pinned: true }),
+    ...(memberCount > 1 ? [savedMix("current-mix", members.map(({ title, location, kind }) => {
+      const { openedMs, ...member } = recent({ title, location, kind }, 0);
+      void openedMs;
+      return member;
+    }), 6, currentMix)] : []),
+    recent(MERGE_MEMBERS[0], 5),
+    recent(CITY_WALKS, 4),
+    recent(MERGE_MEMBERS[1], 3),
+    recent({ title: "Missing thread", location: "https://boards.4chan.org/g/thread/404", kind: "web" }, 2),
+    recent({ title: "Watercolour studies", location: "https://nhentai.net/g/100200/", kind: "web" }, 1)
+  ]);
+  stage.deliverCollection(mergeStageMembers(members));
+}
+
 const scenarios: Record<string, (stage: StageControls) => void> = {
   /** The source picker with nothing open. The folder picker opens the sample folder. */
   empty(stage) {
     stage.defineSource("pick-directory", sampleFolder());
   },
 
-  /** The source picker with a history to choose from. */
+  /** The source picker with a history to choose from: sources, a saved mix, and a pinned, renamed one. */
   recents(stage) {
     stage.defineSource("/photos/holiday", sampleFolder());
+    stage.defineSource("saved-mix:weekend", mergeStageMembers([
+      { ...HOLIDAY, count: 214 },
+      { ...SAMPLE_THREAD, count: 87, siteName: "4chan" }
+    ], "weekend"));
     stage.setRecentSources([
-      { location: "/photos/holiday", title: "Holiday photos", providerId: "local-folder", kind: "folder", openedMs: 0 },
-      { location: "https://boards.4chan.org/g/thread/1000", title: "Sample thread", providerId: "four-chan", kind: "web", openedMs: 0 }
+      savedMix("studies", [WATERCOLOURS, SKETCHES, HOLIDAY], 3, { name: "Studies", pinned: true }),
+      savedMix("weekend", [HOLIDAY, SAMPLE_THREAD], 2),
+      { ...HOLIDAY, openedMs: 1 },
+      { ...SAMPLE_THREAD, openedMs: 0 }
     ]);
   },
 
@@ -135,6 +256,41 @@ const scenarios: Record<string, (stage: StageControls) => void> = {
   /** A folder of images and a video, ready to browse. */
   folder(stage) {
     stage.deliverCollection(sampleFolder());
+  },
+
+  /**
+   * A collection merged from three sources of uneven size, one with a long
+   * title, and recents to add from. Two recents are already members and stay
+   * out of the list; "City walks" (a long path) adds a fourth source,
+   * "Missing thread" fails to load, and pasting a member's location reports
+   * that it is already in the mix.
+   */
+  "merged-sources"(stage) {
+    mergedSources(stage, 3);
+  },
+
+  /** The same mix after a refresh in which the thread failed and kept its items. */
+  "merged-sources-failed"(stage) {
+    mergedSources(stage, 3, { "Sample thread": "unavailable" });
+  },
+
+  /** The same mix pinned and named, so its name and pin show in the "In the mix" heading. */
+  "merged-sources-pinned"(stage) {
+    mergedSources(stage, 3, {}, { name: "Trip planning", pinned: true });
+  },
+
+  /**
+   * The same mix after a refresh in which the gallery needed sign-in. Signing
+   * in succeeds, and the refresh that follows delivers the mix again.
+   */
+  "merged-sources-sign-in"(stage) {
+    stage.setAccounts([STAGE_ACCOUNT]);
+    mergedSources(stage, 3, { [MERGE_MEMBERS[2].title]: "authentication-required" });
+  },
+
+  /** The same sources and recents with only one source open. */
+  "merged-sources-single"(stage) {
+    mergedSources(stage, 1);
   },
 
   /** A web source of 5,000 pages, for virtualization and navigation at scale. */

@@ -52,7 +52,9 @@ function useShortcutSections(): ShortcutSection[] {
       title: gt("Library"),
       rows: [
         { label: gt("Open folder"), combos: [keys(MAIN_HOTKEYS.openFolder)] },
+        { label: gt("Add folder"), combos: [keys(MAIN_HOTKEYS.addFolder)] },
         { label: gt("Refresh source"), combos: [keys(MAIN_HOTKEYS.refreshSource)] },
+        { label: gt("Show or hide sources"), combos: [keys(RENDERER_HOTKEYS.toggleSourcesPanel.accelerator)] },
         { label: gt("Download current media"), combos: [keys(RENDERER_HOTKEYS.downloadCurrentMedia.accelerator)] }
       ]
     },

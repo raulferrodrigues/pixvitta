@@ -1,15 +1,18 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import type { AccountState } from "../../shared/accounts";
 import type {
+  AddSourceRequest,
+  AddSourceResult,
   DownloadActivitySnapshot,
   MediaCollection,
   MediaItem,
   MediaSource,
   OpenSourceError,
-  OpenSourceRequest
+  OpenSourceRequest,
+  ReplaceConfirmation
 } from "../../shared/media";
 import type { PixvittaApi } from "../../shared/pixvittaApi";
-import type { RecentSource } from "../../shared/recentSources";
+import { isRecentMix, type RecentEntry } from "../../shared/recentSources";
 import { defaultSettings, type AppSettings, type FileOrder } from "../../shared/settings";
 import type { UpdateState } from "../../shared/updates";
 import { clampImageZoom, MIN_IMAGE_ZOOM, roundImageTransformValue } from "./imageView";
@@ -42,7 +45,10 @@ export type ViewerState = {
   viewMode: ViewMode;
   continuousColumnScale: number;
   settings: AppSettings;
-  recentSources: RecentSource[];
+  // Sources and saved mixes, in main's order.
+  recentSources: RecentEntry[];
+  // The saved mix whose name is being edited, wherever it is listed.
+  renamingMixId: string | null;
   filmstripWidth: number;
   isFilmstripVisible: boolean;
   sourceOpenError: OpenSourceError | null;
@@ -51,8 +57,15 @@ export type ViewerState = {
   // The last location asked for, reopened after signing in from its error.
   retryLocation: string | null;
   accounts: AccountState[];
+  // Not an error: main's word that a source being added is already a member.
+  // Shown where errors are, until the next source request, collection, or
+  // error.
+  sourceNotice: SourceNotice | null;
+  // Main's question before an open replaces a mix, until the user answers.
+  replaceConfirmation: ReplaceConfirmation | null;
   downloadActivity: DownloadActivitySnapshot;
   isDownloadPanelOpen: boolean;
+  isSourcesPanelOpen: boolean;
   // The settings modal shows either the settings list or the keyboard
   // shortcuts; null means it is closed.
   settingsView: SettingsView | null;
@@ -64,23 +77,39 @@ export type ViewerActions = {
   initialize(): Promise<void>;
   openFolder(): Promise<void>;
   openLocation(location: string): Promise<void>;
+  addFolder(): Promise<AddSourceResult>;
+  addLocation(location: string): Promise<AddSourceResult>;
+  removeSource(memberId: string): Promise<void>;
   openRecentSource(location: string): Promise<void>;
+  openSavedMix(id: string): Promise<void>;
   signInForSource(): Promise<void>;
+  // Signs in for a member of the open collection that failed because it
+  // needs it, then refreshes the collection so the member is tried again.
+  signInAndRefresh(accountId: string): Promise<void>;
   loadAccounts(): Promise<void>;
   applyAccounts(accounts: AccountState[]): void;
   signIn(accountId: string): Promise<void>;
   signOut(accountId: string): Promise<void>;
   removeRecentSource(location: string): Promise<void>;
+  removeSavedMix(id: string): Promise<void>;
+  pinSavedMix(id: string, pinned: boolean): Promise<void>;
+  showSavedMixMenu(id: string, position?: { x: number; y: number }): void;
+  startRenamingMix(id: string): void;
+  // Saves the name, or with null leaves it as it was.
+  finishRenamingMix(name: string | null): Promise<void>;
   openCollection(collection: MediaCollection): void;
   setSourceLoading(isLoading: boolean): void;
   showSourceError(error: OpenSourceError, accountId?: string): void;
+  dismissSourceNotice(): void;
+  askToReplace(confirmation: ReplaceConfirmation): void;
+  answerReplace(replace: boolean): void;
   refreshSource(): Promise<void>;
   downloadCurrentMedia(): Promise<void>;
   downloadCollection(): Promise<void>;
   loadDownloadActivity(): Promise<void>;
   applyDownloadActivity(snapshot: DownloadActivitySnapshot): void;
   refreshRecentSources(): Promise<void>;
-  applyRecentSources(sources: RecentSource[]): void;
+  applyRecentSources(sources: RecentEntry[]): void;
   loadSettings(): Promise<void>;
   applySettings(settings: AppSettings): void;
   setFileOrder(fileOrder: FileOrder): Promise<void>;
@@ -103,6 +132,7 @@ export type ViewerActions = {
   resizeFilmstrip(width: number): void;
   toggleFilmstrip(): void;
   toggleDownloadPanel(): void;
+  toggleSourcesPanel(): void;
   openSettings(view?: SettingsView): void;
   closeSettings(): void;
   loadUpdateState(): Promise<void>;
@@ -113,6 +143,8 @@ export type ViewerActions = {
   toggleFullscreen(): Promise<void>;
   exitFullscreen(): Promise<void>;
 };
+
+export type SourceNotice = "already-added";
 
 // "updates" is the settings list, scrolled to the update row.
 export type SettingsView = "settings" | "updates" | "shortcuts";
@@ -146,6 +178,9 @@ function applyCollection(state: ViewerState, collection: MediaCollection): Parti
     ...FRESH_MEDIA_VIEW,
     isVideoPlaying: keepsCurrentElement && state.isVideoPlaying,
     sourceOpenError: null,
+    sourceNotice: null,
+    // A question about replacing another collection no longer applies.
+    ...(state.source?.id === collection.source.id ? {} : { replaceConfirmation: null }),
     loadState: collection.items.length > 0 ? "ready" : "empty"
   };
 }
@@ -163,6 +198,10 @@ export function createViewerStore(
   let updateStateRevision = 0;
   let accountsRevision = 0;
   let sourceRequestRevision = 0;
+  // Signing in retries the request that needed it the same way: an open, an
+  // open the user already confirmed would replace a mix, or an add.
+  // How the request in retryLocation was made, so a retry makes it the same way.
+  let retryMode: "open" | "replace" | "add" = "open";
   let videoAudioSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
   return createStore<ViewerStore>((set, get) => {
@@ -181,23 +220,61 @@ export function createViewerStore(
       }
     };
 
+    // A change to recents answers with the new list, unless main has
+    // published a newer one in the meantime.
+    const changeRecents = async (change: () => Promise<RecentEntry[]>) => {
+      const revision = ++recentSourcesRevision;
+      try {
+        const recentSources = await change();
+        if (revision === recentSourcesRevision) set({ recentSources });
+      } catch (error) {
+        console.error(error);
+      }
+    };
+
     const applyOpenedCollection = (collection: MediaCollection) => {
       sourceRequestRevision += 1;
       set((state) => applyCollection(state, collection));
     };
 
-    const openSourceRequest = async (request: OpenSourceRequest) => {
+    const failSourceRequest = (error: unknown) => {
+      console.error(error);
+      set({
+        isSourceLoading: false,
+        loadState: get().source ? get().loadState : "idle",
+        sourceOpenError: "unavailable"
+      });
+    };
+
+    const openSourceRequest = async (request: OpenSourceRequest, replaceConfirmed = false) => {
       sourceRequestRevision += 1;
       try {
-        set({ retryLocation: request.kind === "location" ? request.location : null });
-        api.openSource(request);
+        set({ retryLocation: request.kind === "location" ? request.location : null, sourceNotice: null });
+        retryMode = replaceConfirmed ? "replace" : "open";
+        if (replaceConfirmed) api.openSource(request, { replaceConfirmed });
+        else api.openSource(request);
       } catch (error) {
-        console.error(error);
-        set({
-          isSourceLoading: false,
-          loadState: get().source ? get().loadState : "idle",
-          sourceOpenError: "unavailable"
-        });
+        failSourceRequest(error);
+      }
+    };
+
+    // Main answers an add once it is done with it, so the caller always learns
+    // how it ended. Whether a source is already a member is main's call. The
+    // answer may arrive before or after main's loading and collection
+    // messages, which travel separately, so the notice is not tied to them.
+    const addSourceRequest = async (request: AddSourceRequest): Promise<AddSourceResult> => {
+      const revision = ++sourceRequestRevision;
+      try {
+        set({ retryLocation: request.kind === "location" ? request.location : null, sourceNotice: null });
+        retryMode = "add";
+        const result = await api.addSource(request);
+        if (result === "already-added" && revision === sourceRequestRevision) {
+          set({ sourceNotice: "already-added" });
+        }
+        return result;
+      } catch (error) {
+        failSourceRequest(error);
+        return "not-added";
       }
     };
 
@@ -217,12 +294,15 @@ export function createViewerStore(
       continuousColumnScale: MAX_CONTINUOUS_COLUMN_SCALE,
       settings: defaultSettings,
       recentSources: [],
+      renamingMixId: null,
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
       isFilmstripVisible: true,
       sourceOpenError: null,
       sourceErrorAccountId: null,
       retryLocation: null,
       accounts: [],
+      sourceNotice: null,
+      replaceConfirmation: null,
       downloadActivity: {
         revision: 0,
         rows: [],
@@ -230,6 +310,7 @@ export function createViewerStore(
         collectionActive: false
       },
       isDownloadPanelOpen: false,
+      isSourcesPanelOpen: false,
       settingsView: null,
       updateState: null,
 
@@ -251,8 +332,32 @@ export function createViewerStore(
         await openSourceRequest({ kind: "location", location });
       },
 
+      async addFolder() {
+        return addSourceRequest({ kind: "pick-directory" });
+      },
+
+      async addLocation(location: string) {
+        return addSourceRequest({ kind: "location", location });
+      },
+
+      async removeSource(memberId: string) {
+        if ((get().source?.members.length ?? 0) < 2) return;
+        sourceRequestRevision += 1;
+        get().dismissSourceNotice();
+        try {
+          api.removeSource(memberId);
+        } catch (error) {
+          console.error(error);
+          set({ isSourceLoading: false, sourceOpenError: "unavailable" });
+        }
+      },
+
       async openRecentSource(location: string) {
         await openSourceRequest({ kind: "location", location });
+      },
+
+      async openSavedMix(id: string) {
+        await openSourceRequest({ kind: "saved-mix", id });
       },
 
       async signInForSource() {
@@ -262,7 +367,23 @@ export function createViewerStore(
         try {
           const signedIn = await api.signIn(accountId);
           if (signedIn && location && revision === sourceRequestRevision) {
-            await openSourceRequest({ kind: "location", location });
+            const request: AddSourceRequest = { kind: "location", location };
+            if (retryMode === "add") await addSourceRequest(request);
+            else await openSourceRequest(request, retryMode === "replace");
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      // No request is pending here, unlike signInForSource: the member already
+      // failed in a refresh or a reopen, and the next refresh retries it.
+      async signInAndRefresh(accountId: string) {
+        const sourceId = get().source?.id;
+        try {
+          const signedIn = await api.signIn(accountId);
+          if (signedIn && sourceId !== undefined && get().source?.id === sourceId) {
+            await get().refreshSource();
           }
         } catch (error) {
           console.error(error);
@@ -308,13 +429,37 @@ export function createViewerStore(
       },
 
       async removeRecentSource(location: string) {
-        const revision = ++recentSourcesRevision;
+        await changeRecents(() => api.removeRecentSource(location));
+      },
+
+      async removeSavedMix(id: string) {
+        await changeRecents(() => api.removeSavedMix(id));
+      },
+
+      async pinSavedMix(id: string, pinned: boolean) {
+        await changeRecents(() => api.pinSavedMix(id, pinned));
+      },
+
+      showSavedMixMenu(id: string, position?: { x: number; y: number }) {
         try {
-          const recentSources = await api.removeRecentSource(location);
-          if (revision === recentSourcesRevision) set({ recentSources });
+          if (position) api.showSavedMixMenu(id, position);
+          else api.showSavedMixMenu(id);
         } catch (error) {
           console.error(error);
         }
+      },
+
+      // Main says which mixes can be renamed by listing them as pinned.
+      startRenamingMix(id: string) {
+        const mix = get().recentSources.find((entry) => isRecentMix(entry) && entry.id === id);
+        if (mix && isRecentMix(mix) && mix.pinned) set({ renamingMixId: id });
+      },
+
+      async finishRenamingMix(name: string | null) {
+        const id = get().renamingMixId;
+        if (id === null) return;
+        set({ renamingMixId: null });
+        if (name !== null) await changeRecents(() => api.renameSavedMix(id, name));
       },
 
       openCollection(collection: MediaCollection) {
@@ -340,8 +485,26 @@ export function createViewerStore(
         set((state) => ({
           sourceOpenError,
           sourceErrorAccountId: accountId ?? null,
+          sourceNotice: null,
           loadState: state.source ? state.loadState : "idle"
         }));
+      },
+
+      dismissSourceNotice() {
+        if (get().sourceNotice) set({ sourceNotice: null });
+      },
+
+      askToReplace(replaceConfirmation: ReplaceConfirmation) {
+        set({ replaceConfirmation });
+      },
+
+      // Going ahead sends main's request back, confirmed; main still decides
+      // whether it can open now.
+      answerReplace(replace: boolean) {
+        const confirmation = get().replaceConfirmation;
+        if (!confirmation) return;
+        set({ replaceConfirmation: null });
+        if (replace) void openSourceRequest(confirmation.request, true);
       },
 
       async refreshSource() {
@@ -349,6 +512,7 @@ export function createViewerStore(
         if (!source?.capabilities.canRefresh) return;
 
         sourceRequestRevision += 1;
+        get().dismissSourceNotice();
         try {
           api.refreshSource();
         } catch (error) {
@@ -421,7 +585,7 @@ export function createViewerStore(
         }
       },
 
-      applyRecentSources(recentSources: RecentSource[]) {
+      applyRecentSources(recentSources: RecentEntry[]) {
         recentSourcesRevision += 1;
         set({ recentSources });
       },
@@ -620,6 +784,10 @@ export function createViewerStore(
             state.downloadActivity.rows.length > 0 &&
             !state.isDownloadPanelOpen
         }));
+      },
+
+      toggleSourcesPanel() {
+        set((state) => ({ isSourcesPanelOpen: !state.isSourcesPanelOpen }));
       },
 
       openSettings(view = "settings") {

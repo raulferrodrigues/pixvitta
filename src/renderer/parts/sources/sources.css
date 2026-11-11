@@ -1,0 +1,378 @@
+/* The panel takes the leftmost column of either layout. Its width is set on the
+   layout shell as --sources-panel-width; narrow windows get a narrower panel so
+   the media keeps some room with the filmstrip and downloads open too. */
+:root { --sources-panel-open-width: 268px; }
+@media (max-width: 960px) { :root { --sources-panel-open-width: 232px; } }
+
+.sources-panel {
+  /* Every block lines its content up on this inset: the header title, the
+     field, the section headings, and the row icons below the numbers. */
+  --sources-inset: 12px;
+  z-index: 2;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  border-right: 1px solid var(--pix-filmstrip-border);
+  background: var(--pix-filmstrip);
+  color: var(--pix-text);
+  backdrop-filter: blur(10px);
+}
+
+.sources-panel-header {
+  display: flex;
+  height: 40px;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 8px 0 var(--sources-inset);
+}
+
+.sources-panel-title {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 7px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.sources-panel-count { color: var(--pix-section); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+.sources-panel-close {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pix-section);
+}
+.sources-panel-close:hover { background: var(--pix-control-muted); color: var(--pix-text); }
+.sources-panel-close:focus-visible { outline: 2px solid var(--pix-accent); outline-offset: 1px; }
+
+/* The add field, directly under the header. */
+.sources-add {
+  display: grid;
+  gap: 8px;
+  padding: 2px var(--sources-inset) 12px;
+  border-bottom: 1px solid var(--pix-border-subtle);
+}
+
+.sources-add-field {
+  display: flex;
+  height: 34px;
+  min-width: 0;
+  align-items: center;
+  padding: 0 3px 0 10px;
+  border: 1px solid var(--pix-border);
+  border-radius: 8px;
+  background: rgb(0 0 0 / 22%);
+  color: var(--pix-section);
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.sources-add-field:hover { border-color: rgb(255 255 255 / 16%); }
+.sources-add-field:focus-within { border-color: var(--pix-accent); }
+:root[data-glow] .sources-add-field:focus-within { box-shadow: 0 0 0 3px rgb(140 215 255 / 18%); }
+.sources-add-field[data-busy] { opacity: 0.7; }
+
+.sources-add-leading { flex: none; }
+
+.sources-add-input {
+  min-width: 0;
+  height: 100%;
+  flex: 1;
+  padding: 0 6px 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--pix-recent-text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  outline: none;
+}
+.sources-add-input::placeholder { color: var(--pix-recent-path); }
+
+.sources-add-divider { width: 1px; height: 16px; flex: none; margin: 0 3px; background: var(--pix-border); }
+
+.sources-add-button {
+  display: inline-flex;
+  width: 26px;
+  height: 26px;
+  flex: none;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--pix-muted);
+}
+.sources-add-button:hover:not(:disabled) { background: var(--pix-panel-hover); color: var(--pix-text); }
+.sources-add-button:disabled { cursor: default; }
+.sources-add-button:focus-visible { outline: 2px solid var(--pix-accent); outline-offset: -1px; }
+.sources-add-button[type="submit"] { color: var(--pix-accent); }
+
+.sources-panel-scroll {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-bottom: 8px;
+}
+.sources-panel-scroll::-webkit-scrollbar { width: 10px; }
+.sources-panel-scroll::-webkit-scrollbar-track { background: transparent; }
+.sources-panel-scroll::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: var(--pix-scrollbar-thumb); background-clip: padding-box; }
+.sources-panel-scroll::-webkit-scrollbar-thumb:hover { background: var(--pix-scrollbar-thumb-hover); background-clip: padding-box; }
+
+.sources-panel-section { padding: 14px 6px 0; }
+
+.sources-panel-heading {
+  margin: 0;
+  padding: 0 calc(var(--sources-inset) - 6px) 6px;
+  color: var(--pix-section);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sources-panel-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+
+/* One row style for both lists. The row's own padding plus the section's
+   puts the first column on the panel inset. */
+.source-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 5px 5px calc(var(--sources-inset) - 6px);
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--pix-text);
+  font: inherit;
+  text-align: left;
+}
+
+.source-row-number {
+  width: 9px;
+  flex: none;
+  margin-right: -1px;
+  color: var(--pix-accent);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.source-row-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: 7px;
+  background: rgb(255 255 255 / 6%);
+  color: var(--pix-soft);
+}
+
+.source-row-text { display: grid; min-width: 0; flex: 1; gap: 2px; }
+
+.source-row-title,
+.source-row-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.source-row-title { font-size: 12px; font-weight: 600; line-height: 16px; }
+.source-row-detail { color: var(--pix-recent-path); font-size: 11px; line-height: 14px; font-variant-numeric: tabular-nums; }
+
+/* A long folder path loses the middle, not the folder that ends it. */
+.source-row-path { display: flex; min-width: 0; }
+.source-row-path-head { min-width: 2.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.source-row-path-tail { flex: none; max-width: calc(100% - 2.5em); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.source-row-action {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--pix-section);
+}
+
+/* In the mix */
+.source-row-member:hover { background: rgb(255 255 255 / 4%); }
+.source-row-member .source-row-action { cursor: pointer; }
+.source-row-member .source-row-action:hover:not(:disabled) { background: var(--pix-panel-hover); color: var(--pix-text); }
+.source-row-member .source-row-action:disabled { cursor: default; opacity: 0.45; }
+.source-row-member .source-row-action:focus-visible { outline: 2px solid var(--pix-accent); outline-offset: -1px; }
+
+/* Recent: dimmer until pointed at, the whole row adds. */
+.source-row-recent { cursor: pointer; }
+.source-row-recent .source-row-title { color: var(--pix-muted); font-weight: 500; }
+.source-row-recent .source-row-icon { background: rgb(255 255 255 / 4%); color: var(--pix-section); }
+.source-row-recent .source-row-add { background: rgb(140 215 255 / 10%); color: var(--pix-accent); transition: background 120ms ease; }
+.source-row-recent:hover:not(:disabled) { background: rgb(255 255 255 / 4%); }
+.source-row-recent:hover:not(:disabled) .source-row-title { color: var(--pix-text); }
+.source-row-recent:hover:not(:disabled) .source-row-icon { color: var(--pix-soft); }
+.source-row-recent:hover:not(:disabled) .source-row-add { background: rgb(140 215 255 / 20%); }
+.source-row-recent:focus-visible { outline: 2px solid var(--pix-accent); outline-offset: -2px; }
+.source-row-recent:disabled { cursor: default; opacity: 0.55; }
+
+/* Removing a recent sits at the far end of the row from the "+", so reaching
+   for one cannot hit the other. It takes the place of the kind icon's glyph:
+   on hover, or when the row or the button itself has keyboard focus. */
+.source-recent { position: relative; }
+.source-row-forget {
+  position: absolute;
+  top: 50%;
+  /* The row's start padding, the number column, and the gap after it. */
+  left: calc(var(--sources-inset) - 6px + 9px - 1px + 9px);
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 120ms ease;
+}
+.source-row-recent .source-row-icon svg { transition: opacity 120ms ease; }
+.source-recent:hover .source-row-icon svg,
+.source-recent:has(:focus-visible) .source-row-icon svg { opacity: 0; }
+.source-recent:hover .source-row-forget,
+.source-recent:has(:focus-visible) .source-row-forget { opacity: 0.7; }
+.source-recent .source-row-forget:hover { background: var(--pix-panel-hover); color: var(--pix-text); opacity: 1; }
+.source-row-forget:focus-visible { outline: 2px solid var(--pix-accent); outline-offset: -1px; opacity: 1; }
+
+/* Main's note on an add that is not a failure, where errors show. */
+.source-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--pix-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.source-notice-icon { flex: none; margin-top: 1px; color: var(--pix-accent); }
+.source-notice-toast {
+  position: fixed;
+  top: calc(var(--pix-topbar-height) + 12px);
+  left: 50%;
+  z-index: 50;
+  display: flex;
+  max-width: min(560px, calc(100vw - 32px));
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border: 1px solid var(--pix-border);
+  border-radius: 8px;
+  background: var(--pix-panel);
+  color: var(--pix-soft);
+  font-size: 13px;
+  box-shadow: 0 12px 28px rgb(0 0 0 / 35%);
+  transform: translateX(-50%);
+}
+.source-notice-toast .source-notice-icon { margin-top: 0; }
+
+/* A source whose last load failed says why, in full, under its title. */
+.source-row-member[data-failed] .source-row-detail { white-space: normal; }
+.source-row-error { display: flex; align-items: flex-start; gap: 4px; color: rgb(252 165 165); }
+.source-row-error svg { flex: none; margin-top: 1.5px; }
+
+/* A saved mix in Recent opens in place of the collection. Its end says
+   "Open" in a neutral pill, where a source's has the accent "+", so the two
+   do not read as the same action. */
+.source-row-title-line { display: flex; min-width: 0; align-items: center; gap: 5px; }
+.source-row-pin { display: inline-flex; flex: none; color: var(--pix-accent); }
+.source-row-recent .source-row-open {
+  width: auto;
+  padding: 0 8px;
+  background: rgb(255 255 255 / 6%);
+  color: var(--pix-muted);
+  font-size: 11px;
+  font-weight: 600;
+  transition: background 120ms ease, color 120ms ease;
+}
+.source-row-recent:hover:not(:disabled) .source-row-open { background: rgb(255 255 255 / 11%); color: var(--pix-text); }
+
+/* Renaming a pinned mix puts a field where its title was. */
+.source-row-mix[data-renaming] { cursor: default; }
+.source-row-rename {
+  width: 100%;
+  min-width: 0;
+  height: 18px;
+  padding: 0 4px;
+  border: 1px solid var(--pix-accent);
+  border-radius: 4px;
+  background: rgb(0 0 0 / 22%);
+  color: var(--pix-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  outline: none;
+}
+
+/* The open mix's pin and, once pinned, its name share the "In the mix"
+   heading line, so they add no row of their own. */
+.sources-panel-heading-row {
+  display: flex;
+  min-width: 0;
+  height: 22px;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+  /* The pin lines up with the members' remove buttons below it. */
+  padding: 0 6px 0 calc(var(--sources-inset) - 6px);
+}
+.sources-panel-heading-row .sources-panel-heading { flex: none; padding: 0; }
+.sources-panel-heading-space { flex: 1; }
+.sources-panel-mix-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  padding: 1px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--pix-text);
+  cursor: text;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sources-panel-mix-name:hover { background: var(--pix-panel-hover); }
+.sources-panel-mix-name:focus-visible { outline: 2px solid var(--pix-accent); outline-offset: -1px; }
+.sources-panel-mix-rename { flex: 1; }
+.sources-panel-mix-pin { width: 22px; height: 22px; cursor: pointer; }
+.sources-panel-mix-pin:hover { background: var(--pix-panel-hover); color: var(--pix-text); }
+.sources-panel-mix-pin[aria-pressed="true"] { color: var(--pix-accent); }
+.sources-panel-mix-pin:focus-visible { outline: 2px solid var(--pix-accent); outline-offset: -1px; }
+
+/* Signing in, for a source that failed because it needs it. */
+.source-row-sign-in {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pix-accent);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.source-row-sign-in:disabled { cursor: default; opacity: 0.55; }
+.source-row-sign-in:focus-visible { outline: 2px solid var(--pix-accent); outline-offset: 1px; border-radius: 2px; }
