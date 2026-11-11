@@ -19,6 +19,7 @@ mod player;
 
 use std::ffi::{c_char, c_int, c_void, CStr};
 use std::os::unix::ffi::OsStrExt;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::Path;
 use std::ptr;
 
@@ -43,6 +44,13 @@ pub extern "C" fn pv_error_string(code: c_int) -> *const c_char {
     message.as_ptr()
 }
 
+/// Runs the body of a call that opens or decodes a file. A panic in it, from
+/// a decoder on a malformed file, becomes PV_ERROR_DECODE instead of
+/// unwinding into C.
+fn catching_panics(call: impl FnOnce() -> c_int) -> c_int {
+    catch_unwind(AssertUnwindSafe(call)).unwrap_or(PV_ERROR_DECODE)
+}
+
 unsafe fn path_from<'a>(path: *const c_char) -> Option<&'a Path> {
     if path.is_null() {
         return None;
@@ -65,13 +73,13 @@ pub unsafe extern "C" fn pv_folder_open(path: *const c_char, out: *mut *mut PvFo
     let Some(path) = path_from(path) else {
         return PV_ERROR_INVALID_ARGUMENT;
     };
-    match folder::scan(path) {
+    catching_panics(|| match folder::scan(path) {
         Ok(entries) => {
             *out = Box::into_raw(Box::new(PvFolder { entries }));
             PV_OK
         }
         Err(_) => PV_ERROR_IO,
-    }
+    })
 }
 
 #[no_mangle]
@@ -124,13 +132,13 @@ pub unsafe extern "C" fn pv_image_decode(path: *const c_char, out: *mut *mut PvI
     let Some(path) = path_from(path) else {
         return PV_ERROR_INVALID_ARGUMENT;
     };
-    match image::decode(path) {
+    catching_panics(|| match image::decode(path) {
         Ok(decoded) => {
             *out = image_from(decoded);
             PV_OK
         }
         Err(error) => decode_error(error),
-    }
+    })
 }
 
 fn image_from(decoded: image::Decoded) -> *mut PvImage {
@@ -162,7 +170,12 @@ pub unsafe extern "C" fn pv_image_release(image: *mut PvImage) {
 
 // Animations
 
-pub struct PvAnimation(image::Animation);
+pub struct PvAnimation {
+    animation: image::Animation,
+    /// Set when decoding a frame panicked; the decoder may be half updated,
+    /// so it is never used again.
+    broken: bool,
+}
 
 #[no_mangle]
 pub unsafe extern "C" fn pv_animation_open(path: *const c_char, out: *mut *mut PvAnimation) -> c_int {
@@ -173,13 +186,13 @@ pub unsafe extern "C" fn pv_animation_open(path: *const c_char, out: *mut *mut P
     let Some(path) = path_from(path) else {
         return PV_ERROR_INVALID_ARGUMENT;
     };
-    match image::Animation::open(path) {
+    catching_panics(|| match image::Animation::open(path) {
         Ok(animation) => {
-            *out = Box::into_raw(Box::new(PvAnimation(animation)));
+            *out = Box::into_raw(Box::new(PvAnimation { animation, broken: false }));
             PV_OK
         }
         Err(error) => decode_error(error),
-    }
+    })
 }
 
 #[no_mangle]
@@ -196,14 +209,23 @@ pub unsafe extern "C" fn pv_animation_next_frame(
     let Some(animation) = animation.as_mut() else {
         return PV_ERROR_INVALID_ARGUMENT;
     };
-    match animation.0.next_frame() {
-        Ok((decoded, duration)) => {
-            *out = image_from(decoded);
-            *duration_ms = duration;
-            PV_OK
-        }
-        Err(error) => decode_error(error),
+    if animation.broken {
+        return PV_ERROR_DECODE;
     }
+    // Stays set only if next_frame panics.
+    animation.broken = true;
+    catching_panics(|| {
+        let frame = animation.animation.next_frame();
+        animation.broken = false;
+        match frame {
+            Ok((decoded, duration)) => {
+                *out = image_from(decoded);
+                *duration_ms = duration;
+                PV_OK
+            }
+            Err(error) => decode_error(error),
+        }
+    })
 }
 
 #[no_mangle]
