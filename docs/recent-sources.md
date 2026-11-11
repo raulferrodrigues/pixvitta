@@ -83,6 +83,9 @@ the list.
   a mix row opens the mix in place of the collection and ends in "Open". The
   replace question asks first when the collection is a mix. The mix being
   viewed, and sources already in it, are not listed.
+- The mix being viewed is pinned from the end of the panel's "In the mix"
+  heading instead, while it is saved. Once pinned, its name shows in that
+  heading, and a click or F2 on it renames it in place.
 - Both places give a mix a native menu (right-click, the menu key, or
   Shift+F10) with Pin or Unpin, Rename, and Remove from Recents. F2 renames a
   pinned mix in place; Enter or leaving the field saves, Escape cancels.

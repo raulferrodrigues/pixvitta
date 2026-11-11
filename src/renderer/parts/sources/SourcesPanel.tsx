@@ -27,6 +27,11 @@ export function SourcesPanel() {
   const recentsToAdd = recentSources.filter((entry) =>
     isRecentMix(entry) ? entry.id !== currentMixId : !memberLocations.has(entry.location)
   );
+  // The open mix as recents list it: absent while it is not saved, as when it
+  // is down to one source.
+  const currentMix = recentSources.find(
+    (entry): entry is RecentMix => isRecentMix(entry) && entry.id === currentMixId
+  );
 
   return (
     <aside className="sources-panel" aria-labelledby="sources-panel-title" data-testid="sources-panel">
@@ -48,7 +53,10 @@ export function SourcesPanel() {
       <AddSourceField />
       <div className="sources-panel-scroll">
         <section className="sources-panel-section" aria-labelledby="sources-panel-members">
-          <h3 id="sources-panel-members" className="sources-panel-heading">{gt("In the mix")}</h3>
+          <div className="sources-panel-heading-row">
+            <h3 id="sources-panel-members" className="sources-panel-heading">{gt("In the mix")}</h3>
+            {currentMix ? <CurrentMixLabel mix={currentMix} /> : null}
+          </div>
           <ol className="sources-panel-list" data-testid="source-members">
             {members.map((member, index) => (
               // A lone source has no place in an order to show, and is closed by
@@ -71,6 +79,54 @@ export function SourcesPanel() {
         ) : null}
       </div>
     </aside>
+  );
+}
+
+// The open mix's pin, at the end of the "In the mix" heading, and once it is
+// pinned its name, which renames in place on a click or F2. Pinning and
+// renaming the open mix happen here because it is not listed under Recent.
+function CurrentMixLabel({ mix }: { mix: RecentMix }) {
+  const gt = useGT();
+  const pinSavedMix = useViewerStore((state) => state.pinSavedMix);
+  const startRenamingMix = useViewerStore((state) => state.startRenamingMix);
+  const nameRef = useRef<HTMLButtonElement | null>(null);
+  const isRenaming = useRenaming(mix, nameRef);
+  return (
+    <>
+      {isRenaming ? (
+        <MixNameField mix={mix} className="source-row-rename sources-panel-mix-rename" />
+      ) : mix.pinned ? (
+        <button
+          ref={nameRef}
+          type="button"
+          className="sources-panel-mix-name"
+          title={gt("Rename {title}", { title: mix.title })}
+          aria-label={gt("Rename {title}", { title: mix.title })}
+          data-testid="current-mix-name"
+          onClick={() => startRenamingMix(mix.id)}
+          onKeyDown={(event) => {
+            if (event.key !== "F2") return;
+            event.preventDefault();
+            startRenamingMix(mix.id);
+          }}
+        >
+          {mix.title}
+        </button>
+      ) : (
+        <span className="sources-panel-heading-space" />
+      )}
+      <button
+        type="button"
+        className="source-row-action sources-panel-mix-pin"
+        title={mix.pinned ? gt("Unpin") : gt("Pin")}
+        aria-label={mix.pinned ? gt("Unpin {title}", { title: mix.title }) : gt("Pin {title}", { title: mix.title })}
+        aria-pressed={mix.pinned}
+        data-testid="pin-current-mix"
+        onClick={() => void pinSavedMix(mix.id, !mix.pinned)}
+      >
+        <Pin size={12} aria-hidden fill={mix.pinned ? "currentColor" : "none"} />
+      </button>
+    </>
   );
 }
 
@@ -111,13 +167,34 @@ function MemberRow({ member, number, canRemove }: { member: MediaSourceMember; n
 // How much a source brings, and for a web source the site it comes from, as
 // main names it. A source whose last load failed shows why instead; it keeps
 // what it had, and the next refresh tries it again.
+// One that failed because it needs sign-in offers it; once signed in, the
+// collection refreshes, which tries the source again.
 function MemberDetail({ member }: { member: MediaSourceMember }) {
   const gt = useGT();
+  const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
+  const signInAndRefresh = useViewerStore((state) => state.signInAndRefresh);
   if (member.error) {
     return (
       <span className="source-row-error" role="status" data-testid="source-member-error">
         <AlertCircle size={11} aria-hidden />
-        <span>{errorMessage(member.error, gt)}</span>
+        <span>
+          {errorMessage(member.error, gt)}
+          {member.error === "authentication-required" ? (
+            <>
+              {" "}
+              <button
+                type="button"
+                className="source-row-sign-in"
+                aria-label={gt("Sign in for {title}", { title: member.title })}
+                data-testid="member-sign-in"
+                disabled={isSourceLoading}
+                onClick={() => void signInAndRefresh()}
+              >
+                {gt("Sign in")}
+              </button>
+            </>
+          ) : null}
+        </span>
       </span>
     );
   }

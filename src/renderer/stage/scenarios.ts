@@ -171,7 +171,12 @@ const SAMPLE_THREAD: RecentSourceInput = { location: "https://boards.4chan.org/g
 const WATERCOLOURS: RecentSourceInput = { location: "https://nhentai.net/g/100200/", title: "Watercolour studies", providerId: "nhentai", kind: "web" };
 const SKETCHES: RecentSourceInput = { location: "/photos/sketches", title: "Sketchbook", providerId: "local-folder", kind: "folder" };
 
-function mergedSources(stage: StageControls, memberCount: number, failed: Partial<Record<string, OpenSourceError>> = {}) {
+function mergedSources(
+  stage: StageControls,
+  memberCount: number,
+  failed: Partial<Record<string, OpenSourceError>> = {},
+  currentMix: { name?: string; pinned?: boolean } = {}
+) {
   const members = MERGE_MEMBERS.slice(0, memberCount).map((member) => ({ ...member, error: failed[member.title] }));
   const recent = (member: Omit<StageMergeMember, "count">, openedMs: number): RecentSource => ({
     title: member.title,
@@ -197,7 +202,7 @@ function mergedSources(stage: StageControls, memberCount: number, failed: Partia
       const { openedMs, ...member } = recent({ title, location, kind }, 0);
       void openedMs;
       return member;
-    }), 6)] : []),
+    }), 6, currentMix)] : []),
     recent(MERGE_MEMBERS[0], 5),
     recent(CITY_WALKS, 4),
     recent(MERGE_MEMBERS[1], 3),
@@ -247,6 +252,20 @@ const scenarios: Record<string, (stage: StageControls) => void> = {
   /** The same mix after a refresh in which the thread failed and kept its items. */
   "merged-sources-failed"(stage) {
     mergedSources(stage, 3, { "Sample thread": "unavailable" });
+  },
+
+  /** The same mix pinned and named, so its name and pin show in the "In the mix" heading. */
+  "merged-sources-pinned"(stage) {
+    mergedSources(stage, 3, {}, { name: "Trip planning", pinned: true });
+  },
+
+  /**
+   * The same mix after a refresh in which the gallery needed sign-in. Signing
+   * in succeeds, and the refresh that follows delivers the mix again.
+   */
+  "merged-sources-sign-in"(stage) {
+    stage.setSignInResult(true);
+    mergedSources(stage, 3, { [MERGE_MEMBERS[2].title]: "authentication-required" });
   },
 
   /** The same sources and recents with only one source open. */

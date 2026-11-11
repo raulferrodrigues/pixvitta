@@ -184,8 +184,11 @@ member stays in the saved mix until the user removes it.
 - Unpinning puts the mix at the front of the unpinned entries, so it does not
   drop off a full list at once.
 - Reopening a mix moves the mix to the front, not its sources.
-- A mix being viewed cannot be pinned or renamed from the panel, since it is
-  not listed there; that waits for the next time it is closed.
+- The mix being viewed is not listed under Recent, so its pin sits at the end
+  of the "In the mix" heading while it is saved, and once pinned its name
+  shows there and renames in place.
+- A member that failed because it needs sign-in (ExHentai) offers it on its
+  row; signing in refreshes the collection, which retries the member.
 
 ## Docs (PR 2 and 3)
 

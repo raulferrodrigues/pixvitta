@@ -118,7 +118,8 @@ catalog, and one handoff state machine.
 Each member loads on its own. A member that fails keeps what it had and is
 marked with its error, which is published with the collection
 (`MediaSourceMember.error`) and shown on its row in the sources panel; the
-next refresh retries it. The result commits if at least one member that did
+next refresh retries it. A member that needs sign-in offers it on its row,
+and signing in starts that refresh. The result commits if at least one member that did
 not fail has items; otherwise the operation fails as a whole, the active
 collection is untouched, and the error is published as usual. A single
 source therefore fails exactly as it did before mixes. Reopening a saved mix

@@ -322,3 +322,57 @@
   font-weight: 600;
   outline: none;
 }
+
+/* The open mix's pin and, once pinned, its name share the "In the mix"
+   heading line, so they add no row of their own. */
+.sources-panel-heading-row {
+  display: flex;
+  min-width: 0;
+  height: 22px;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+  /* The pin lines up with the members' remove buttons below it. */
+  padding: 0 6px 0 calc(var(--sources-inset) - 6px);
+}
+.sources-panel-heading-row .sources-panel-heading { flex: none; padding: 0; }
+.sources-panel-heading-space { flex: 1; }
+.sources-panel-mix-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  padding: 1px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--pix-text);
+  cursor: text;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sources-panel-mix-name:hover { background: var(--pix-panel-hover); }
+.sources-panel-mix-name:focus-visible { outline: 2px solid var(--pix-accent); outline-offset: -1px; }
+.sources-panel-mix-rename { flex: 1; }
+.sources-panel-mix-pin { width: 22px; height: 22px; cursor: pointer; }
+.sources-panel-mix-pin:hover { background: var(--pix-panel-hover); color: var(--pix-text); }
+.sources-panel-mix-pin[aria-pressed="true"] { color: var(--pix-accent); }
+.sources-panel-mix-pin:focus-visible { outline: 2px solid var(--pix-accent); outline-offset: -1px; }
+
+/* Signing in, for a source that failed because it needs it. */
+.source-row-sign-in {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pix-accent);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.source-row-sign-in:disabled { cursor: default; opacity: 0.55; }
+.source-row-sign-in:focus-visible { outline: 2px solid var(--pix-accent); outline-offset: 1px; border-radius: 2px; }

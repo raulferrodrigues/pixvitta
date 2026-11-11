@@ -78,6 +78,9 @@ export type ViewerActions = {
   openRecentSource(location: string): Promise<void>;
   openSavedMix(id: string): Promise<void>;
   signInExHentai(): Promise<void>;
+  // Signs in for a member of the open collection that failed because it
+  // needs it, then refreshes the collection so the member is tried again.
+  signInAndRefresh(): Promise<void>;
   removeRecentSource(location: string): Promise<void>;
   removeSavedMix(id: string): Promise<void>;
   pinSavedMix(id: string, pinned: boolean): Promise<void>;
@@ -363,6 +366,20 @@ export function createViewerStore(
             const request: AddSourceRequest = { kind: "location", location };
             if (pendingAuthenticationMode === "add") await addSourceRequest(request);
             else await openSourceRequest(request, pendingAuthenticationMode === "replace");
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      // No request is pending here, unlike signInExHentai: the member already
+      // failed in a refresh or a reopen, and the next refresh retries it.
+      async signInAndRefresh() {
+        const sourceId = get().source?.id;
+        try {
+          const signedIn = await api.signInExHentai();
+          if (signedIn && sourceId !== undefined && get().source?.id === sourceId) {
+            await get().refreshSource();
           }
         } catch (error) {
           console.error(error);

@@ -47,6 +47,8 @@ export type StageControls = {
    */
   defineSource(location: string, source: StageSource): void;
   setRecentSources(sources: RecentEntry[]): void;
+  /** What signing in to ExHentai answers; false, as if the window was closed, until set. */
+  setSignInResult(signedIn: boolean): void;
   /** Asks the renderer to rename a saved mix, as main does from the mix's menu. */
   requestMixRename(id: string): void;
   setSettings(settings: Partial<AppSettings>): void;
@@ -79,6 +81,7 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
   let updateState: UpdateState = createUpdateState("0.0.0-stage", "latest", null);
   let chrome: WindowChromeState = { zoomFactor: 1, isFullScreen: false, hasMacTrafficLights: false };
   let currentCollection: MediaCollection | null = null;
+  let signInResult = false;
   let viewerReady = false;
   let acknowledgementTimer: ReturnType<typeof setTimeout> | null = null;
   let held: Array<() => void> | null = null;
@@ -217,7 +220,7 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     },
     async signInExHentai() {
       record("signInExHentai");
-      return false;
+      return signInResult;
     },
     async getRecentSources() {
       return recentSources;
@@ -348,6 +351,9 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     setRecentSources(next) {
       recentSources = next;
       for (const listener of recentListeners) listener(next);
+    },
+    setSignInResult(signedIn) {
+      signInResult = signedIn;
     },
     requestMixRename(id) {
       whenViewerReady(() => {
