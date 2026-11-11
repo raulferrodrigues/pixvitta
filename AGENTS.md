@@ -69,6 +69,7 @@ Branch names are one prefix plus a short kebab-case name, like `feat/saved-mixes
 
 - Commit messages and PR titles are plain imperative sentences with no prefix, like "Add an in-app update button to Settings".
 - Never add a generated-by notice such as "Generated with Claude Code" anywhere: not in commits, PR descriptions, issues, comments, code, or docs. Never add a `Co-Authored-By` trailer for Claude or any other AI.
+- Never push directly to `dev` or `main` unless the user clearly tells you to. "Commit this to dev" means open a PR into `dev`.
 - One concern per PR. If the description needs an "also", split it.
 - Before opening a PR, bring the branch up to date with its base (`dev`, or `main` for a hotfix) and run `pnpm verify`.
 - PR body: the problem in a sentence or two, then how you fixed it.
