@@ -1,0 +1,70 @@
+name: Install apt packages
+description: >
+  Install Ubuntu packages without depending on the package mirrors when
+  possible. Packages the runner image already ships are skipped. The .deb files
+  for the rest are cached per runner image version, so a cached install never
+  touches the network. Only a cache miss (a new image, or a new package list)
+  downloads, and that fails within minutes instead of hanging when the mirrors
+  are unreachable, which happens to GitHub's runners now and then.
+
+inputs:
+  packages:
+    description: Space-separated package names.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Find missing packages
+      id: missing
+      shell: bash
+      env:
+        PACKAGES: ${{ inputs.packages }}
+      run: |
+        missing=""
+        for package in $PACKAGES; do
+          if [ "$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null)" != "install ok installed" ]; then
+            missing="$missing $package"
+          fi
+        done
+        missing="${missing# }"
+        echo "Already installed: everything but '${missing}'"
+        echo "packages=${missing}" >> "$GITHUB_OUTPUT"
+        if [ -n "$missing" ]; then
+          # The image version decides which dependencies are already present,
+          # so cached .debs are only reused on the exact same image.
+          hash="$(echo "$missing" | sha256sum | cut -c1-16)"
+          echo "key=apt-${ImageOS}-${ImageVersion}-${hash}" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Restore cached packages
+      id: cache
+      if: steps.missing.outputs.packages != ''
+      uses: actions/cache/restore@v6
+      with:
+        path: ~/apt-debs
+        key: ${{ steps.missing.outputs.key }}
+
+    - name: Download packages
+      if: steps.missing.outputs.packages != '' && steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        PACKAGES: ${{ steps.missing.outputs.packages }}
+      run: |
+        sudo rm -f /var/cache/apt/archives/*.deb
+        sudo timeout 4m apt-get update
+        sudo timeout 6m apt-get install --download-only --yes $PACKAGES
+        mkdir -p ~/apt-debs
+        cp /var/cache/apt/archives/*.deb ~/apt-debs/
+
+    - name: Cache downloaded packages
+      if: steps.missing.outputs.packages != '' && steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ~/apt-debs
+        key: ${{ steps.missing.outputs.key }}
+
+    - name: Install packages
+      if: steps.missing.outputs.packages != ''
+      shell: bash
+      run: sudo dpkg --install ~/apt-debs/*.deb
