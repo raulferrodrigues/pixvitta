@@ -52,7 +52,8 @@ runs:
         PACKAGES: ${{ steps.missing.outputs.packages }}
       run: |
         sudo rm -f /var/cache/apt/archives/*.deb
-        sudo timeout 4m apt-get update
+        # Fail here if any index is unreachable; downloads would only hang.
+        sudo timeout 4m apt-get update -o APT::Update::Error-Mode=any
         sudo timeout 6m apt-get install --download-only --yes $PACKAGES
         mkdir -p ~/apt-debs
         cp /var/cache/apt/archives/*.deb ~/apt-debs/
