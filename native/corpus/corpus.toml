@@ -192,7 +192,29 @@ width = 96
 height = 64
 reference = "pattern-alpha.png"
 max_error = 0.5
-expected_failure = "no JPEG XL decoder in the core"
+
+[[sample]]
+file = "jxl/lossy.jxl"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 2.5
+
+[[sample]]
+file = "jxl/jpeg-orientation-6.jxl"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 0.5
+note = "a JPEG recompressed losslessly; orientation 6 is in the codestream"
+
+[[sample]]
+file = "jxl/jpeg-adobe-rgb.jxl"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 1
+note = "a JPEG recompressed losslessly, with an Adobe RGB ICC profile"
 
 # TIFF
 [[sample]]

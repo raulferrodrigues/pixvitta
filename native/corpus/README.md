@@ -38,6 +38,8 @@ The samples, from those references:
 | `avif/10bit-444.avif` | ffmpeg 6.1 with libaom: `-vf scale=out_color_matrix=bt709:out_range=tv,format=yuv444p10le -colorspace bt709 -color_primaries bt709 -color_trc iec61966-2-1 -color_range tv -c:v libaom-av1 -crf 12 -still-picture 1` |
 | `avif/alpha.avif`, `heic/*.heic` | `heif-enc` from libheif 1.23 with aom and x265 (`-q 90`; `-b 10` for 10-bit) |
 | `jxl/lossless-alpha.jxl` | `cjxl -d 0` |
+| `jxl/lossy.jxl` | `cjxl -d 1 pattern.png` (libjxl 0.7) |
+| `jxl/jpeg-orientation-6.jxl`, `jxl/jpeg-adobe-rgb.jxl` | `cjxl` on `jpeg/orientation-6.jpg` and `jpeg/adobe-rgb.jpg`: lossless JPEG recompression, which keeps the orientation (in the codestream) and the ICC profile |
 | `svg/pattern.svg` | written by hand: the pattern as rects and a linearGradient |
 | `ico/sizes-with-png.ico` | `convert square-256.png square-48.png square-16.png out.ico` |
 | `video/*` | ffmpeg from the pattern scaled to 320x240: `-loop 1 -framerate 10 -t 2`, plus a `sine` audio track where the container has one. Codecs: libx264, libx265 (`-pix_fmt yuv420p10le -tag:v hvc1` for 10-bit), `prores_ks -profile:v 3`, libvpx-vp9 with Opus, libtheora with Vorbis, mpeg4 |

@@ -13,6 +13,7 @@
 mod avif;
 mod folder;
 mod image;
+mod jxl;
 mod mpv;
 mod player;
 

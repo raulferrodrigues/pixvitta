@@ -8,8 +8,9 @@ through libmpv.
 - `core/`: the Rust core, built as a static library with a plain C API
   ([`core/include/pixvitta.h`](core/include/pixvitta.h)). It lists folders,
   decodes images to sRGB RGBA, and owns the libmpv player. It decodes JPEG,
-  PNG, GIF, WebP, BMP, TIFF, ICO and still AVIF (through rav1d, without its
-  assembly for now). Not yet: HEIC, JPEG XL, SVG, and animated or grid AVIF.
+  PNG, GIF, WebP, BMP, TIFF, ICO, still AVIF (through rav1d, without its
+  assembly for now) and JPEG XL (through jxl-oxide; the first frame of an
+  animation). Not yet: HEIC, SVG, animated or grid AVIF, and animated JPEG XL.
 - `linux/`: the Linux app, Qt 6 and QML with a thin C++ layer over the C API.
   Video is drawn by libmpv into a `QQuickFramebufferObject`.
 
