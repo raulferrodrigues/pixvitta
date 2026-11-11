@@ -4,6 +4,7 @@ import devIcon from "../../../assets/pixvitta-dev-icon.svg";
 import stableIcon from "../../../assets/pixvitta-icon.svg";
 import nightlyIcon from "../../../assets/pixvitta-nightly-icon.svg";
 import type { AppBuildInfo, BuildFlavor } from "../../shared/appBuild";
+import { SettingsToggle } from "../parts/settings/SettingsModal";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 import { BuildFlavorBadge } from "../ui/BuildFlavorBadge";
 import { PrimaryButton } from "../ui/PrimaryButton";
@@ -49,9 +50,13 @@ export function SourcePicker({ buildInfo }: { buildInfo: AppBuildInfo }) {
               <span className="text-xs tabular-nums text-pix-recent-path">v{buildInfo.version}</span>
             </div>
           </div>
-          <PrimaryButton className="open-folder-button shrink-0" data-testid="open-folder-empty" onClick={() => void openFolder()}>
-            <FolderOpen size={19} aria-hidden /><span><T>Open Folder</T></span>
-          </PrimaryButton>
+          <div className="flex shrink-0 items-center gap-2">
+            <PrimaryButton className="open-folder-button" data-testid="open-folder-empty" onClick={() => void openFolder()}>
+              <FolderOpen size={19} aria-hidden /><span><T>Open Folder</T></span>
+            </PrimaryButton>
+            {/* Sized and colored to match the Open Folder button beside it. */}
+            <SettingsToggle variant="primary" className="size-11! bg-pix-panel! hover:bg-pix-panel-hover!" />
+          </div>
         </div>
         <div className="rounded-xl border border-pix-border bg-pix-recent p-4 shadow-[0_18px_40px_-24px_rgb(0_0_0/70%)]">
           <LocationPicker />

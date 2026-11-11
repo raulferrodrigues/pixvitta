@@ -17,6 +17,7 @@ jobs:
   linux:
     name: Build and publish Linux packages
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     concurrency:
       group: pixvitta-linux-release
       cancel-in-progress: false
@@ -40,9 +41,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Linux packaging tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes imagemagick
+        uses: ./.github/actions/apt-install
+        with:
+          packages: imagemagick
 
       - name: Read release version
         id: version

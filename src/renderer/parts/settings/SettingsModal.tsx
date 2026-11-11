@@ -1,14 +1,17 @@
 import { ArrowLeft, Keyboard, Settings, X } from "lucide-react";
 import { useGT } from "gt-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ComponentProps } from "react";
 import { hasPendingUpdate } from "../../../shared/updates";
 import { useViewerStore } from "../../state/ViewerStoreProvider";
+import { classNames } from "../../ui/classNames";
 import { IconButton } from "../../ui/IconButton";
 import { SettingsList } from "./SettingsList";
 import { ShortcutsList } from "./ShortcutsList";
 import "./settings.css";
 
-export function SettingsToggle() {
+type SettingsToggleProps = Pick<ComponentProps<typeof IconButton>, "variant" | "className">;
+
+export function SettingsToggle({ variant, className }: SettingsToggleProps) {
   const gt = useGT();
   const isOpen = useViewerStore((state) => state.settingsView !== null);
   const openSettings = useViewerStore((state) => state.openSettings);
@@ -20,7 +23,8 @@ export function SettingsToggle() {
     <IconButton
       label={updatePending ? gt("Settings, update available") : gt("Settings")}
       aria-pressed={isOpen}
-      className="settings-toggle relative"
+      variant={variant}
+      className={classNames("settings-toggle relative", className)}
       data-testid="settings-toggle"
       data-update-pending={updatePending || undefined}
       onClick={() => (isOpen ? closeSettings() : openSettings(updatePending ? "updates" : "settings"))}
