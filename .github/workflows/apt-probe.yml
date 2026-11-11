@@ -1,0 +1,26 @@
+name: Apt Probe
+
+on:
+  pull_request:
+    branches:
+      - dev
+
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04, ubuntu-26.04]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Report preinstalled packages
+        run: |
+          echo "Image: $ImageOS $ImageVersion ($(lsb_release -cs))"
+          for p in xvfb libnss3 libgbm1 libasound2t64 libgtk-3-0t64 libatk-bridge2.0-0t64 imagemagick libmpv-dev libmpv2; do
+            status="$(dpkg-query -W -f='${Status}' "$p" 2>/dev/null || true)"
+            echo "$p: ${status:-not known}"
+          done
+          which magick convert || true
+      - name: Time apt-get update
+        timeout-minutes: 6
+        run: time sudo apt-get update
