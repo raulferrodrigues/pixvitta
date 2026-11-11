@@ -48,8 +48,10 @@ To check your work, run `pnpm verify`. It runs the test layers your diff can aff
 
 Work that could become a PR (a feature, a fix, docs, a refactor, anything meant to be committed) happens in its own worktree, never in the main checkout. Questions, reviews, and read-only exploration can stay where they are.
 
-- Before editing anything, check `t3_worktree_status`. If the thread is not in a worktree, move it with `t3_worktree_handoff`: branch `<prefix>/<short-name>`, `baseRef: "dev"` with `startFromOrigin: true`, or `main` for a hotfix.
-- If the thread is in a worktree on an auto-named `t3/<id>` branch, rename it with `git branch -m <prefix>/<short-name>` once you know what the work is, and always before the first push.
+Before you start any work, check which branch you are on (`git branch --show-current`, or `t3_worktree_status`). Do this every time, before your first edit.
+
+- If the thread is not in a worktree, move it with `t3_worktree_handoff`: branch `<prefix>/<short-name>`, `baseRef: "dev"` with `startFromOrigin: true`, or `main` for a hotfix.
+- If the branch does not follow the naming rule below, rename it with `git branch -m <prefix>/<short-name>` before you edit anything. T3 names new branches `t3/...`, both as an id (`t3/c2430f95`) and as a slug (`t3/fix-thumbnails`). Neither form is valid.
 
 Branch names are one prefix plus a short kebab-case name, like `feat/saved-mixes`:
 
