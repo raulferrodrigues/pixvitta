@@ -16,6 +16,7 @@ mod image;
 mod jxl;
 mod mpv;
 mod player;
+mod svg;
 
 use std::ffi::{c_char, c_int, c_void, CStr};
 use std::os::unix::ffi::OsStrExt;

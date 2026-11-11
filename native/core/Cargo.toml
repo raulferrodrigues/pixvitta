@@ -12,6 +12,8 @@ crate-type = ["staticlib", "rlib"]
 
 [dependencies]
 avif-parse = "2.1"
+# For SVGZ, with a limit on the decompressed size. Already used by png.
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp", "tiff", "ico"] }
 # Without "rayon": decodes on the calling thread, with no thread pool of its
 # own. "moxcms" lets it convert embedded ICC profiles.
@@ -19,6 +21,9 @@ jxl-oxide = { version = "0.12.6", default-features = false, features = ["moxcms"
 moxcms = { version = "0.8", default-features = false }
 # Without "asm": its x86-64 assembly needs nasm.
 rav1d = { version = "1.1.0", default-features = false, features = ["bitdepth_8", "bitdepth_16"] }
+# Without "memmap-fonts": font files are read, not mapped, so one changing
+# on disk can't crash the app.
+resvg = { version = "0.49", default-features = false, features = ["text", "system-fonts", "svgz", "raster-images"] }
 
 [dev-dependencies]
 toml = "0.9"

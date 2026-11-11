@@ -157,7 +157,20 @@ width = 96
 height = 64
 reference = "pattern.png"
 max_error = 1.5
-expected_failure = "no SVG renderer in the core"
+
+[[sample]]
+file = "svg/viewbox-alpha.svg"
+width = 96
+height = 64
+reference = "viewbox-alpha.png"
+note = "only a viewBox, no width or height; semi-transparent shapes on a transparent background"
+
+[[sample]]
+file = "svg/data-png.svg"
+width = 96
+height = 64
+reference = "pattern.png"
+note = "the pattern as an embedded data: PNG"
 
 # ICO
 [[sample]]

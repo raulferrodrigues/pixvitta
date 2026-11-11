@@ -1,7 +1,7 @@
 //! Image decoding to sRGB RGBA8, straight alpha, EXIF orientation applied.
 //! The `image` crate decodes; moxcms (which `image` already uses) converts
-//! embedded ICC profiles to sRGB; AVIF goes through `avif` and JPEG XL, which
-//! the `image` crate doesn't recognise, through `jxl`. `decode` reads a still
+//! embedded ICC profiles to sRGB; AVIF goes through `avif`, and JPEG XL and
+//! SVG, which the `image` crate doesn't recognise, through `jxl` and `svg`. `decode` reads a still
 //! (the first frame of an animated file); `Animation` plays GIF and WebP frame
 //! by frame.
 
@@ -54,6 +54,10 @@ pub fn decode(path: &Path) -> Result<Decoded, DecodeError> {
         let data = std::fs::read(path).map_err(|_| DecodeError::Io)?;
         if crate::jxl::is_jxl(&data) {
             let picture = crate::jxl::decode(&data)?;
+            return Ok(finish(picture, Orientation::NoTransforms, None));
+        }
+        if crate::svg::is_svg(&data) {
+            let picture = crate::svg::decode(&data)?;
             return Ok(finish(picture, Orientation::NoTransforms, None));
         }
     }
