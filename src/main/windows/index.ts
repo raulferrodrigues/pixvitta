@@ -13,6 +13,7 @@ export {
   publishMainWindowDownloadActivity,
   publishMainWindowLoading,
   publishMainWindowRecentSources,
+  publishMainWindowReplaceConfirmation,
   publishMainWindowSourceError,
   resetFocusedWindowZoom,
   sendMenuCommand,

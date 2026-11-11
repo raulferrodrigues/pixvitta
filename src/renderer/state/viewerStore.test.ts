@@ -63,7 +63,8 @@ test("a collection delivered while sign-in is open prevents a stale retry", asyn
     source: {
       id: "new-source",
       title: "Folder",
-      capabilities: { canRefresh: true, canSort: true, canDownload: false, canDownloadCollection: false, canOpenOrigin: false }
+      capabilities: { canRefresh: true, canSort: true, canDownload: false, canDownloadCollection: false, canOpenOrigin: false },
+      members: []
     },
     items: [],
     selectedId: null
@@ -81,7 +82,8 @@ test("refreshing the current source while signing in prevents a stale retry", as
     source: {
       id: "current-source",
       title: "Gallery",
-      capabilities: { canRefresh: true, canSort: false, canDownload: true, canDownloadCollection: true, canOpenOrigin: true }
+      capabilities: { canRefresh: true, canSort: false, canDownload: true, canDownloadCollection: true, canOpenOrigin: true },
+      members: []
     },
     items: [],
     selectedId: null
@@ -96,7 +98,7 @@ test("refreshing the current source while signing in prevents a stale retry", as
 test("an obsolete media failure after navigation does not mark that page broken", () => {
   const { store } = setup();
   store.getState().openCollection({
-    source: { id: "source", title: "Gallery", capabilities: { canRefresh: true, canSort: false, canDownload: true, canDownloadCollection: true, canOpenOrigin: true } },
+    source: { id: "source", title: "Gallery", capabilities: { canRefresh: true, canSort: false, canDownload: true, canDownloadCollection: true, canOpenOrigin: true }, members: [] },
     selectedId: "first",
     items: ["first", "second"].map((id) => ({ id, name: id, url: `pixvitta-media://media/${id}`, thumbnailUrl: null,
       kind: "image", sizeBytes: 1, lastOpenedMs: 0, addedMs: 0, modifiedMs: 0, createdMs: 0 }))
@@ -110,7 +112,7 @@ test("an obsolete media failure after navigation does not mark that page broken"
 
 function videoCollection(sourceId: string, itemIds: string[]) {
   return {
-    source: { id: sourceId, title: "Videos", capabilities: { canRefresh: true, canSort: true, canDownload: false, canDownloadCollection: false, canOpenOrigin: false } },
+    source: { id: sourceId, title: "Videos", capabilities: { canRefresh: true, canSort: true, canDownload: false, canDownloadCollection: false, canOpenOrigin: false }, members: [] },
     selectedId: itemIds[0],
     items: itemIds.map((id) => ({ id, name: id, url: `pixvitta-media://media/${id}`, thumbnailUrl: null,
       kind: "video" as const, sizeBytes: 1, lastOpenedMs: 0, addedMs: 0, modifiedMs: 0, createdMs: 0 }))

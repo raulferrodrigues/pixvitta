@@ -9,6 +9,8 @@ import { SourceOpenError } from "./folder-picker/SourceOpenError";
 import { SourcePicker } from "./folder-picker/SourcePicker";
 import { layouts } from "./layouts";
 import { SettingsModal } from "./parts/settings/SettingsModal";
+import { ReplaceConfirmationDialog } from "./parts/sources/ReplaceConfirmation";
+import { SourceNotice } from "./parts/sources/SourceNotice";
 import { useViewerStore } from "./state/ViewerStoreProvider";
 
 export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
@@ -17,6 +19,7 @@ export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
   useWindowChrome(window.pixvitta);
   const source = useViewerStore((state) => state.source);
   const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
+  const isSourcesPanelOpen = useViewerStore((state) => state.isSourcesPanelOpen);
   const viewerLayout = useViewerStore((state) => state.settings.viewerLayout);
   const glowEffects = useViewerStore((state) => state.settings.glowEffects);
 
@@ -40,6 +43,7 @@ export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
     <>
       <Layout buildInfo={buildInfo} />
       <SettingsModal />
+      <ReplaceConfirmationDialog />
       {isSourceLoading ? (
         <div
           className="fixed left-1/2 top-[calc(var(--pix-topbar-height)+12px)] z-40 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-pix-border bg-pix-panel/95 px-4 py-2.5 text-sm text-pix-text shadow-xl"
@@ -50,7 +54,13 @@ export function App({ buildInfo }: { buildInfo: AppBuildInfo }) {
           <span><T>Loading source...</T></span>
         </div>
       ) : null}
-      <SourceOpenError presentation="toast" />
+      {/* The open sources panel shows source errors and notices beside its add form. */}
+      {isSourcesPanelOpen ? null : (
+        <>
+          <SourceOpenError presentation="toast" />
+          <SourceNotice presentation="toast" />
+        </>
+      )}
     </>
   );
 }

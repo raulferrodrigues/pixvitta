@@ -298,6 +298,7 @@ async function fileResponse(
 export class FourChanProvider implements MediaProvider {
   readonly id = "four-chan";
   readonly sourceKind = "web";
+  readonly siteName = "4chan";
   private readonly threads = new Map<string, CachedThread>();
   private readonly resources = new ResourceAcquisitions();
 
@@ -471,6 +472,8 @@ export class FourChanProvider implements MediaProvider {
           const index = indexByKey.get(key);
           if (index !== undefined) runtime.select(index);
         },
+        standBy: (key) =>
+          runtime.standBy(key === undefined ? undefined : indexByKey.get(key)),
         deactivate: () => runtime.deactivate()
       },
       canonicalLocation: reference.pageUrl,

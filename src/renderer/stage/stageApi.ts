@@ -1,9 +1,11 @@
 import { createAppBuildInfo } from "../../shared/appBuild";
 import type {
+  AddSourceResult,
   DownloadActivitySnapshot,
   MediaCollection,
   OpenSourceError,
-  OpenSourceRequest
+  OpenSourceRequest,
+  ReplaceConfirmation
 } from "../../shared/media";
 import type { PixvittaApi, PixvittaCommand, WindowChromeState } from "../../shared/pixvittaApi";
 import type { RecentSource } from "../../shared/recentSources";
@@ -25,8 +27,12 @@ const EMPTY_DOWNLOADS: DownloadActivitySnapshot = { revision: 0, rows: [], itemS
 
 type StageCall = { method: string; args: unknown[] };
 
-/** What opening a location does: a collection appears, or it fails with an error. */
-export type StageSource = MediaCollection | OpenSourceError;
+/**
+ * What opening a location does: a collection appears, or it fails with an
+ * error. "already-added" is main's answer to adding a source that is already
+ * a member: nothing changes, and the add says so.
+ */
+export type StageSource = MediaCollection | OpenSourceError | "already-added";
 
 export type StageControls = {
   readonly calls: StageCall[];
@@ -34,7 +40,7 @@ export type StageControls = {
   /** Every PixvittaApi method the renderer called, with arguments, in order. */
   callsTo(method: string): unknown[][];
   isViewerReady(): boolean;
-  /** Defines what openSource does for a location, or for the folder picker with "pick-directory". */
+  /** Defines what openSource and addSource do for a location, or for the folder picker with "pick-directory". */
   defineSource(location: string, source: StageSource): void;
   setRecentSources(sources: RecentSource[]): void;
   setSettings(settings: Partial<AppSettings>): void;
@@ -75,6 +81,7 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
   const collectionListeners: Listeners<MediaCollection> = new Set();
   const loadingListeners: Listeners<boolean> = new Set();
   const errorListeners: Listeners<OpenSourceError> = new Set();
+  const replaceListeners: Listeners<ReplaceConfirmation> = new Set();
   const commandListeners: Listeners<PixvittaCommand> = new Set();
   const chromeListeners: Listeners<WindowChromeState> = new Set();
   const downloadListeners: Listeners<DownloadActivitySnapshot> = new Set();
@@ -119,28 +126,61 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     });
   }
 
-  function open(key: string): void {
+  // Resolves as main answers an add: after the collection or the error it
+  // produced has been sent.
+  function open(key: string): Promise<AddSourceResult> {
     setLoading(true);
-    const finish = () => {
-      const source = sources.get(key) ?? "not-found";
-      if (typeof source === "string") {
-        setLoading(false);
-        showSourceError(source);
-      } else {
-        deliverCollection(source);
-      }
-    };
-    if (held) held.push(finish);
-    else finish();
+    return new Promise((resolve) => {
+      const finish = () => {
+        const source = sources.get(key) ?? "not-found";
+        if (source === "already-added") {
+          setLoading(false);
+          whenViewerReady(() => resolve("already-added"));
+        } else if (typeof source === "string") {
+          setLoading(false);
+          showSourceError(source);
+          whenViewerReady(() => resolve("not-added"));
+        } else {
+          deliverCollection(source);
+          whenViewerReady(() => resolve("added"));
+        }
+      };
+      if (held) held.push(finish);
+      else finish();
+    });
   }
 
   const api: PixvittaApi = {
     async getBuildInfo() {
       return createAppBuildInfo({ flavorOverride: "dev", version: "0.0.0-stage" });
     },
-    openSource(request: OpenSourceRequest) {
-      record("openSource", request);
-      open(request.kind === "location" ? request.location : "pick-directory");
+    // Like main, an open that would replace a mix asks first.
+    openSource(request: OpenSourceRequest, options) {
+      record("openSource", request, ...(options ? [options] : []));
+      const members = currentCollection?.source.members.length ?? 0;
+      if (members > 1 && !options?.replaceConfirmed) {
+        const confirmation: ReplaceConfirmation = {
+          request,
+          title: currentCollection?.source.title ?? "",
+          sourceCount: members
+        };
+        whenViewerReady(() => {
+          for (const listener of replaceListeners) listener(confirmation);
+        });
+        return;
+      }
+      void open(request.kind === "location" ? request.location : "pick-directory");
+    },
+    // The stage delivers whatever collection the scenario defined for the
+    // location, so a scenario defines the merged collection an add produces.
+    addSource(request: OpenSourceRequest) {
+      record("addSource", request);
+      return open(request.kind === "location" ? request.location : "pick-directory");
+    },
+    // Removing needs the library's merge, which the stage does not have; a
+    // scenario delivers the resulting collection itself if it needs one.
+    removeSource(memberId: string) {
+      record("removeSource", memberId);
     },
     refreshSource() {
       record("refreshSource");
@@ -243,6 +283,7 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     onCollectionChanged: (callback) => subscribe(collectionListeners, callback),
     onSourceLoadingChanged: (callback) => subscribe(loadingListeners, callback),
     onSourceError: (callback) => subscribe(errorListeners, callback),
+    onReplaceConfirmation: (callback) => subscribe(replaceListeners, callback),
     onDownloadActivityChanged: (callback) => subscribe(downloadListeners, callback),
     onRecentSourcesChanged: (callback) => subscribe(recentListeners, callback),
     onSettingsChanged: (callback) => subscribe(settingsListeners, callback),

@@ -17,7 +17,9 @@ checks throughout IPC or React.
   behavior.
 - **Source**: the canonical place a provider loads, such as a directory or a
   thread URL.
-- **Collection**: a loaded snapshot of media items from a source.
+- **Collection**: a loaded snapshot of media items from one or more sources.
+- **Mix**: a collection made of several sources, its *members*, interleaved
+  in zipper order.
 - **Resource**: internal behavior capable of returning media or thumbnail bytes.
   The renderer receives only opaque Pixvitta URLs for resources.
 
@@ -32,8 +34,17 @@ only these source operations:
 - open a directory through the native picker;
 - open a typed location;
 - open an operating-system path;
+- add a source to the open collection, by picker or location;
+- remove one member source from a mix;
 - refresh an already-open collection;
 - open a collection’s origin in the system browser.
+
+Opening replaces the collection. An open from inside the app that would
+replace a mix of two or more sources is not carried out: main answers with a
+question (`library:confirm-replace`) carrying the request, and opens only
+when the renderer sends that request back marked as confirmed. Main decides
+when to ask; the renderer only shows the question. Opens from the operating
+system replace without asking.
 
 Provider matching, canonical locations, rate limits, remote request headers,
 resource delivery, local path authorization, recents policy, and error mapping
@@ -76,6 +87,41 @@ dynamic provider installation are out of scope. ExHentai sign-in is currently
 wired specifically through IPC and the renderer; making authentication
 provider-neutral is recorded in [Future Work](future-work.md).
 
+## Several sources in one collection
+
+The library keeps the list of member sources behind the active collection,
+each with its provider and loaded provider collection. A pure function
+(`mergedSources.ts`) zips them into one provider collection, one item from
+each member in turn, in the order they were added, which then goes through
+the usual catalog, registry, and handoff. There is still one collection, one
+catalog, and one handoff state machine.
+
+- Item keys are namespaced by the member's canonical location, so items keep
+  their public media IDs when a source is added or removed.
+- Adding loads only the new source and keeps the collection ID and the
+  selection. A source that is already a member is reported, not reloaded.
+  Removing reloads nothing.
+- A mix refreshes and sorts if any member can, downloads only if every member
+  can, and has no origin. One member is presented exactly as its provider
+  gave it.
+- Viewing demand belongs to members, not to a catalog. A commit deactivates
+  only the members the new collection no longer holds: an add carries every
+  loaded member over, a refresh deactivates the members it reloaded, and a
+  removal deactivates only the removed one. The member that owns the selected
+  item takes it on screen; the others stand by with their place and prefetch
+  window (see the [provider runtime](../src/main/providerRuntime/README.md)).
+
+### A failed source does not break the mix
+
+Each member loads on its own. A member that fails keeps what it had and is
+marked with its error, which is published with the collection
+(`MediaSourceMember.error`) and shown on its row in the sources panel; the
+next refresh retries it. The result commits if at least one member that did
+not fail has items; otherwise the operation fails as a whole, the active
+collection is untouched, and the error is published as usual. A single
+source therefore fails exactly as it did before mixes. Reopening a saved mix
+is meant to use the same rule, with a failed member present and empty.
+
 ## Renderer contract
 
 The renderer receives a provider-neutral collection:
@@ -83,7 +129,11 @@ The renderer receives a provider-neutral collection:
 - opaque collection ID;
 - title and optional origin label;
 - capabilities such as refresh, sort, and opening the origin;
-- opaque media IDs and `pixvitta-media://` resource URLs.
+- its members in zipper order: an opaque ID, title, kind, item count, site
+  name, the recent location it is remembered under, and the error of a failed
+  load, but no provider IDs;
+- opaque media IDs and `pixvitta-media://` resource URLs, each item carrying
+  its source's title in a mix.
 
 React must not branch on provider IDs. It renders presentation fields and
 capabilities.
@@ -152,9 +202,12 @@ Focused tests use injected dependencies and synthetic responses; none make
 live requests:
 
 - collection lifetime: selection by provider key and deactivation only when a
-  replacement commits;
+  replacement commits, including which members of a mix a commit releases;
+- mixes: zipper order, key stability, capabilities, adding, removing, the
+  selection rules, and the failed-member rule;
 - request broker scheduling, cancellation, pacing, and the 429 halt;
-- provider runtime ownership, sharing, prefetch order, and refresh lifetime;
+- provider runtime ownership, sharing, prefetch order, refresh lifetime,
+  standing by, and the cold start of a new source;
 - E-Hentai and ExHentai parsing, authentication generations, session behavior,
   and image limits;
 - nhentai URL, gallery, and CDN configuration validation;

@@ -1,10 +1,12 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { AppBuildInfo } from "../shared/appBuild";
 import type {
+  AddSourceResult,
   DownloadActivitySnapshot,
   MediaCollection,
   OpenSourceError,
-  OpenSourceRequest
+  OpenSourceRequest,
+  ReplaceConfirmation
 } from "../shared/media";
 import type { PixvittaApi, PixvittaCommand, WindowChromeState } from "../shared/pixvittaApi";
 import type { RecentSource } from "../shared/recentSources";
@@ -21,8 +23,12 @@ import type { UpdateState } from "../shared/updates";
 
 const pixvittaApi = {
   getBuildInfo: (): Promise<AppBuildInfo> => ipcRenderer.invoke("app:get-build-info"),
-  openSource: (request: OpenSourceRequest): void =>
-    ipcRenderer.send("source:open", request),
+  openSource: (request: OpenSourceRequest, options?: { replaceConfirmed: boolean }): void =>
+    ipcRenderer.send("source:open", request, options),
+  addSource: (request: OpenSourceRequest): Promise<AddSourceResult> =>
+    ipcRenderer.invoke("source:add", request),
+  removeSource: (memberId: string): void =>
+    ipcRenderer.send("source:remove", memberId),
   refreshSource: (): void =>
     ipcRenderer.send("source:refresh"),
   openSourceOrigin: (sourceId: string): Promise<boolean> =>
@@ -103,6 +109,11 @@ const pixvittaApi = {
     const listener = (_event: Electron.IpcRendererEvent, isLoading: boolean) => callback(isLoading);
     ipcRenderer.on("library:loading-changed", listener);
     return () => ipcRenderer.removeListener("library:loading-changed", listener);
+  },
+  onReplaceConfirmation: (callback: (confirmation: ReplaceConfirmation) => void): (() => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, confirmation: ReplaceConfirmation) => callback(confirmation);
+    ipcRenderer.on("library:confirm-replace", listener);
+    return () => ipcRenderer.removeListener("library:confirm-replace", listener);
   },
   onSourceError: (callback: (error: OpenSourceError) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, error: OpenSourceError) => callback(error);

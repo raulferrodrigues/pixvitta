@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import path from "node:path";
-import type { OpenSourceRequest } from "../../shared/media";
+import type { AddSourceResult, OpenSourceRequest } from "../../shared/media";
 import type { RecentSource } from "../../shared/recentSources";
 import { parseDialogResponses } from "../app";
 import { getSettings } from "../settings";
@@ -14,6 +14,7 @@ import {
   publishMainWindowCollection,
   publishMainWindowLoading,
   publishMainWindowRecentSources,
+  publishMainWindowReplaceConfirmation,
   publishMainWindowSourceError
 } from "../windows";
 import { MediaLibrary } from "./mediaLibrary";
@@ -98,6 +99,15 @@ export async function openSource(
   return openSourceForWindow(request);
 }
 
+async function addSourceForWindow(
+  request: OpenSourceRequest,
+  window?: BrowserWindow | null
+): Promise<AddSourceResult> {
+  return request.kind === "pick-directory"
+    ? mediaLibrary.addPickedLocation(() => chooseDirectory(window))
+    : mediaLibrary.addLocation(request.location);
+}
+
 export async function refreshSource(): Promise<boolean> {
   return mediaLibrary.refresh();
 }
@@ -140,10 +150,33 @@ export async function removeRecentSource(
   return removeStoredRecentSource(location);
 }
 
-ipcMain.on("source:open", (event, request: unknown) => {
+// Opening from inside the app asks before it replaces a mix, and goes ahead
+// only once the request comes back confirmed. Opens from the operating system
+// do not come through here and replace without asking.
+ipcMain.on("source:open", (event, request: unknown, options: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   if (!isMainWindow(window) || !isOpenSourceRequest(request)) return;
+  const confirmed =
+    typeof options === "object" &&
+    options !== null &&
+    (options as { replaceConfirmed?: unknown }).replaceConfirmed === true;
+  const replaces = confirmed ? null : mediaLibrary.replaceConfirmation();
+  if (replaces) {
+    publishMainWindowReplaceConfirmation({ request, ...replaces });
+    return;
+  }
   void openSourceForWindow(request, window);
+});
+
+ipcMain.handle("source:add", async (event, request: unknown): Promise<AddSourceResult> => {
+  const window = BrowserWindow.fromWebContents(event.sender);
+  if (!isMainWindow(window) || !isOpenSourceRequest(request)) return "not-added";
+  return addSourceForWindow(request, window);
+});
+
+ipcMain.on("source:remove", (event, memberId: unknown) => {
+  if (!isMainWindow(BrowserWindow.fromWebContents(event.sender))) return;
+  if (typeof memberId === "string") void mediaLibrary.removeSource(memberId);
 });
 
 ipcMain.on("library:select-media", (event, mediaId: unknown) => {

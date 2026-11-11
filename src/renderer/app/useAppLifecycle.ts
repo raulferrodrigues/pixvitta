@@ -5,7 +5,7 @@ import { useViewerStore, useViewerStoreApi } from "../state/ViewerStoreProvider"
 import { watchTextEntryFocus } from "./textEntryFocus";
 
 export const VIDEO_SEEK_SECONDS = 5;
-const SETTINGS_BLOCKED_COMMANDS: ReadonlySet<PixvittaCommand> = new Set([
+const MODAL_BLOCKED_COMMANDS: ReadonlySet<PixvittaCommand> = new Set([
   "previous-media",
   "next-media",
   "seek-video-backward",
@@ -17,6 +17,7 @@ export function useAppLifecycle(api: PixvittaApi) {
   const store = useViewerStoreApi();
   const initialize = useViewerStore((state) => state.initialize);
   const openFolder = useViewerStore((state) => state.openFolder);
+  const addFolder = useViewerStore((state) => state.addFolder);
   const refreshSource = useViewerStore((state) => state.refreshSource);
   const goNext = useViewerStore((state) => state.goNext);
   const goPrevious = useViewerStore((state) => state.goPrevious);
@@ -26,6 +27,7 @@ export function useAppLifecycle(api: PixvittaApi) {
   const openCollection = useViewerStore((state) => state.openCollection);
   const setSourceLoading = useViewerStore((state) => state.setSourceLoading);
   const showSourceError = useViewerStore((state) => state.showSourceError);
+  const askToReplace = useViewerStore((state) => state.askToReplace);
   const applyDownloadActivity = useViewerStore(
     (state) => state.applyDownloadActivity
   );
@@ -52,9 +54,11 @@ export function useAppLifecycle(api: PixvittaApi) {
 
   useEffect(() => {
     const runCommand = (command: PixvittaCommand) => {
-      // Keys the main process forwards should not act behind the open modal.
-      if (store.getState().settingsView && SETTINGS_BLOCKED_COMMANDS.has(command)) return;
+      // Keys the main process forwards should not act behind an open modal.
+      const { settingsView, replaceConfirmation } = store.getState();
+      if ((settingsView || replaceConfirmation) && MODAL_BLOCKED_COMMANDS.has(command)) return;
       if (command === "open-folder") void openFolder();
+      if (command === "add-folder") void addFolder();
       if (command === "refresh-source") void refreshSource();
       if (command === "open-settings") openSettings("settings");
       if (command === "previous-media") goPrevious();
@@ -76,6 +80,7 @@ export function useAppLifecycle(api: PixvittaApi) {
     });
     const unsubscribeLoading = api.onSourceLoadingChanged(setSourceLoading);
     const unsubscribeSourceError = api.onSourceError(showSourceError);
+    const unsubscribeReplaceConfirmation = api.onReplaceConfirmation(askToReplace);
     const unsubscribeDownloadActivity =
       api.onDownloadActivityChanged(applyDownloadActivity);
     const unsubscribeRecentSources =
@@ -89,10 +94,11 @@ export function useAppLifecycle(api: PixvittaApi) {
       unsubscribeCollection();
       unsubscribeLoading();
       unsubscribeSourceError();
+      unsubscribeReplaceConfirmation();
       unsubscribeDownloadActivity();
       unsubscribeRecentSources();
       unsubscribeSettings();
       unsubscribeUpdateState();
     };
-  }, [api, applyDownloadActivity, applyRecentSources, applySettings, applyUpdateState, checkForUpdates, goNext, goPrevious, openCollection, openFolder, openSettings, refreshSource, seekVideoBy, setSourceLoading, showSourceError, toggleVideoPlayback]);
+  }, [addFolder, api, applyDownloadActivity, askToReplace, applyRecentSources, applySettings, applyUpdateState, checkForUpdates, goNext, goPrevious, openCollection, openFolder, openSettings, refreshSource, seekVideoBy, setSourceLoading, showSourceError, toggleVideoPlayback]);
 }

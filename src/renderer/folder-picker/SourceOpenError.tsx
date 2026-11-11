@@ -3,7 +3,7 @@ import { useGT } from "gt-react";
 import type { OpenSourceError } from "../../shared/media";
 import { useViewerStore } from "../state/ViewerStoreProvider";
 
-function errorMessage(
+export function errorMessage(
   error: OpenSourceError,
   gt: ReturnType<typeof useGT>
 ): string {
@@ -20,7 +20,8 @@ function errorMessage(
 export function SourceOpenError({
   presentation = "inline"
 }: {
-  presentation?: "inline" | "toast";
+  // "compact" sits under the sources panel's narrow add field.
+  presentation?: "inline" | "toast" | "compact";
 }) {
   const gt = useGT();
   const sourceOpenError = useViewerStore((state) => state.sourceOpenError);
@@ -46,6 +47,16 @@ export function SourceOpenError({
       >
         <AlertCircle className="mt-0.5 shrink-0" size={17} aria-hidden />
         <span>{errorMessage(sourceOpenError, gt)}</span>
+        {signInButton}
+      </div>
+    );
+  }
+
+  if (presentation === "compact") {
+    return (
+      <div className="flex items-start gap-1.5 text-[11px] leading-[1.4] text-red-300" role="alert" data-testid="source-open-error">
+        <AlertCircle className="mt-px shrink-0" size={13} aria-hidden />
+        <span className="min-w-0 flex-1">{errorMessage(sourceOpenError, gt)}</span>
         {signInButton}
       </div>
     );

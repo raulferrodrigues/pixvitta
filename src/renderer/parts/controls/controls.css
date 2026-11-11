@@ -5,5 +5,8 @@
 .viewer-file-order-item { position: relative; display: flex; height: 30px; cursor: default; align-items: center; padding: 0 29px 0 9px; border-radius: 6px; outline: none; color: rgb(243 246 247 / 88%); font-size: 12px; }
 .viewer-file-order-item[data-highlighted] { background: rgb(255 255 255 / 7%); color: var(--pix-text); }
 .viewer-file-order-indicator { position: absolute; right: 8px; display: inline-flex; align-items: center; color: var(--pix-text); }
+.sources-panel-toggle { position: relative; }
+.sources-panel-toggle-count { position: absolute; right: -4px; bottom: -4px; display: inline-flex; min-width: 15px; height: 15px; align-items: center; justify-content: center; padding: 0 4px; border: 1px solid rgb(23 25 27); border-radius: 8px; background: var(--pix-accent); color: rgb(12 14 15); font-size: 9.5px; font-weight: 700; line-height: 1; }
+.sources-panel-toggle-count[data-failed] { background: rgb(252 165 165); }
 @keyframes viewer-menu-enter { from { opacity: 0; transform: translateY(-2px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .viewer-file-order-menu { animation: none; } }

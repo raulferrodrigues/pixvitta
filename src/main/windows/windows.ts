@@ -2,7 +2,8 @@ import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import type {
   DownloadActivitySnapshot,
   MediaCollection,
-  OpenSourceError
+  OpenSourceError,
+  ReplaceConfirmation
 } from "../../shared/media";
 import type { PixvittaCommand } from "../../shared/pixvittaApi";
 import type { RecentSource } from "../../shared/recentSources";
@@ -154,6 +155,13 @@ export function publishMainWindowSourceError(error: OpenSourceError): void {
     return;
   }
   pendingSourceError = error;
+}
+
+// Only ever an answer to the window's own open request, so it is ready.
+export function publishMainWindowReplaceConfirmation(
+  confirmation: ReplaceConfirmation
+): void {
+  getReadyMainWindow()?.webContents.send("library:confirm-replace", confirmation);
 }
 
 export function publishMainWindowDownloadActivity(
