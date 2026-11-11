@@ -61,11 +61,28 @@ struct Av1Picture {
     context: Option<Dav1dContext>,
 }
 
+/// rav1d decodes on its own worker threads. A panic there can't reach the
+/// caller's catch_unwind and would leave the call waiting forever, so it
+/// aborts the process instead.
+fn abort_on_worker_panic() {
+    static HOOK: std::sync::Once = std::sync::Once::new();
+    HOOK.call_once(|| {
+        let previous = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            previous(info);
+            if std::thread::current().name().is_some_and(|name| name.starts_with("rav1d-worker")) {
+                std::process::abort();
+            }
+        }));
+    });
+}
+
 impl Av1Picture {
     fn decode(data: &[u8]) -> Result<Av1Picture, DecodeError> {
         if data.is_empty() {
             return Err(DecodeError::Decode);
         }
+        abort_on_worker_panic();
         let mut decoded = Av1Picture {
             picture: Dav1dPicture::default(),
             context: None,

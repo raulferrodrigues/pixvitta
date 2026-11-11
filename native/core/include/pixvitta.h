@@ -89,7 +89,8 @@ int pv_animation_open(const char *path, pv_animation **out);
  * image), which means there is nothing more to ask for. A duration of 10 ms
  * or less in the file is reported as 100 ms, as browsers do. Release each
  * frame with pv_image_release; frames may outlive the animation. One thread
- * at a time per animation. */
+ * at a time per animation. If the decoder panics, this and every later call
+ * on the animation return PV_ERROR_DECODE; it can still be released. */
 int pv_animation_next_frame(pv_animation *animation, pv_image **out, uint32_t *duration_ms);
 /* Call it from any thread, but not while a pv_animation_next_frame call on
  * the same animation is running. */
