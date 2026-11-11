@@ -19,9 +19,15 @@ const SNIFF_BYTES: usize = 4096;
 /// Larger documents, after decompressing an SVGZ, are refused.
 const MAX_DOCUMENT_BYTES: u64 = 256 << 20;
 
-/// Deeper element nesting is refused. usvg and resvg walk the tree
-/// recursively, so a deep enough file would overflow the stack.
-const MAX_DEPTH: usize = 1024;
+/// The stack SVGs are rendered on. It is only reserved: pages are used as
+/// the recursion reaches them.
+const STACK_BYTES: usize = 1 << 30;
+
+/// usvg and resvg recurse once per element along nesting and references
+/// (mask, pattern, clip-path, marker, filter, use), and never visit an
+/// element twice on the way down. The worst seen is about 4.2 KB per step
+/// (pattern and mask chains); this allows twice that.
+const MAX_STEPS: usize = STACK_BYTES / 8192;
 
 /// Whether the root element of the document (gzip-compressed or not) is
 /// `<svg`, looking only at its start.
@@ -53,7 +59,21 @@ pub fn is_svg(data: &[u8]) -> bool {
 }
 
 /// The picture as RGBA8 with straight alpha, on a transparent background.
+/// Rendered on its own thread with a large stack, because usvg and resvg
+/// recurse as deep as the file's references go.
 pub fn decode(data: &[u8]) -> Result<DynamicImage, DecodeError> {
+    std::thread::scope(|scope| {
+        std::thread::Builder::new()
+            .name("svg".into())
+            .stack_size(STACK_BYTES)
+            .spawn_scoped(scope, || render(data))
+            .map_err(|_| DecodeError::Decode)?
+            .join()
+            .unwrap_or(Err(DecodeError::Decode))
+    })
+}
+
+fn render(data: &[u8]) -> Result<DynamicImage, DecodeError> {
     let mut document = Vec::new();
     let data = if data.starts_with(&[0x1f, 0x8b]) {
         GzDecoder::new(data)
@@ -74,7 +94,7 @@ pub fn decode(data: &[u8]) -> Result<DynamicImage, DecodeError> {
         ..Default::default()
     };
     let xml = roxmltree::Document::parse_with_options(text, xml_options).map_err(|_| DecodeError::Decode)?;
-    if too_deep(&xml) {
+    if steps(&xml) > MAX_STEPS {
         return Err(DecodeError::Decode);
     }
     let options = Options {
@@ -138,18 +158,33 @@ fn fonts() -> Arc<fontdb::Database> {
         .clone()
 }
 
-fn too_deep(xml: &roxmltree::Document) -> bool {
+/// The most recursion steps usvg and resvg can take on the document: no
+/// more than its elements, and no more than its nesting depth for each
+/// reference followed. A `url(` in a stylesheet can apply to any element, so
+/// then only the element count bounds it.
+fn steps(xml: &roxmltree::Document) -> usize {
+    let (mut elements, mut references, mut deepest) = (0usize, 0usize, 0usize);
+    let mut stylesheet = false;
     // Nodes come in document order, so a parent's depth is known before its
     // children's.
     let mut depths = Vec::new();
     for node in xml.descendants() {
         let depth = node.parent().map_or(0, |parent| depths[parent.id().get_usize()] + 1);
-        if depth > MAX_DEPTH {
-            return true;
-        }
         depths.push(depth);
+        if node.is_element() {
+            elements += 1;
+            deepest = deepest.max(depth);
+            for attribute in node.attributes() {
+                references += usize::from(attribute.name() == "href") + attribute.value().matches("url(").count();
+            }
+        } else if node.is_text() && node.parent_element().is_some_and(|parent| parent.has_tag_name("style")) {
+            stylesheet |= node.text().is_some_and(|text| text.contains("url("));
+        }
     }
-    false
+    if stylesheet {
+        return elements;
+    }
+    elements.min(references.saturating_add(1).saturating_mul(deepest.saturating_add(1)))
 }
 
 /// Where a doctype ends, after its internal subset if it has one.
