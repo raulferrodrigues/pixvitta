@@ -1,6 +1,7 @@
 import { BrowserWindow } from "electron";
 import path from "node:path";
 import { HOTKEYS } from "../../shared/hotkeys";
+import { viewerKeyCommand } from "../../shared/viewerKeys";
 import { appBuildInfo } from "../app/buildInfo";
 import { installTextEditingContextMenu } from "./textEditingContextMenu";
 import { isCommandShortcut, notifyWindowChromeChanged } from "./windowChrome";
@@ -51,31 +52,39 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
     window.setMenuBarVisibility(false);
   }
 
+  // Whether a text field in the page has focus, as the page last reported it.
+  // While one does, viewer keys stay with the page so they can edit text. A
+  // new document, or a renderer that went away, starts with none; the page
+  // reports its own state once it is up.
+  let isTextEntryFocused = false;
+  window.webContents.ipc.on("window:text-entry-focused", (event, focused: unknown) => {
+    void event;
+    if (typeof focused === "boolean") isTextEntryFocused = focused;
+  });
+  window.webContents.on("render-process-gone", () => {
+    isTextEntryFocused = false;
+  });
+
   installTextEditingContextMenu(window);
   window.on("closed", () => options.onClosed(window));
   // Fires when a new document commits, including reloads, and not for a
   // navigation that never commits, such as one that becomes a download.
-  window.webContents.on("did-navigate", () => options.onDocumentReplaced(window));
+  window.webContents.on("did-navigate", () => {
+    isTextEntryFocused = false;
+    options.onDocumentReplaced(window);
+  });
   window.on("enter-full-screen", () => notifyWindowChromeChanged(window));
   window.on("leave-full-screen", () => notifyWindowChromeChanged(window));
 
   // Shortcuts that must win over Chromium's native controls are handled before
   // input reaches the page. The renderer still owns the resulting app actions.
   window.webContents.on("before-input-event", (event, input) => {
-    if (input.type === "keyDown" && (input.key === "ArrowLeft" || input.key === "ArrowRight")) {
+    const viewerCommand = input.type === "keyDown" && !isTextEntryFocused ? viewerKeyCommand(input) : null;
+    if (viewerCommand) {
       // Handle navigation before Chromium dispatches the key to focused native
       // video controls, which otherwise reinterpret arrows as timeline seeking.
       event.preventDefault();
-      window.webContents.send("menu:command", input.key === "ArrowRight" ? "next-media" : "previous-media");
-      return;
-    }
-    const key = input.key.toLowerCase();
-    if (input.type === "keyDown" && !input.meta && !input.control && !input.alt && (key === "j" || key === "k" || key === "l")) {
-      event.preventDefault();
-      window.webContents.send(
-        "menu:command",
-        key === "j" ? "seek-video-backward" : key === "l" ? "seek-video-forward" : "toggle-video-playback"
-      );
+      window.webContents.send("menu:command", viewerCommand);
       return;
     }
     if (isCommandShortcut(input, HOTKEYS.closeWindow)) {

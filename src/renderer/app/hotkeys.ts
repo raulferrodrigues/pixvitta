@@ -75,6 +75,15 @@ export function matchesRendererHotkey(event: KeyboardEvent, hotkey: RendererHotk
   return matchesKey && matchesModifiers(event, hotkey);
 }
 
+// A field the user types into keeps its keys, so plain-key shortcuts must not
+// act while one has focus. Shortcuts with Cmd or Ctrl still do.
+export function isTextEntryTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && (
+    target.isContentEditable ||
+    target.matches("textarea, select, input:not([type='checkbox'], [type='radio'], [type='range'], [type='button'], [type='submit'])")
+  );
+}
+
 // Opening the cheat sheet takes "?" however the layout produces it, so Shift
 // is allowed but app modifiers are not.
 export function isShortcutsSheetKey(event: KeyboardEvent): boolean {

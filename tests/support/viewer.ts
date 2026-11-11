@@ -16,6 +16,8 @@ export class Viewer {
   readonly mediaError: Locator;
   readonly updateRow: Locator;
   readonly updateButton: Locator;
+  /** The URL field of the open "Open from the web" dialog. */
+  readonly webSourceField: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -27,6 +29,18 @@ export class Viewer {
     this.mediaError = page.getByTestId("media-error");
     this.updateRow = page.getByTestId("update-row");
     this.updateButton = page.getByTestId("update-button");
+    this.webSourceField = page.locator("dialog[open] #source-location");
+  }
+
+  /** Opens the "Open from the web" dialog from the top bar; it focuses its field. */
+  async openWebSourceDialog(): Promise<void> {
+    await this.page.getByTestId("open-web-source").click();
+    await expect(this.webSourceField).toBeFocused();
+  }
+
+  async closeWebSourceDialog(): Promise<void> {
+    await this.page.locator("dialog[open]").getByRole("button", { name: "Close" }).click();
+    await expect(this.webSourceField).toHaveCount(0);
   }
 
   async pickFolder(): Promise<void> {

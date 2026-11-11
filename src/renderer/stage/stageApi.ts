@@ -221,6 +221,9 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     setSelectedMedia(mediaId) {
       record("setSelectedMedia", mediaId);
     },
+    setTextEntryFocused(focused) {
+      record("setTextEntryFocused", focused);
+    },
     async getUpdateState() {
       return updateState;
     },

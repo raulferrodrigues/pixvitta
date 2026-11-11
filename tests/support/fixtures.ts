@@ -13,6 +13,14 @@ export type RunningViewer = RunningApp & {
    * before-input-event. page.keyboard goes straight to the page and skips it.
    */
   pressNativeKey(keyCode: "Right" | "Left"): Promise<void>;
+  /** Types characters the way pressNativeKey presses keys, through main. */
+  typeNative(text: string): Promise<void>;
+  /**
+   * Waits until main has heard from the page whether a text field has focus.
+   * The page reports it asynchronously, so a native key sent straight after a
+   * focus change could otherwise race the report.
+   */
+  expectMainHearsTextEntryFocus(focused: boolean): Promise<void>;
 };
 
 type E2EFixtures = {
@@ -92,6 +100,13 @@ export const test = base.extend<E2EFixtures>({
     await use(async (options = {}) => {
       const running = await launchPixvitta({ ...options, sandbox });
       launched.push(running);
+      await running.app.evaluate(({ BrowserWindow }) => {
+        const reports = globalThis as { lastTextEntryFocusReport?: boolean };
+        BrowserWindow.getAllWindows()[0].webContents.ipc.on("window:text-entry-focused", (event, focused: boolean) => {
+          void event;
+          reports.lastTextEntryFocusReport = focused;
+        });
+      });
       return {
         ...running,
         viewer: new Viewer(running.page),
@@ -103,6 +118,23 @@ export const test = base.extend<E2EFixtures>({
             window.webContents.sendInputEvent({ type: "keyDown", keyCode: code });
             window.webContents.sendInputEvent({ type: "keyUp", keyCode: code });
           }, keyCode);
+        },
+        async typeNative(text) {
+          await running.app.evaluate(({ BrowserWindow }, characters) => {
+            const window = BrowserWindow.getAllWindows()[0];
+            window.focus();
+            window.webContents.focus();
+            for (const character of characters) {
+              window.webContents.sendInputEvent({ type: "keyDown", keyCode: character });
+              window.webContents.sendInputEvent({ type: "char", keyCode: character });
+              window.webContents.sendInputEvent({ type: "keyUp", keyCode: character });
+            }
+          }, text);
+        },
+        async expectMainHearsTextEntryFocus(focused) {
+          await expect
+            .poll(() => running.app.evaluate(() => (globalThis as { lastTextEntryFocusReport?: boolean }).lastTextEntryFocusReport))
+            .toBe(focused);
         }
       };
     });
