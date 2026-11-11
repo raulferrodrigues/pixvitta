@@ -4,6 +4,7 @@ import type {
   MediaCollection,
   OpenSourceError
 } from "../../shared/media";
+import type { AccountState } from "../../shared/accounts";
 import type { PixvittaCommand } from "../../shared/pixvittaApi";
 import type { RecentSource } from "../../shared/recentSources";
 import { rendererUrl } from "../app";
@@ -62,7 +63,7 @@ type PendingCollectionDelivery = {
 // changes remain queued until the renderer is ready.
 const pendingCollectionDeliveries: PendingCollectionDelivery[] = [];
 let pendingLoadingState: boolean | null = null;
-let pendingSourceError: OpenSourceError | null = null;
+let pendingSourceError: { error: OpenSourceError; accountId?: string } | null = null;
 let latestLoadingState = false;
 
 // Sending before React has called viewer:ready from preload would drop the IPC
@@ -85,7 +86,7 @@ function flushMainWindowEvents(): void {
     pendingLoadingState = null;
   }
   if (pendingSourceError !== null) {
-    readyWindow.webContents.send("library:source-error", pendingSourceError);
+    readyWindow.webContents.send("library:source-error", pendingSourceError.error, pendingSourceError.accountId);
     pendingSourceError = null;
   }
   while (pendingCollectionDeliveries.length > 0) {
@@ -147,13 +148,17 @@ export function publishMainWindowLoading(isLoading: boolean): void {
   pendingLoadingState = isLoading;
 }
 
-export function publishMainWindowSourceError(error: OpenSourceError): void {
+export function publishMainWindowSourceError(error: OpenSourceError, accountId?: string): void {
   const readyWindow = getReadyMainWindow();
   if (readyWindow) {
-    readyWindow.webContents.send("library:source-error", error);
+    readyWindow.webContents.send("library:source-error", error, accountId);
     return;
   }
-  pendingSourceError = error;
+  pendingSourceError = { error, accountId };
+}
+
+export function publishMainWindowAccounts(accounts: AccountState[]): void {
+  getReadyMainWindow()?.webContents.send("accounts:changed", accounts);
 }
 
 export function publishMainWindowDownloadActivity(

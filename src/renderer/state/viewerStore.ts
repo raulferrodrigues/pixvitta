@@ -1,4 +1,5 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
+import type { AccountState } from "../../shared/accounts";
 import type {
   DownloadActivitySnapshot,
   MediaCollection,
@@ -45,7 +46,11 @@ export type ViewerState = {
   filmstripWidth: number;
   isFilmstripVisible: boolean;
   sourceOpenError: OpenSourceError | null;
-  pendingAuthenticationLocation: string | null;
+  // The account an authentication-required error asks for.
+  sourceErrorAccountId: string | null;
+  // The last location asked for, reopened after signing in from its error.
+  retryLocation: string | null;
+  accounts: AccountState[];
   downloadActivity: DownloadActivitySnapshot;
   isDownloadPanelOpen: boolean;
   // The settings modal shows either the settings list or the keyboard
@@ -60,11 +65,15 @@ export type ViewerActions = {
   openFolder(): Promise<void>;
   openLocation(location: string): Promise<void>;
   openRecentSource(location: string): Promise<void>;
-  signInExHentai(): Promise<void>;
+  signInForSource(): Promise<void>;
+  loadAccounts(): Promise<void>;
+  applyAccounts(accounts: AccountState[]): void;
+  signIn(accountId: string): Promise<void>;
+  signOut(accountId: string): Promise<void>;
   removeRecentSource(location: string): Promise<void>;
   openCollection(collection: MediaCollection): void;
   setSourceLoading(isLoading: boolean): void;
-  showSourceError(error: OpenSourceError): void;
+  showSourceError(error: OpenSourceError, accountId?: string): void;
   refreshSource(): Promise<void>;
   downloadCurrentMedia(): Promise<void>;
   downloadCollection(): Promise<void>;
@@ -145,17 +154,6 @@ function settingsRequireSourceRefresh(previousSettings: AppSettings, nextSetting
   return previousSettings.fileOrder !== nextSettings.fileOrder || previousSettings.includeHidden !== nextSettings.includeHidden;
 }
 
-function exHentaiLocation(request: OpenSourceRequest): string | null {
-  if (request.kind !== "location") return null;
-  try {
-    return new URL(request.location.trim()).hostname === "exhentai.org"
-      ? request.location
-      : null;
-  } catch {
-    return null;
-  }
-}
-
 export function createViewerStore(
   api: PixvittaApi,
   videoController: VideoController = createVideoController()
@@ -163,6 +161,7 @@ export function createViewerStore(
   let settingsSaveRevision = 0;
   let recentSourcesRevision = 0;
   let updateStateRevision = 0;
+  let accountsRevision = 0;
   let sourceRequestRevision = 0;
   let videoAudioSaveTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -190,7 +189,7 @@ export function createViewerStore(
     const openSourceRequest = async (request: OpenSourceRequest) => {
       sourceRequestRevision += 1;
       try {
-        set({ pendingAuthenticationLocation: exHentaiLocation(request) });
+        set({ retryLocation: request.kind === "location" ? request.location : null });
         api.openSource(request);
       } catch (error) {
         console.error(error);
@@ -221,7 +220,9 @@ export function createViewerStore(
       filmstripWidth: DEFAULT_FILMSTRIP_WIDTH,
       isFilmstripVisible: true,
       sourceOpenError: null,
-      pendingAuthenticationLocation: null,
+      sourceErrorAccountId: null,
+      retryLocation: null,
+      accounts: [],
       downloadActivity: {
         revision: 0,
         rows: [],
@@ -237,7 +238,8 @@ export function createViewerStore(
           get().loadSettings(),
           get().refreshRecentSources(),
           get().loadDownloadActivity(),
-          get().loadUpdateState()
+          get().loadUpdateState(),
+          get().loadAccounts()
         ]);
       },
 
@@ -253,14 +255,48 @@ export function createViewerStore(
         await openSourceRequest({ kind: "location", location });
       },
 
-      async signInExHentai() {
-        const location = get().pendingAuthenticationLocation;
+      async signInForSource() {
+        const { retryLocation: location, sourceErrorAccountId: accountId } = get();
+        if (!accountId) return;
         const revision = sourceRequestRevision;
         try {
-          const signedIn = await api.signInExHentai();
+          const signedIn = await api.signIn(accountId);
           if (signedIn && location && revision === sourceRequestRevision) {
             await openSourceRequest({ kind: "location", location });
           }
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      async loadAccounts() {
+        const revision = accountsRevision;
+        try {
+          const accounts = await api.getAccounts();
+          // A pushed change that arrived first is newer than this answer.
+          if (revision === accountsRevision) set({ accounts });
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      applyAccounts(accounts: AccountState[]) {
+        accountsRevision += 1;
+        set({ accounts });
+      },
+
+      // Main pushes each status change, so these only ask for the step.
+      async signIn(accountId: string) {
+        try {
+          await api.signIn(accountId);
+        } catch (error) {
+          console.error(error);
+        }
+      },
+
+      async signOut(accountId: string) {
+        try {
+          await api.signOut(accountId);
         } catch (error) {
           console.error(error);
         }
@@ -295,9 +331,10 @@ export function createViewerStore(
         }));
       },
 
-      showSourceError(sourceOpenError: OpenSourceError) {
+      showSourceError(sourceOpenError: OpenSourceError, accountId?: string) {
         set((state) => ({
           sourceOpenError,
+          sourceErrorAccountId: accountId ?? null,
           loadState: state.source ? state.loadState : "idle"
         }));
       },

@@ -11,20 +11,26 @@ function setup() {
   let completeSignIn!: (signedIn: boolean) => void;
   const api = {
     openSource(request: OpenSourceRequest) { requests.push(request); },
-    signInExHentai: () => new Promise<boolean>((resolve) => { completeSignIn = resolve; }),
+    signIn: () => new Promise<boolean>((resolve) => { completeSignIn = resolve; }),
     refreshSource() {}
-  } satisfies Pick<PixvittaApi, "openSource" | "signInExHentai" | "refreshSource">;
+  } satisfies Pick<PixvittaApi, "openSource" | "signIn" | "refreshSource">;
+  const store = createViewerStore(api as unknown as PixvittaApi);
   return {
-    store: createViewerStore(api as PixvittaApi),
+    store,
+    // Main answers an ExHentai gallery without a sign-in with this error.
+    async openGallery() {
+      await store.getState().openLocation(gallery);
+      store.getState().showSourceError("authentication-required", "exhentai");
+    },
     requests,
     completeSignIn(signedIn: boolean) { completeSignIn(signedIn); }
   };
 }
 
 test("successful sign-in retries the gallery when its source request is still current", async () => {
-  const { store, requests, completeSignIn } = setup();
-  await store.getState().openLocation(gallery);
-  const pending = store.getState().signInExHentai();
+  const { store, requests, completeSignIn, openGallery } = setup();
+  await openGallery();
+  const pending = store.getState().signInForSource();
   completeSignIn(true);
   await pending;
   assert.deepEqual(requests, [
@@ -35,9 +41,9 @@ test("successful sign-in retries the gallery when its source request is still cu
 
 test("successful sign-in cannot override a newer source command", async () => {
   for (const nextLocation of ["/new/folder", "https://exhentai.org/g/43/abcdef1234/", gallery]) {
-    const { store, requests, completeSignIn } = setup();
-    await store.getState().openLocation(gallery);
-    const pending = store.getState().signInExHentai();
+    const { store, requests, completeSignIn, openGallery } = setup();
+    await openGallery();
+    const pending = store.getState().signInForSource();
     await store.getState().openLocation(nextLocation);
     completeSignIn(true);
     await pending;
@@ -47,18 +53,18 @@ test("successful sign-in cannot override a newer source command", async () => {
 });
 
 test("cancelled sign-in does not retry the gallery", async () => {
-  const { store, requests, completeSignIn } = setup();
-  await store.getState().openLocation(gallery);
-  const pending = store.getState().signInExHentai();
+  const { store, requests, completeSignIn, openGallery } = setup();
+  await openGallery();
+  const pending = store.getState().signInForSource();
   completeSignIn(false);
   await pending;
   assert.equal(requests.length, 1);
 });
 
 test("a collection delivered while sign-in is open prevents a stale retry", async () => {
-  const { store, requests, completeSignIn } = setup();
-  await store.getState().openLocation(gallery);
-  const pending = store.getState().signInExHentai();
+  const { store, requests, completeSignIn, openGallery } = setup();
+  await openGallery();
+  const pending = store.getState().signInForSource();
   store.getState().openCollection({
     source: {
       id: "new-source",
@@ -75,8 +81,8 @@ test("a collection delivered while sign-in is open prevents a stale retry", asyn
 });
 
 test("refreshing the current source while signing in prevents a stale retry", async () => {
-  const { store, requests, completeSignIn } = setup();
-  await store.getState().openLocation(gallery);
+  const { store, requests, completeSignIn, openGallery } = setup();
+  await openGallery();
   store.getState().openCollection({
     source: {
       id: "current-source",
@@ -86,7 +92,7 @@ test("refreshing the current source while signing in prevents a stale retry", as
     items: [],
     selectedId: null
   });
-  const pending = store.getState().signInExHentai();
+  const pending = store.getState().signInForSource();
   await store.getState().refreshSource();
   completeSignIn(true);
   await pending;

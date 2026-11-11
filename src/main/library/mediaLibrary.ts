@@ -30,7 +30,7 @@ type MediaLibraryDependencies = {
     onDelivered: () => void
   ): void;
   publishLoading(isLoading: boolean): void;
-  publishError(error: OpenSourceError): void;
+  publishError(error: OpenSourceError, accountId?: string): void;
   fatal(message: string): never;
   setAcknowledgementTimer(callback: () => void, timeoutMs: number): unknown;
   clearAcknowledgementTimer(timer: unknown): void;
@@ -199,7 +199,10 @@ export class MediaLibrary {
       candidate = await loadCandidate();
     } catch (error) {
       this.finishWithoutCommit();
-      this.dependencies.publishError(this.sourceError(error));
+      this.dependencies.publishError(
+        this.sourceError(error),
+        error instanceof ProviderError ? error.accountId : undefined
+      );
       return false;
     }
 

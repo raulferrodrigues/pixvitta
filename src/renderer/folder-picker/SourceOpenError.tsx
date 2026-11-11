@@ -10,7 +10,7 @@ function errorMessage(
   if (error === "invalid-location") return gt("Enter a complete supported location.");
   if (error === "unsupported-location") return gt("No installed provider supports that location.");
   if (error === "not-found") return gt("That source could not be found.");
-  if (error === "authentication-required") return gt("Sign in to the E-Hentai forums to open ExHentai galleries. Close the sign-in window when finished.");
+  if (error === "authentication-required") return gt("This source needs you to sign in. Close the sign-in window when you're done.");
   if (error === "rate-limited") return gt("The provider asked Pixvitta to slow down. Try again shortly.");
   if (error === "invalid-response") return gt("The provider returned an unexpected response.");
   if (error === "no-supported-media") return gt("That source has no supported images or videos.");
@@ -24,14 +24,15 @@ export function SourceOpenError({
 }) {
   const gt = useGT();
   const sourceOpenError = useViewerStore((state) => state.sourceOpenError);
-  const signInExHentai = useViewerStore((state) => state.signInExHentai);
+  const canSignIn = useViewerStore((state) => state.sourceErrorAccountId !== null);
+  const signInForSource = useViewerStore((state) => state.signInForSource);
   if (!sourceOpenError) return null;
 
-  const signInButton = sourceOpenError === "authentication-required" ? (
+  const signInButton = sourceOpenError === "authentication-required" && canSignIn ? (
     <button
       type="button"
       className="shrink-0 rounded-md border border-current px-2 py-1 text-xs font-semibold"
-      onClick={() => void signInExHentai()}
+      onClick={() => void signInForSource()}
     >
       {gt("Sign in")}
     </button>

@@ -1,3 +1,4 @@
+import type { AccountState } from "../../shared/accounts";
 import { createAppBuildInfo } from "../../shared/appBuild";
 import type {
   DownloadActivitySnapshot,
@@ -38,6 +39,8 @@ export type StageControls = {
   defineSource(location: string, source: StageSource): void;
   setRecentSources(sources: RecentSource[]): void;
   setSettings(settings: Partial<AppSettings>): void;
+  /** Replaces the provider accounts and pushes them, as main does on every change. */
+  setAccounts(accounts: AccountState[]): void;
   /** Pushes an update state, as main does on every change. Update calls only record. */
   setUpdateState(state: Partial<UpdateState>): void;
   /** Holds openSource in its loading state until releaseOpen is called. */
@@ -45,7 +48,7 @@ export type StageControls = {
   releaseOpens(): void;
   deliverCollection(collection: MediaCollection): void;
   setLoading(isLoading: boolean): void;
-  showSourceError(error: OpenSourceError): void;
+  showSourceError(error: OpenSourceError, accountId?: string): void;
   setDownloadActivity(snapshot: DownloadActivitySnapshot): void;
   sendCommand(command: PixvittaCommand): void;
 };
@@ -65,6 +68,7 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
   let recentSources: RecentSource[] = [];
   let downloadActivity = EMPTY_DOWNLOADS;
   let updateState: UpdateState = createUpdateState("0.0.0-stage", "latest", null);
+  let accounts: AccountState[] = [];
   let chrome: WindowChromeState = { zoomFactor: 1, isFullScreen: false, hasMacTrafficLights: false };
   let currentCollection: MediaCollection | null = null;
   let viewerReady = false;
@@ -74,13 +78,14 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
 
   const collectionListeners: Listeners<MediaCollection> = new Set();
   const loadingListeners: Listeners<boolean> = new Set();
-  const errorListeners: Listeners<OpenSourceError> = new Set();
+  const errorListeners = new Set<(error: OpenSourceError, accountId?: string) => void>();
   const commandListeners: Listeners<PixvittaCommand> = new Set();
   const chromeListeners: Listeners<WindowChromeState> = new Set();
   const downloadListeners: Listeners<DownloadActivitySnapshot> = new Set();
   const recentListeners: Listeners<RecentSource[]> = new Set();
   const settingsListeners: Listeners<AppSettings> = new Set();
   const updateListeners: Listeners<UpdateState> = new Set();
+  const accountListeners: Listeners<AccountState[]> = new Set();
 
   function record(method: string, ...args: unknown[]): void {
     calls.push({ method, args });
@@ -113,10 +118,15 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     });
   }
 
-  function showSourceError(error: OpenSourceError): void {
+  function showSourceError(error: OpenSourceError, accountId?: string): void {
     whenViewerReady(() => {
-      for (const listener of errorListeners) listener(error);
+      for (const listener of errorListeners) listener(error, accountId);
     });
+  }
+
+  function setAccountStatus(accountId: string, status: AccountState["status"]): void {
+    accounts = accounts.map((account) => (account.id === accountId ? { ...account, status } : account));
+    for (const listener of accountListeners) listener(accounts);
   }
 
   function open(key: string): void {
@@ -152,9 +162,19 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
       record("openSourceOrigin", sourceId);
       return true;
     },
-    async signInExHentai() {
-      record("signInExHentai");
-      return false;
+    async getAccounts() {
+      return accounts;
+    },
+    // The stage has no sign-in window, so signing in succeeds at once.
+    async signIn(accountId) {
+      record("signIn", accountId);
+      if (!accounts.some((account) => account.id === accountId)) return false;
+      setAccountStatus(accountId, "signed-in");
+      return true;
+    },
+    async signOut(accountId) {
+      record("signOut", accountId);
+      setAccountStatus(accountId, "signed-out");
     },
     async getRecentSources() {
       return recentSources;
@@ -243,7 +263,8 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     onDownloadActivityChanged: (callback) => subscribe(downloadListeners, callback),
     onRecentSourcesChanged: (callback) => subscribe(recentListeners, callback),
     onSettingsChanged: (callback) => subscribe(settingsListeners, callback),
-    onUpdateStateChanged: (callback) => subscribe(updateListeners, callback)
+    onUpdateStateChanged: (callback) => subscribe(updateListeners, callback),
+    onAccountsChanged: (callback) => subscribe(accountListeners, callback)
   };
 
   const controls: StageControls = {
@@ -261,6 +282,10 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     setSettings(next) {
       settings = { ...settings, ...next };
       for (const listener of settingsListeners) listener(settings);
+    },
+    setAccounts(next) {
+      accounts = next;
+      for (const listener of accountListeners) listener(accounts);
     },
     setUpdateState(next) {
       updateState = { ...updateState, ...next };

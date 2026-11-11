@@ -1,3 +1,4 @@
+import type { AccountState } from "./accounts";
 import type { AppBuildInfo } from "./appBuild";
 import type {
   DownloadActivitySnapshot,
@@ -32,7 +33,9 @@ export type PixvittaApi = {
   openSource(request: OpenSourceRequest): void;
   refreshSource(): void;
   openSourceOrigin(sourceId: string): Promise<boolean>;
-  signInExHentai(): Promise<boolean>;
+  getAccounts(): Promise<AccountState[]>;
+  signIn(accountId: string): Promise<boolean>;
+  signOut(accountId: string): Promise<void>;
   getRecentSources(): Promise<RecentSource[]>;
   removeRecentSource(location: string): Promise<RecentSource[]>;
   getSettings(): Promise<AppSettings>;
@@ -59,11 +62,13 @@ export type PixvittaApi = {
   onCommand(callback: (command: PixvittaCommand) => void): () => void;
   onCollectionChanged(callback: (collection: MediaCollection) => void): () => void;
   onSourceLoadingChanged(callback: (isLoading: boolean) => void): () => void;
-  onSourceError(callback: (error: OpenSourceError) => void): () => void;
+  // accountId names the account to sign in to, for authentication-required.
+  onSourceError(callback: (error: OpenSourceError, accountId?: string) => void): () => void;
   onDownloadActivityChanged(
     callback: (snapshot: DownloadActivitySnapshot) => void
   ): () => void;
   onRecentSourcesChanged(callback: (sources: RecentSource[]) => void): () => void;
   onSettingsChanged(callback: (settings: AppSettings) => void): () => void;
   onUpdateStateChanged(callback: (state: UpdateState) => void): () => void;
+  onAccountsChanged(callback: (accounts: AccountState[]) => void): () => void;
 };

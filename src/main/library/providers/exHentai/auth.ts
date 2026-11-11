@@ -1,17 +1,23 @@
 import { app, BrowserWindow, session } from "electron";
-import { ProviderError } from "../provider";
+import { ProviderError, type ProviderAccount } from "../provider";
 import { GalleryAuthentication, type GalleryAccess } from "../eHentai/galleryAccess";
 
 const partition = "persist:exhentai";
 const forumUrl = "https://forums.e-hentai.org/";
 const exHentaiUrl = "https://exhentai.org/";
 const accountCookieNames = ["ipb_member_id", "ipb_pass_hash"] as const;
+const accountId = "exhentai";
 
 let signInWindow: BrowserWindow | null = null;
 const authentication = new GalleryAuthentication();
 
 export function getExHentaiSession(): Electron.Session {
   return session.fromPartition(partition);
+}
+
+function isAccountCookie(cookies: Electron.Cookie[], name: string): boolean {
+  const value = cookies.find((cookie) => cookie.name === name)?.value;
+  return !!value && value !== "0" && value !== "deleted";
 }
 
 function validLoginNavigation(rawUrl: string): boolean {
@@ -30,7 +36,7 @@ function validLoginNavigation(rawUrl: string): boolean {
 export async function prepareExHentaiSession(): Promise<GalleryAccess> {
   await app.whenReady();
   if (signInWindow && !signInWindow.isDestroyed()) {
-    throw new ProviderError("authentication-required", "Finish signing in first.");
+    throw new ProviderError("authentication-required", "Finish signing in first.", accountId);
   }
   const browserSession = getExHentaiSession();
   const fetch = (request: Request) => browserSession.fetch(request);
@@ -42,9 +48,9 @@ export async function prepareExHentaiSession(): Promise<GalleryAccess> {
   preparation.assertCurrent();
   const accountCookies = accountCookieNames.map((name) => {
     const source = forumCookies.find((cookie) => cookie.name === name && cookie.value);
-    if (!source || source.value === "0" || source.value === "deleted") {
+    if (!source || !isAccountCookie(forumCookies, name)) {
       authentication.invalidate();
-      throw new ProviderError("authentication-required", "Sign in to the E-Hentai forums first.");
+      throw new ProviderError("authentication-required", "Sign in to the E-Hentai forums first.", accountId);
     }
     return source;
   });
@@ -53,8 +59,7 @@ export async function prepareExHentaiSession(): Promise<GalleryAccess> {
   )) {
     authentication.invalidate();
   }
-  const accountId = accountCookies[0].value;
-  const access = authentication.capture(accountId, fetch);
+  const access = authentication.capture(accountCookies[0].value, fetch);
   const forumAccount = forumCookies.find((cookie) => cookie.name === "ipb_member_id" && cookie.value);
   const exAccount = exCookies.find((cookie) => cookie.name === "ipb_member_id" && cookie.value);
   // The forum and gallery use different registrable domains. Copy only the
@@ -84,7 +89,7 @@ export async function prepareExHentaiSession(): Promise<GalleryAccess> {
   return access;
 }
 
-export async function openExHentaiSignIn(parent: BrowserWindow | null): Promise<boolean> {
+async function openExHentaiSignIn(parent: BrowserWindow | null): Promise<boolean> {
   await app.whenReady();
   if (signInWindow && !signInWindow.isDestroyed()) {
     signInWindow.focus();
@@ -139,3 +144,31 @@ export async function openExHentaiSignIn(parent: BrowserWindow | null): Promise<
     return false;
   }
 }
+
+async function isExHentaiSignedIn(): Promise<boolean> {
+  await app.whenReady();
+  const forumCookies = await getExHentaiSession().cookies.get({ url: forumUrl });
+  return accountCookieNames.every((name) => isAccountCookie(forumCookies, name));
+}
+
+// Signing out forgets the account on this machine only. The forum's own log
+// out needs a per-page key, and without the cookies the session is unusable.
+// A gallery that is open keeps its loaded pages and fails on the next request.
+async function signOutOfExHentai(): Promise<void> {
+  await app.whenReady();
+  authentication.invalidate();
+  if (signInWindow && !signInWindow.isDestroyed()) signInWindow.destroy();
+  const browserSession = getExHentaiSession();
+  await browserSession.clearStorageData();
+  await browserSession.clearCache();
+  await browserSession.cookies.flushStore();
+}
+
+export const exHentaiAccount: ProviderAccount = {
+  id: accountId,
+  label: "ExHentai",
+  description: "Opens ExHentai galleries with your E-Hentai forums account.",
+  isSignedIn: isExHentaiSignedIn,
+  signIn: openExHentaiSignIn,
+  signOut: signOutOfExHentai
+};

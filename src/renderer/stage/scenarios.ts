@@ -7,6 +7,13 @@ import type { StageControls } from "./stageApi";
  * from a preview tab and from Playwright alike.
  */
 
+const STAGE_ACCOUNT = {
+  id: "exhentai",
+  label: "ExHentai",
+  description: "Opens ExHentai galleries with your E-Hentai forums account.",
+  status: "signed-out"
+} as const;
+
 const FOLDER_CAPABILITIES: MediaSourceCapabilities = {
   canRefresh: true,
   canSort: true,
@@ -114,6 +121,17 @@ const scenarios: Record<string, (stage: StageControls) => void> = {
     ]);
   },
 
+  /** Settings open on the provider accounts, one in each status. */
+  accounts(stage) {
+    stage.deliverCollection(sampleFolder());
+    stage.setAccounts([
+      { ...STAGE_ACCOUNT, status: "signed-in" },
+      { id: "stage-provider", label: "Stage provider", description: "Opens stage galleries with your stage account.", status: "signed-out" },
+      { id: "stage-pending", label: "Pending provider", description: "Opens pending galleries with your pending account.", status: "signing-in" }
+    ]);
+    stage.sendCommand("open-settings");
+  },
+
   /** A folder of images and a video, ready to browse. */
   folder(stage) {
     stage.deliverCollection(sampleFolder());
@@ -163,7 +181,12 @@ const scenarios: Record<string, (stage: StageControls) => void> = {
 for (const error of SOURCE_ERRORS) {
   scenarios[`error-${error}`] = (stage) => {
     stage.deliverCollection(sampleFolder());
-    stage.showSourceError(error);
+    if (error === "authentication-required") {
+      stage.setAccounts([STAGE_ACCOUNT]);
+      stage.showSourceError(error, STAGE_ACCOUNT.id);
+    } else {
+      stage.showSourceError(error);
+    }
   };
 }
 

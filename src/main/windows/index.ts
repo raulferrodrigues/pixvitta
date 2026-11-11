@@ -9,6 +9,7 @@ export {
   closeAppWindow,
   createMainWindow,
   isMainWindow,
+  publishMainWindowAccounts,
   publishMainWindowCollection,
   publishMainWindowDownloadActivity,
   publishMainWindowLoading,

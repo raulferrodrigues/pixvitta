@@ -8,7 +8,7 @@ import type {
 } from "../provider";
 import { ProviderError } from "../provider";
 import { API_POLICY } from "./requestPolicies";
-import { eHentaiSite, galleryRequest, isAuthenticationResponse, type GallerySite } from "./gallerySite";
+import { authenticationRequired, eHentaiSite, galleryRequest, isAuthenticationResponse, type GallerySite } from "./gallerySite";
 import { parseGalleryImagePages, type EHentaiImagePageReference } from "./html";
 import { PAGES_POLICY } from "./requestPolicies";
 import { parseEHentaiGalleryUrl, type EHentaiGalleryReference } from "./galleryUrl";
@@ -116,7 +116,7 @@ export class EHentaiProvider implements MediaProvider {
     const access = this.site.prepare
       ? await this.site.prepare()
       : undefined;
-    const initialPages = this.site.authenticated
+    const initialPages = this.site.accountId
       ? await this.fetchInitialIndex(reference, access)
       : undefined;
     const metadata = await this.fetchMetadata(reference, access);
@@ -214,9 +214,9 @@ export class EHentaiProvider implements MediaProvider {
         redirect: "error"
       }),
       handleResponse: async (response) => {
-        if (this.site.authenticated && isAuthenticationResponse(response)) {
+        if (this.site.accountId && isAuthenticationResponse(response)) {
           await cancelResponse(response);
-          throw new ProviderError("authentication-required", "Sign in to ExHentai again.");
+          throw authenticationRequired(this.site, `Sign in to ${this.site.name} again.`);
         }
         if (response.status === 503) {
           await cancelResponse(response);
@@ -238,8 +238,8 @@ export class EHentaiProvider implements MediaProvider {
         try {
           payload = await response.json();
         } catch {
-          if (this.site.authenticated) {
-            throw new ProviderError("authentication-required", "ExHentai did not accept the saved sign-in.");
+          if (this.site.accountId) {
+            throw authenticationRequired(this.site, `${this.site.name} did not accept the saved sign-in.`);
           }
           throw new ProviderError(
             "invalid-response",
@@ -275,7 +275,7 @@ export class EHentaiProvider implements MediaProvider {
       handleResponse: async (response) => {
         if (isAuthenticationResponse(response)) {
           await cancelResponse(response);
-          throw new ProviderError("authentication-required", "Sign in to ExHentai again.");
+          throw authenticationRequired(this.site, `Sign in to ${this.site.name} again.`);
         }
         if (response.status === 404) {
           await cancelResponse(response);
@@ -293,7 +293,7 @@ export class EHentaiProvider implements MediaProvider {
           this.site.origin
         );
         if (pages.size === 0) {
-          throw new ProviderError("authentication-required", "ExHentai did not accept the saved sign-in.");
+          throw authenticationRequired(this.site, `${this.site.name} did not accept the saved sign-in.`);
         }
         return pages;
       }

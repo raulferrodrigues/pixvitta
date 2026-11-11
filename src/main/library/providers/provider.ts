@@ -53,9 +53,23 @@ export type ProviderLoadRequest = {
   settings: AppSettings;
 };
 
+// An account a provider signs in to. isSignedIn reads what is stored on this
+// machine and never sends a request; a sign-in the site rejects surfaces as an
+// authentication-required error the next time the provider uses it. signIn
+// resolves once the user finishes or gives up, true when it worked.
+export interface ProviderAccount {
+  readonly id: string;
+  readonly label: string;
+  readonly description: string;
+  isSignedIn(): Promise<boolean>;
+  signIn(parent: Electron.BrowserWindow | null): Promise<boolean>;
+  signOut(): Promise<void>;
+}
+
 export interface MediaProvider {
   readonly id: string;
   readonly sourceKind: RecentSourceKind;
+  readonly account?: ProviderAccount;
   matches(location: string): boolean;
   load(request: ProviderLoadRequest): Promise<ProviderCollection>;
 }
@@ -63,7 +77,9 @@ export interface MediaProvider {
 export class ProviderError extends Error {
   constructor(
     readonly code: OpenSourceError,
-    message: string
+    message: string,
+    // The account to sign in to, for authentication-required errors.
+    readonly accountId?: string
   ) {
     super(message);
     this.name = "ProviderError";
