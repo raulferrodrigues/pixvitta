@@ -14,6 +14,7 @@ export {
   publishMainWindowLoading,
   publishMainWindowRecentSources,
   publishMainWindowReplaceConfirmation,
+  publishMainWindowSavedMixRename,
   publishMainWindowSourceError,
   resetFocusedWindowZoom,
   sendMenuCommand,

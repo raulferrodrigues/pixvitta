@@ -1,3 +1,4 @@
+import { mixTitle } from "../../shared/recentSources";
 import type { ProviderCollection, ProviderMediaItem } from "./providers";
 
 // Item keys are namespaced by the member's canonical location even when there
@@ -5,12 +6,6 @@ import type { ProviderCollection, ProviderMediaItem } from "./providers";
 // ID, when another source is added to the collection.
 export function mergedItemKey(canonicalLocation: string, key: string): string {
   return `${canonicalLocation}\0${key}`;
-}
-
-function mergedTitle(titles: readonly string[]): string {
-  if (titles.length <= 1) return titles[0] ?? "";
-  if (titles.length === 2) return `${titles[0]} + ${titles[1]}`;
-  return `${titles[0]} + ${titles.length - 1} more`;
 }
 
 /**
@@ -92,7 +87,7 @@ export function mergeSources(
         }
       : undefined,
     canonicalLocation: first.canonicalLocation,
-    title: mergedTitle(members.map((member) => member.title)),
+    title: mixTitle(members.map((member) => member.title)),
     origin: isMerge ? undefined : first.origin,
     capabilities: isMerge
       ? {

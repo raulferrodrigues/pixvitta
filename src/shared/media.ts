@@ -37,6 +37,10 @@ export type MediaSource = {
   capabilities: MediaSourceCapabilities;
   // In the order their items interleave; a single source has one member.
   members: MediaSourceMember[];
+  // The saved mix this collection's session writes to, matching RecentMix.id,
+  // so the recents list can leave it out. Absent until a second source is
+  // added, and for a collection opened as a single source.
+  mixId?: string;
 };
 
 export type MediaItem = {
@@ -61,9 +65,16 @@ export type MediaCollection = {
   selectedId: string | null;
 };
 
-export type OpenSourceRequest =
+// A source to add to the open collection, or to open on its own.
+export type AddSourceRequest =
   | { kind: "pick-directory" }
   | { kind: "location"; location: string };
+
+// What can be opened in place of the open collection: a source, or a saved
+// mix by its ID in recents.
+export type OpenSourceRequest =
+  | AddSourceRequest
+  | { kind: "saved-mix"; id: string };
 
 // Main's question before an open from inside the app replaces a mix of two or
 // more sources: what the open would replace, and the request to send again,
@@ -72,6 +83,8 @@ export type ReplaceConfirmation = {
   request: OpenSourceRequest;
   title: string;
   sourceCount: number;
+  // Whether the mix is saved in recents, so it can be opened again.
+  saved: boolean;
 };
 
 export type OpenSourceError =

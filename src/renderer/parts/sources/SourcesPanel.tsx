@@ -1,25 +1,37 @@
-import { AlertCircle, Plus, X } from "lucide-react";
+import { AlertCircle, Pin, Plus, X } from "lucide-react";
 import { useGT } from "gt-react";
+import { useRef, type MouseEvent } from "react";
 import type { MediaSourceMember } from "../../../shared/media";
-import type { RecentSource } from "../../../shared/recentSources";
+import { isRecentMix, type RecentMix, type RecentSource } from "../../../shared/recentSources";
 import { errorMessage } from "../../folder-picker/SourceOpenError";
 import { useViewerStore } from "../../state/ViewerStoreProvider";
 import { AddSourceField } from "./AddSourceField";
+import { MixNameField, useRenaming, useSavedMixDetail, useSavedMixMenu } from "./savedMixRow";
 import { SourceRowContent } from "./SourceRow";
 import "./sources.css";
 
 // The sources the open collection is made of, in the order their items
 // interleave, with ways to add another: a location, a folder, or a recent
 // source. It sits beside the media, so a change shows in the stream at once.
+// Recents also list saved mixes, which open in place of the collection
+// rather than add to it.
 export function SourcesPanel() {
   const gt = useGT();
   const members = useViewerStore((state) => state.source?.members ?? []);
   const recentSources = useViewerStore((state) => state.recentSources);
+  const currentMixId = useViewerStore((state) => state.source?.mixId);
   const toggleSourcesPanel = useViewerStore((state) => state.toggleSourcesPanel);
-  // Main names the recent source each member is remembered as, so a recent
-  // that is already in the collection is left out rather than listed twice.
+  // Main names the recent source each member is remembered as, and the saved
+  // mix the collection is, so neither is listed again under Recent.
   const memberLocations = new Set(members.map((member) => member.recentLocation));
-  const recentsToAdd = recentSources.filter((source) => !memberLocations.has(source.location));
+  const recentsToAdd = recentSources.filter((entry) =>
+    isRecentMix(entry) ? entry.id !== currentMixId : !memberLocations.has(entry.location)
+  );
+  // The open mix as recents list it: absent while it is not saved, as when it
+  // is down to one source.
+  const currentMix = recentSources.find(
+    (entry): entry is RecentMix => isRecentMix(entry) && entry.id === currentMixId
+  );
 
   return (
     <aside className="sources-panel" aria-labelledby="sources-panel-title" data-testid="sources-panel">
@@ -41,7 +53,10 @@ export function SourcesPanel() {
       <AddSourceField />
       <div className="sources-panel-scroll">
         <section className="sources-panel-section" aria-labelledby="sources-panel-members">
-          <h3 id="sources-panel-members" className="sources-panel-heading">{gt("In the mix")}</h3>
+          <div className="sources-panel-heading-row">
+            <h3 id="sources-panel-members" className="sources-panel-heading">{gt("In the mix")}</h3>
+            {currentMix ? <CurrentMixLabel mix={currentMix} /> : null}
+          </div>
           <ol className="sources-panel-list" data-testid="source-members">
             {members.map((member, index) => (
               // A lone source has no place in an order to show, and is closed by
@@ -54,12 +69,64 @@ export function SourcesPanel() {
           <section className="sources-panel-section" aria-labelledby="sources-panel-recent">
             <h3 id="sources-panel-recent" className="sources-panel-heading">{gt("Recent")}</h3>
             <ul className="sources-panel-list" data-testid="recent-sources-to-add">
-              {recentsToAdd.map((source) => <RecentRow key={source.location} source={source} />)}
+              {recentsToAdd.map((entry) =>
+                isRecentMix(entry)
+                  ? <RecentMixRow key={`mix:${entry.id}`} mix={entry} />
+                  : <RecentRow key={entry.location} source={entry} />
+              )}
             </ul>
           </section>
         ) : null}
       </div>
     </aside>
+  );
+}
+
+// The open mix's pin, at the end of the "In the mix" heading, and once it is
+// pinned its name, which renames in place on a click or F2. Pinning and
+// renaming the open mix happen here because it is not listed under Recent.
+function CurrentMixLabel({ mix }: { mix: RecentMix }) {
+  const gt = useGT();
+  const pinSavedMix = useViewerStore((state) => state.pinSavedMix);
+  const startRenamingMix = useViewerStore((state) => state.startRenamingMix);
+  const nameRef = useRef<HTMLButtonElement | null>(null);
+  const isRenaming = useRenaming(mix, nameRef);
+  return (
+    <>
+      {isRenaming ? (
+        <MixNameField mix={mix} className="source-row-rename sources-panel-mix-rename" />
+      ) : mix.pinned ? (
+        <button
+          ref={nameRef}
+          type="button"
+          className="sources-panel-mix-name"
+          title={gt("Rename {title}", { title: mix.title })}
+          aria-label={gt("Rename {title}", { title: mix.title })}
+          data-testid="current-mix-name"
+          onClick={() => startRenamingMix(mix.id)}
+          onKeyDown={(event) => {
+            if (event.key !== "F2") return;
+            event.preventDefault();
+            startRenamingMix(mix.id);
+          }}
+        >
+          {mix.title}
+        </button>
+      ) : (
+        <span className="sources-panel-heading-space" />
+      )}
+      <button
+        type="button"
+        className="source-row-action sources-panel-mix-pin"
+        title={mix.pinned ? gt("Unpin") : gt("Pin")}
+        aria-label={mix.pinned ? gt("Unpin {title}", { title: mix.title }) : gt("Pin {title}", { title: mix.title })}
+        aria-pressed={mix.pinned}
+        data-testid="pin-current-mix"
+        onClick={() => void pinSavedMix(mix.id, !mix.pinned)}
+      >
+        <Pin size={12} aria-hidden fill={mix.pinned ? "currentColor" : "none"} />
+      </button>
+    </>
   );
 }
 
@@ -100,13 +167,34 @@ function MemberRow({ member, number, canRemove }: { member: MediaSourceMember; n
 // How much a source brings, and for a web source the site it comes from, as
 // main names it. A source whose last load failed shows why instead; it keeps
 // what it had, and the next refresh tries it again.
+// One that failed because it needs sign-in offers it; once signed in, the
+// collection refreshes, which tries the source again.
 function MemberDetail({ member }: { member: MediaSourceMember }) {
   const gt = useGT();
+  const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
+  const signInAndRefresh = useViewerStore((state) => state.signInAndRefresh);
   if (member.error) {
     return (
       <span className="source-row-error" role="status" data-testid="source-member-error">
         <AlertCircle size={11} aria-hidden />
-        <span>{errorMessage(member.error, gt)}</span>
+        <span>
+          {errorMessage(member.error, gt)}
+          {member.error === "authentication-required" ? (
+            <>
+              {" "}
+              <button
+                type="button"
+                className="source-row-sign-in"
+                aria-label={gt("Sign in for {title}", { title: member.title })}
+                data-testid="member-sign-in"
+                disabled={isSourceLoading}
+                onClick={() => void signInAndRefresh()}
+              >
+                {gt("Sign in")}
+              </button>
+            </>
+          ) : null}
+        </span>
       </span>
     );
   }
@@ -148,15 +236,86 @@ function RecentRow({ source }: { source: RecentSource }) {
         aria-label={gt("Remove {title} from recents", { title: source.title })}
         data-testid="remove-recent-source"
         onClick={(event) => {
-          // The button is about to go, so hand focus on first: to the same
-          // button on the next recent, else the previous one, else the field.
-          const row = event.currentTarget.closest("li");
-          const neighbour = row?.nextElementSibling ?? row?.previousElementSibling;
-          const next =
-            neighbour?.querySelector<HTMLElement>("[data-testid='remove-recent-source']") ??
-            document.getElementById("add-source-location");
-          next?.focus();
+          handFocusOn(event);
           void removeRecentSource(source.location);
+        }}
+      >
+        <X size={13} aria-hidden />
+      </button>
+    </li>
+  );
+}
+
+// A forget button is about to go, so hand focus on first: to the same button
+// on the next recent, else the previous one, else the field.
+function handFocusOn(event: MouseEvent<HTMLElement>) {
+  const row = event.currentTarget.closest("li");
+  const neighbour = row?.nextElementSibling ?? row?.previousElementSibling;
+  const next =
+    neighbour?.querySelector<HTMLElement>(".source-row-forget") ??
+    document.getElementById("add-source-location");
+  next?.focus();
+}
+
+// A saved mix opens in place of the collection, through the replace question
+// when what is open is a mix; its end says "Open" where a source's says "+".
+// It is laid out like a source's row, with the same forget button over the
+// icon. Pinning and renaming are in its menu (right-click, the menu key, or
+// Shift+F10), and F2 renames a pinned mix.
+function RecentMixRow({ mix }: { mix: RecentMix }) {
+  const gt = useGT();
+  const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
+  const openSavedMix = useViewerStore((state) => state.openSavedMix);
+  const removeSavedMix = useViewerStore((state) => state.removeSavedMix);
+  const menu = useSavedMixMenu(mix);
+  const detail = useSavedMixDetail(mix);
+  const rowRef = useRef<HTMLButtonElement | null>(null);
+  const isRenaming = useRenaming(mix, rowRef);
+  const pin = mix.pinned ? (
+    <span className="source-row-pin" title={gt("Pinned")} data-testid="mix-pinned"><Pin size={10} aria-label={gt("Pinned")} /></span>
+  ) : null;
+  return (
+    <li className="source-recent" data-testid="recent-mix">
+      {isRenaming ? (
+        <div className="source-row source-row-recent source-row-mix" data-renaming>
+          <SourceRowContent
+            kind="mix"
+            title={<MixNameField mix={mix} className="source-row-rename" />}
+            detail={detail}
+            number={null}
+          />
+        </div>
+      ) : (
+        <button
+          ref={rowRef}
+          type="button"
+          className="source-row source-row-recent source-row-mix"
+          title={gt("Open {title} in place of what is open", { title: mix.title })}
+          aria-label={gt("Open {title}", { title: mix.title })}
+          data-testid="open-recent-mix"
+          disabled={isSourceLoading}
+          onClick={() => void openSavedMix(mix.id)}
+          {...menu}
+        >
+          <SourceRowContent
+            kind="mix"
+            title={mix.title}
+            marker={pin}
+            detail={detail}
+            number={null}
+            end={<span className="source-row-action source-row-open" aria-hidden>{gt("Open")}</span>}
+          />
+        </button>
+      )}
+      <button
+        type="button"
+        className="source-row-action source-row-forget"
+        title={gt("Remove from recents")}
+        aria-label={gt("Remove {title} from recents", { title: mix.title })}
+        data-testid="remove-recent-mix"
+        onClick={(event) => {
+          handFocusOn(event);
+          void removeSavedMix(mix.id);
         }}
       >
         <X size={13} aria-hidden />

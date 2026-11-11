@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { AppBuildInfo } from "../shared/appBuild";
 import type {
+  AddSourceRequest,
   AddSourceResult,
   DownloadActivitySnapshot,
   MediaCollection,
@@ -9,7 +10,7 @@ import type {
   ReplaceConfirmation
 } from "../shared/media";
 import type { PixvittaApi, PixvittaCommand, WindowChromeState } from "../shared/pixvittaApi";
-import type { RecentSource } from "../shared/recentSources";
+import type { RecentEntry } from "../shared/recentSources";
 import type { AppSettings } from "../shared/settings";
 import type { UpdateState } from "../shared/updates";
 
@@ -25,7 +26,7 @@ const pixvittaApi = {
   getBuildInfo: (): Promise<AppBuildInfo> => ipcRenderer.invoke("app:get-build-info"),
   openSource: (request: OpenSourceRequest, options?: { replaceConfirmed: boolean }): void =>
     ipcRenderer.send("source:open", request, options),
-  addSource: (request: OpenSourceRequest): Promise<AddSourceResult> =>
+  addSource: (request: AddSourceRequest): Promise<AddSourceResult> =>
     ipcRenderer.invoke("source:add", request),
   removeSource: (memberId: string): void =>
     ipcRenderer.send("source:remove", memberId),
@@ -38,10 +39,18 @@ const pixvittaApi = {
 
   // Persistent app data also goes through main. The renderer gets plain objects,
   // not direct access to JSON files under Electron's userData directory.
-  getRecentSources: (): Promise<RecentSource[]> =>
+  getRecentSources: (): Promise<RecentEntry[]> =>
     ipcRenderer.invoke("recent-sources:get"),
-  removeRecentSource: (location: string): Promise<RecentSource[]> =>
+  removeRecentSource: (location: string): Promise<RecentEntry[]> =>
     ipcRenderer.invoke("recent-sources:remove", location),
+  removeSavedMix: (id: string): Promise<RecentEntry[]> =>
+    ipcRenderer.invoke("saved-mixes:remove", id),
+  pinSavedMix: (id: string, pinned: boolean): Promise<RecentEntry[]> =>
+    ipcRenderer.invoke("saved-mixes:pin", id, pinned),
+  renameSavedMix: (id: string, name: string): Promise<RecentEntry[]> =>
+    ipcRenderer.invoke("saved-mixes:rename", id, name),
+  showSavedMixMenu: (id: string, position?: { x: number; y: number }): void =>
+    ipcRenderer.send("saved-mixes:show-menu", id, position),
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke("settings:get"),
   saveSettings: (settings: AppSettings): Promise<AppSettings> => ipcRenderer.invoke("settings:save", settings),
 
@@ -137,13 +146,21 @@ const pixvittaApi = {
         listener
       );
   },
-  onRecentSourcesChanged: (callback: (sources: RecentSource[]) => void): (() => void) => {
+  onRecentSourcesChanged: (callback: (sources: RecentEntry[]) => void): (() => void) => {
     const listener = (
       _event: Electron.IpcRendererEvent,
-      sources: RecentSource[]
+      sources: RecentEntry[]
     ) => callback(sources);
     ipcRenderer.on("recent-sources:changed", listener);
     return () => ipcRenderer.removeListener("recent-sources:changed", listener);
+  },
+  onSavedMixRenameRequested: (callback: (id: string) => void): (() => void) => {
+    const listener = (event: Electron.IpcRendererEvent, id: string) => {
+      void event;
+      callback(id);
+    };
+    ipcRenderer.on("saved-mixes:rename-requested", listener);
+    return () => ipcRenderer.removeListener("saved-mixes:rename-requested", listener);
   },
   onSettingsChanged: (callback: (settings: AppSettings) => void): (() => void) => {
     const listener = (_event: Electron.IpcRendererEvent, settings: AppSettings) => callback(settings);

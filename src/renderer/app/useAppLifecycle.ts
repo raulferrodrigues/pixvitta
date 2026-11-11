@@ -32,6 +32,7 @@ export function useAppLifecycle(api: PixvittaApi) {
     (state) => state.applyDownloadActivity
   );
   const applyRecentSources = useViewerStore((state) => state.applyRecentSources);
+  const startRenamingMix = useViewerStore((state) => state.startRenamingMix);
   const applySettings = useViewerStore((state) => state.applySettings);
   const applyUpdateState = useViewerStore((state) => state.applyUpdateState);
   const checkForUpdates = useViewerStore((state) => state.checkForUpdates);
@@ -85,6 +86,7 @@ export function useAppLifecycle(api: PixvittaApi) {
       api.onDownloadActivityChanged(applyDownloadActivity);
     const unsubscribeRecentSources =
       api.onRecentSourcesChanged(applyRecentSources);
+    const unsubscribeMixRename = api.onSavedMixRenameRequested(startRenamingMix);
     const unsubscribeSettings = api.onSettingsChanged(applySettings);
     const unsubscribeUpdateState = api.onUpdateStateChanged(applyUpdateState);
     void api.markViewerReady();
@@ -97,8 +99,9 @@ export function useAppLifecycle(api: PixvittaApi) {
       unsubscribeReplaceConfirmation();
       unsubscribeDownloadActivity();
       unsubscribeRecentSources();
+      unsubscribeMixRename();
       unsubscribeSettings();
       unsubscribeUpdateState();
     };
-  }, [addFolder, api, applyDownloadActivity, askToReplace, applyRecentSources, applySettings, applyUpdateState, checkForUpdates, goNext, goPrevious, openCollection, openFolder, openSettings, refreshSource, seekVideoBy, setSourceLoading, showSourceError, toggleVideoPlayback]);
+  }, [addFolder, api, applyDownloadActivity, askToReplace, applyRecentSources, applySettings, applyUpdateState, checkForUpdates, goNext, goPrevious, openCollection, openFolder, openSettings, refreshSource, seekVideoBy, setSourceLoading, showSourceError, startRenamingMix, toggleVideoPlayback]);
 }

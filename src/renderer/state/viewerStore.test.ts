@@ -138,3 +138,46 @@ test("video playback state follows whether the video element survives the transi
   getState().toggleViewMode();
   assert.equal(getState().isVideoPlaying, false);
 });
+
+// A member of the open mix that failed for want of sign-in has no request to
+// retry: signing in refreshes the collection, which tries it again.
+test("signing in for a failed member refreshes the collection it belongs to, and retries no request", async () => {
+  const requests: OpenSourceRequest[] = [];
+  const signIns: Array<(signedIn: boolean) => void> = [];
+  let refreshes = 0;
+  const api = {
+    openSource(request: OpenSourceRequest) { requests.push(request); },
+    signInExHentai: () => new Promise<boolean>((resolve) => { signIns.push(resolve); }),
+    refreshSource() { refreshes += 1; }
+  } satisfies Pick<PixvittaApi, "openSource" | "signInExHentai" | "refreshSource">;
+  const store = createViewerStore(api as PixvittaApi);
+  const collection = (id: string) => ({
+    source: {
+      id,
+      title: id,
+      capabilities: { canRefresh: true, canSort: false, canDownload: false, canDownloadCollection: false, canOpenOrigin: false },
+      members: [{ id: "source-1", title: "Gallery", kind: "web" as const, itemCount: 0, error: "authentication-required" as const }]
+    },
+    items: [],
+    selectedId: null
+  });
+  store.getState().openCollection(collection("mix"));
+
+  const closed = store.getState().signInAndRefresh();
+  signIns[0](false);
+  await closed;
+  assert.equal(refreshes, 0, "Closing the sign-in window changes nothing.");
+
+  const signedIn = store.getState().signInAndRefresh();
+  signIns[1](true);
+  await signedIn;
+  assert.equal(refreshes, 1);
+
+  // Another collection opened during sign-in is not refreshed on its behalf.
+  const replaced = store.getState().signInAndRefresh();
+  store.getState().openCollection(collection("other"));
+  signIns[2](true);
+  await replaced;
+  assert.equal(refreshes, 1);
+  assert.deepEqual(requests, []);
+});

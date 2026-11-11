@@ -21,6 +21,10 @@ Pixvitta is under active development.
   a folder, or your recent sources, and removes one. A source that fails to
   refresh keeps its items and shows why on its row. Opening a source while a
   mix is open asks before replacing it.
+- Saved mixes: a mix is saved in your recent sources as you build it, and
+  reopens from the start screen or the sources panel. Pin a mix to keep it at
+  the top, and rename it once pinned, from its right-click menu (or `F2`). A
+  source that no longer loads stays in the mix, marked with its error.
 - Recent sources, sorting options, fullscreen, and auto-hiding controls.
 
 Folder scans are not recursive: only supported files at the top level of the
