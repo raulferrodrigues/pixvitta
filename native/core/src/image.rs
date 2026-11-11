@@ -1,9 +1,9 @@
 //! Image decoding to sRGB RGBA8, straight alpha, EXIF orientation applied.
 //! The `image` crate decodes; moxcms (which `image` already uses) converts
 //! embedded ICC profiles to sRGB; AVIF goes through `avif`, and JPEG XL and
-//! SVG, which the `image` crate doesn't recognise, through `jxl` and `svg`. `decode` reads a still
-//! (the first frame of an animated file); `Animation` plays GIF and WebP frame
-//! by frame.
+//! SVG, which the `image` crate doesn't recognise, through `jxl` and `svg`.
+//! `decode` reads a still (the first frame of an animated file); `Animation`
+//! plays GIF and WebP frame by frame.
 
 use image::codecs::gif::GifDecoder;
 use image::codecs::webp::WebPDecoder;
