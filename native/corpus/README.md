@@ -21,6 +21,10 @@ The references were made with ImageMagick 6:
 - `photo.png`: `convert -seed 7 -size 256x192 plasma:fractal -blur 0x1.5`.
 - `square-256.png`: a 64x64 crop of the centre of the pattern, scaled up
   with `-filter point`.
+- `viewbox-alpha.png`: `convert -size 96x64 xc:none +antialias`, the three
+  rectangles of `svg/viewbox-alpha.svg` drawn with `-fill 'rgba(...)'
+  -draw 'rectangle ...'`. ImageMagick 6's own SVG renderer gets the viewBox
+  wrong, so it wasn't used.
 - `pattern-mirrored.png`, `pattern-flipped.png`: `convert pattern.png -flop -strip`
   and `-flip -strip`, the second and third frames of the animations.
 
@@ -41,6 +45,8 @@ The samples, from those references:
 | `jxl/lossy.jxl` | `cjxl -d 1 pattern.png` (libjxl 0.7) |
 | `jxl/jpeg-orientation-6.jxl`, `jxl/jpeg-adobe-rgb.jxl` | `cjxl` on `jpeg/orientation-6.jpg` and `jpeg/adobe-rgb.jpg`: lossless JPEG recompression, which keeps the orientation (in the codestream) and the ICC profile |
 | `svg/pattern.svg` | written by hand: the pattern as rects and a linearGradient |
+| `svg/viewbox-alpha.svg` | written by hand: a viewBox and no width or height, three semi-transparent rects |
+| `svg/data-png.svg` | written by hand: an `<image>` whose href is `pattern.png` as a base64 `data:` URL |
 | `ico/sizes-with-png.ico` | `convert square-256.png square-48.png square-16.png out.ico` |
 | `video/*` | ffmpeg from the pattern scaled to 320x240: `-loop 1 -framerate 10 -t 2`, plus a `sine` audio track where the container has one. Codecs: libx264, libx265 (`-pix_fmt yuv420p10le -tag:v hvc1` for 10-bit), `prores_ks -profile:v 3`, libvpx-vp9 with Opus, libtheora with Vorbis, mpeg4 |
 

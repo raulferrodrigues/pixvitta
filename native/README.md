@@ -9,8 +9,10 @@ through libmpv.
   ([`core/include/pixvitta.h`](core/include/pixvitta.h)). It lists folders,
   decodes images to sRGB RGBA, and owns the libmpv player. It decodes JPEG,
   PNG, GIF, WebP, BMP, TIFF, ICO, still AVIF (through rav1d, without its
-  assembly for now) and JPEG XL (through jxl-oxide; the first frame of an
-  animation). Not yet: HEIC, SVG, animated or grid AVIF, and animated JPEG XL.
+  assembly for now), JPEG XL (through jxl-oxide; the first frame of an
+  animation) and SVG and SVGZ (through resvg, at the size the file declares;
+  only `data:` images, nothing outside the file). Not yet: HEIC, animated or
+  grid AVIF, and animated JPEG XL.
 - `linux/`: the Linux app, Qt 6 and QML with a thin C++ layer over the C API.
   Video is drawn by libmpv into a `QQuickFramebufferObject`.
 
