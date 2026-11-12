@@ -27,6 +27,8 @@ The references were made with ImageMagick 6:
   wrong, so it wasn't used.
 - `pattern-mirrored.png`, `pattern-flipped.png`: `convert pattern.png -flop -strip`
   and `-flip -strip`, the second and third frames of the animations.
+- `unspecified-nclx-full.png`: `avifdec` 1.4 `-d 8` on
+  `avif/unspecified-nclx-full.avif`, as an independent decoder's result.
 
 The samples, from those references:
 
@@ -45,6 +47,7 @@ The samples, from those references:
 | `avif/grid.avif` | `heif-enc -A -q 90 --cut-tiles 128 photo.png`: a 2x2 grid whose bottom row is cut to 64 rows, as for `heic/grid.heic` |
 | `avif/rotated-mirrored.avif` | `in.png` as for `heic/rotated-mirrored.heic`, then `heif-enc -A -q 90 --rotate-cw 90 --flip-h in.png` |
 | `avif/bitstream-colour.avif` | `avifenc` 1.4 `-q 90 --cicp 1/13/1 -r limited -y 420 pattern.png`, then its `colr` box renamed in place to `free` (`printf free \| dd of=... bs=1 seek=229 conv=notrunc`), so the BT.709 matrix and limited range are only in the AV1 sequence header. No encoder writes AVIF without a `colr` box; the renamed box stays an (ignored) property, so the indices in `ipma` still hold |
+| `avif/unspecified-nclx-full.avif` | `avifenc` 1.4 `-q 90 -y 444 --cicp 2/2/2 -r limited pattern.png`, then the range byte of its nclx `colr` set to full in place (`printf '\x80' \| dd of=... bs=1 seek=243 conv=notrunc`): the box says unspecified and full range, the AV1 sequence header limited range, as Windows' AVIF encoder writes them. 4:4:4, so chroma upsampling can't make our result differ from `avifdec`'s |
 | `heic/10bit.heic` | `convert pattern.png -depth 16 PNG48:pattern16.png`, then `heif-enc -q 90 -b 10 pattern16.png` (`-b` only applies to 16-bit input; from an 8-bit PNG it writes 8-bit) |
 | `heic/grid.heic` | `heif-enc -q 90 --cut-tiles 128 photo.png`: a 2x2 grid whose bottom row is cut to 64 rows |
 | `heic/rotated-mirrored.heic` | `convert pattern.png -flop -rotate -90 -strip in.png`, then `heif-enc -q 90 --rotate-cw 90 --flip-h in.png`, which stores `in.png` as it is with `irot` and `imir` that show it as the pattern |

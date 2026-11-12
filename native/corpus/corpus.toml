@@ -188,6 +188,14 @@ reference = "pattern.png"
 max_error = 4
 note = "no colr box; BT.709 matrix and limited range only in the AV1 sequence header"
 
+[[sample]]
+file = "avif/unspecified-nclx-full.avif"
+width = 96
+height = 64
+reference = "unspecified-nclx-full.png"
+max_error = 1
+note = "colr nclx 2/2/2 full range over a limited-range AV1 sequence header; the colr box wins, so it looks washed out"
+
 # SVG
 [[sample]]
 file = "svg/pattern.svg"

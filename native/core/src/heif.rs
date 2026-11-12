@@ -12,7 +12,9 @@
 
 use crate::image::DecodeError;
 use image::{DynamicImage, RgbaImage};
+use std::borrow::Cow;
 use std::ffi::c_int;
+use std::ops::Range;
 
 /// Larger pictures are refused: 512 MiB of RGBA, the `image` crate's
 /// default allocation limit.
@@ -26,6 +28,7 @@ const MAX_THREADS: usize = 8;
 /// The primary image, upright, as RGBA8 with straight alpha, and its ICC
 /// profile if it has one.
 pub fn decode(data: &[u8]) -> Result<(DynamicImage, Option<Vec<u8>>), DecodeError> {
+    let data = with_explicit_unspecified_colour(data);
     let threads = std::thread::available_parallelism().map_or(1, |count| count.get());
     let mut picture = Picture::default();
     // SAFETY: libheif reads `data` in place for as long as its context
@@ -49,6 +52,72 @@ pub fn decode(data: &[u8]) -> Result<(DynamicImage, Option<Vec<u8>>), DecodeErro
     let rgba = picture.rgba()?;
     let icc = picture.icc().map(<[u8]>::to_vec);
     Ok((DynamicImage::ImageRgba8(rgba), icc))
+}
+
+/// libheif 1.23 marks a missing colour box with an nclx of unspecified
+/// primaries, transfer and matrix and full range, so it takes a box that says
+/// exactly that for no box at all and goes by the bitstream's colour
+/// description instead, which may say limited range. The box should win (as
+/// the spec, libavif and browsers have it), and Windows' AVIF encoder writes
+/// such boxes over limited-range AV1. So each one is rewritten, in a copy of
+/// the file, at the same size, to the values libheif puts in for unspecified
+/// ones when it converts the colour (BT.709 primaries, sRGB transfer, BT.601
+/// matrix), keeping its range: the picture means the same, and libheif
+/// honours it. This can go once libheif honours such a box itself.
+fn with_explicit_unspecified_colour(data: &[u8]) -> Cow<'_, [u8]> {
+    let mut found = Vec::new();
+    for (_, meta) in boxes(data, 0..data.len()).filter(|(kind, _)| kind == b"meta") {
+        // `meta` is a full box: version and flags come before its boxes.
+        let meta = meta.start.saturating_add(4).min(meta.end)..meta.end;
+        for (_, iprp) in boxes(data, meta).filter(|(kind, _)| kind == b"iprp") {
+            for (_, ipco) in boxes(data, iprp).filter(|(kind, _)| kind == b"ipco") {
+                for (_, colr) in boxes(data, ipco).filter(|(kind, _)| kind == b"colr") {
+                    // Colour type, then primaries, transfer and matrix (16
+                    // bits each), then the full range flag in the top bit.
+                    let body = &data[colr.clone()];
+                    let unspecified = body.get(0..10) == Some(&b"nclx\0\x02\0\x02\0\x02"[..]);
+                    if unspecified && body.get(10).is_some_and(|flags| flags & 0x80 != 0) {
+                        found.push(colr.start + 4);
+                    }
+                }
+            }
+        }
+    }
+    if found.is_empty() {
+        return Cow::Borrowed(data);
+    }
+    let mut copy = data.to_vec();
+    for at in found {
+        copy[at..at + 6].copy_from_slice(&[0, 1, 0, 13, 0, 6]);
+    }
+    Cow::Owned(copy)
+}
+
+/// The boxes within `range` of `data`, as their type and the range of their
+/// contents. Stops at the first box that doesn't fit.
+fn boxes(data: &[u8], range: Range<usize>) -> impl Iterator<Item = ([u8; 4], Range<usize>)> + '_ {
+    let mut at = range.start;
+    let end = range.end.min(data.len());
+    std::iter::from_fn(move || {
+        let header = data.get(at..at.checked_add(8)?.min(end))?;
+        let kind: [u8; 4] = header.get(4..8)?.try_into().ok()?;
+        let (start, size) = match u32::from_be_bytes(header[0..4].try_into().ok()?) {
+            // To the end of the enclosing box.
+            0 => (at + 8, end - at),
+            // A 64-bit size follows the type.
+            1 => {
+                let size = data.get(at + 8..at.checked_add(16)?.min(end))?;
+                (at + 16, usize::try_from(u64::from_be_bytes(size.try_into().ok()?)).ok()?)
+            }
+            size => (at + 8, size as usize),
+        };
+        let stop = at.checked_add(size)?;
+        if stop < start || stop > end {
+            return None;
+        }
+        at = stop;
+        Some((kind, start..stop))
+    })
 }
 
 /// `pv_heif_picture` in heif_shim.cc.

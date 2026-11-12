@@ -19,7 +19,11 @@ through libmpv.
   of an animation) and SVG and SVGZ (through resvg, at the size the file
   declares; only `data:` images, nothing outside the file). An animated
   AVIF or HEIF sequence shows its still image, if it has one. Not yet:
-  playing animated AVIF, HEIF sequences and animated JPEG XL.
+  playing animated AVIF, HEIF sequences and animated JPEG XL. Known limits,
+  both libheif's: an image whose coded size is larger than the size the
+  file declares for it (a damaged file, or a layered AV1 image showing a
+  smaller layer) is refused; and an image cropped (`clap`) at an odd offset
+  in 4:2:0 or 4:2:2 shows wrong colours.
 - `linux/`: the Linux app, Qt 6 and QML with a thin C++ layer over the C API.
   Video is drawn by libmpv into a `QQuickFramebufferObject`.
 
