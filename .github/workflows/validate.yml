@@ -105,7 +105,7 @@ jobs:
       - name: Install libmpv
         uses: ./.github/actions/apt-install
         with:
-          packages: libmpv-dev
+          packages: libmpv-dev nasm
 
       - name: Cache Cargo
         uses: actions/cache@v6

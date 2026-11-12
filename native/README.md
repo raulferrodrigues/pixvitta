@@ -14,8 +14,8 @@ through libmpv.
   by content, so a mislabelled file still opens. It decodes JPEG,
   PNG, GIF, WebP, BMP, TIFF, ICO, HEIC and AVIF (the primary image, grids
   included, through libheif, built from the release tarballs in
-  [`core/vendor/`](core/vendor); HEVC decodes with libde265, AV1 with rav1d,
-  without its assembly for now), JPEG XL (through jxl-oxide; the first frame
+  [`core/vendor/`](core/vendor); HEVC decodes with libde265, AV1 with rav1d
+  and its assembly), JPEG XL (through jxl-oxide; the first frame
   of an animation) and SVG and SVGZ (through resvg, at the size the file
   declares; only `data:` images, nothing outside the file). An animated
   AVIF or HEIF sequence shows its still image, if it has one. Not yet:
@@ -29,14 +29,15 @@ through libmpv.
 
 ## Linux
 
-Needs Rust (through rustup), CMake, a C and C++17 compiler, and the system's
-Qt 6 and libmpv. The core needs CMake and the compilers too, even built on its
-own (the corpus check, for one): its build script builds libheif and libde265
-from source, and the result links the C++ standard library. On Ubuntu 24.04
+Needs Rust (through rustup), CMake, a C and C++17 compiler, nasm (on
+x86-64), and the system's Qt 6 and libmpv. The core needs CMake, nasm and the
+compilers too, even built on its own (the corpus check, for one): its build
+script builds libheif and libde265 from source, rav1d assembles its x86-64
+assembly with nasm, and the result links the C++ standard library. On Ubuntu 24.04
 or Linux Mint 22:
 
 ```sh
-sudo apt install cmake g++ pkg-config qt6-base-dev qt6-declarative-dev libmpv-dev \
+sudo apt install cmake g++ nasm pkg-config qt6-base-dev qt6-declarative-dev libmpv-dev \
     qml6-module-qtquick qml6-module-qtqml qml6-module-qtqml-models qml6-module-qtqml-workerscript
 ```
 
