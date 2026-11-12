@@ -1,7 +1,8 @@
 //! Opens every file in native/corpus/corpus.toml and checks it against what
 //! the manifest says. Images go through the core's C API, both as a still
 //! and frame by frame; videos through libmpv, as the core's player does (the
-//! machine's libmpv for now).
+//! machine's libmpv for now). Then lists samples/scan/ through the C API and
+//! checks which files come back, and as what kind.
 //!
 //!   cargo test --release --test corpus
 
@@ -11,8 +12,8 @@ use std::process::ExitCode;
 use std::ptr;
 
 use pixvitta_core::{
-    pv_animation_next_frame, pv_animation_open, pv_animation_release, pv_image_decode, pv_image_release, PvAnimation,
-    PvImage, PV_OK,
+    pv_animation_next_frame, pv_animation_open, pv_animation_release, pv_folder_count, pv_folder_kind, pv_folder_open,
+    pv_folder_path, pv_folder_release, pv_image_decode, pv_image_release, PvAnimation, PvFolder, PvImage, PV_OK,
 };
 
 fn corpus() -> PathBuf {
@@ -215,6 +216,62 @@ fn check_video(path: &CStr, sample: &toml::Table) -> Result<(), String> {
     }
 }
 
+/// Lists samples/scan/ through the C API and compares it with the [[scan]]
+/// entries. Returns the files that don't match.
+fn check_scan(entries: &[toml::Value]) -> Vec<String> {
+    let folder = corpus().join("samples/scan");
+    let mut listed = Vec::new();
+    unsafe {
+        let path = CString::new(folder.clone().into_os_string().into_encoded_bytes()).unwrap();
+        let mut handle: *mut PvFolder = ptr::null_mut();
+        let status = pv_folder_open(path.as_ptr(), &mut handle);
+        if status != PV_OK {
+            println!("FAIL      scan/: does not open (error {status})");
+            return vec!["scan/".into()];
+        }
+        for index in 0..pv_folder_count(handle) {
+            let path = Path::new(CStr::from_ptr(pv_folder_path(handle, index)).to_str().unwrap());
+            let name = path.file_name().unwrap().to_str().unwrap().to_string();
+            let kind = match pv_folder_kind(handle, index) {
+                1 => "image",
+                2 => "video",
+                _ => "unknown",
+            };
+            listed.push((format!("scan/{name}"), kind));
+        }
+        pv_folder_release(handle);
+    }
+
+    let mut problems = Vec::new();
+    let mut expected = Vec::new();
+    for entry in entries {
+        let entry = entry.as_table().expect("[[scan]] is a table");
+        let file = entry["file"].as_str().expect("scan entry without file");
+        let kind = entry["kind"].as_str().expect("scan entry without kind");
+        expected.push(file.to_string());
+        let found = listed.iter().find(|(listed, _)| listed == file).map(|(_, kind)| *kind);
+        match (found, kind) {
+            (None, "none") => println!("pass      {file}: not listed"),
+            (Some(found), kind) if found == kind => println!("pass      {file}: {kind}"),
+            (found, kind) => {
+                println!("FAIL      {file}: listed as {}, expected {kind}", found.unwrap_or("none"));
+                problems.push(file.to_string());
+            }
+        }
+        if let Some(note) = entry.get("note").and_then(|value| value.as_str()) {
+            println!("          note: {note}");
+        }
+    }
+    for entry in std::fs::read_dir(&folder).expect("samples/scan/") {
+        let file = format!("scan/{}", entry.unwrap().file_name().to_str().unwrap());
+        if !expected.contains(&file) {
+            println!("FAIL      {file}: no [[scan]] entry in corpus.toml");
+            problems.push(file);
+        }
+    }
+    problems
+}
+
 fn main() -> ExitCode {
     // libmpv needs the C numeric locale, which a Rust process already has.
     let manifest = std::fs::read_to_string(corpus().join("corpus.toml")).expect("native/corpus/corpus.toml");
@@ -254,6 +311,10 @@ fn main() -> ExitCode {
             println!("          note: {note}");
         }
     }
+    let scan = manifest["scan"].as_array().expect("corpus.toml has no [[scan]]");
+    let scan_problems = check_scan(scan);
+    passed += scan.len() - scan_problems.len();
+    problems.extend(scan_problems);
     println!("\n{passed} passed, {expected_failures} expected failures, {} unexpected", problems.len());
     if problems.is_empty() {
         ExitCode::SUCCESS

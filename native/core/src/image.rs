@@ -1,17 +1,18 @@
 //! Image decoding to sRGB RGBA8, straight alpha, EXIF orientation applied.
-//! The `image` crate decodes; moxcms (which `image` already uses) converts
-//! embedded ICC profiles to sRGB; AVIF goes through `avif`, and HEIC, JPEG XL
-//! and SVG, which the `image` crate doesn't recognise, through `heic`, `jxl`
-//! and `svg`.
+//! `sniff` says what the file is from its content; the extension is never
+//! looked at. The `image` crate decodes; moxcms (which `image` already uses)
+//! converts embedded ICC profiles to sRGB; AVIF, HEIC, JPEG XL and SVG go
+//! through `avif`, `heic`, `jxl` and `svg`.
 //! `decode` reads a still (the first frame of an animated file); `Animation`
 //! plays GIF and WebP frame by frame.
 
+use crate::sniff::{self, Format};
 use image::codecs::gif::GifDecoder;
 use image::codecs::webp::WebPDecoder;
 use image::metadata::Orientation;
 use image::{AnimationDecoder, DynamicImage, Frame, Frames, ImageDecoder, ImageFormat, ImageReader};
 use std::fs::File;
-use std::io::{BufRead, BufReader, Cursor, Seek};
+use std::io::{BufRead, BufReader, Cursor, Read, Seek};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -41,40 +42,47 @@ pub fn decode(path: &Path) -> Result<Decoded, DecodeError> {
     // Only pixel dimensions are used. Density metadata (PNG pHYs, JFIF or
     // EXIF DPI) is ignored, so a 144-DPI screenshot and a 72-DPI one with the
     // same pixels display at the same size.
-    let reader = ImageReader::open(path)
-        .map_err(|_| DecodeError::Io)?
-        .with_guessed_format()
-        .map_err(|_| DecodeError::Io)?;
-    if reader.format() == Some(ImageFormat::Avif) {
-        let data = std::fs::read(path).map_err(|_| DecodeError::Io)?;
-        let (picture, icc) = crate::avif::decode(&data)?;
-        let srgb = icc.and_then(|icc| srgb_transform(&icc));
-        return Ok(finish(picture, Orientation::NoTransforms, srgb.as_deref()));
-    }
-    if reader.format().is_none() {
-        let data = std::fs::read(path).map_err(|_| DecodeError::Io)?;
-        if crate::heic::is_heic(&data) {
-            let (picture, icc) = crate::heic::decode(&data)?;
+    let (file, format) = open(path)?;
+    let read_all = |mut file: File| {
+        let mut data = Vec::new();
+        file.read_to_end(&mut data).map(|_| data).map_err(|_| DecodeError::Io)
+    };
+    match format {
+        Some(Format::Avif) => {
+            let (picture, icc) = crate::avif::decode(&read_all(file)?)?;
             let srgb = icc.and_then(|icc| srgb_transform(&icc));
-            return Ok(finish(picture, Orientation::NoTransforms, srgb.as_deref()));
+            Ok(finish(picture, Orientation::NoTransforms, srgb.as_deref()))
         }
-        if crate::jxl::is_jxl(&data) {
-            let picture = crate::jxl::decode(&data)?;
-            return Ok(finish(picture, Orientation::NoTransforms, None));
+        Some(Format::Heic) => {
+            let (picture, icc) = crate::heic::decode(&read_all(file)?)?;
+            let srgb = icc.and_then(|icc| srgb_transform(&icc));
+            Ok(finish(picture, Orientation::NoTransforms, srgb.as_deref()))
         }
-        if crate::svg::is_svg(&data) {
-            let picture = crate::svg::decode(&data)?;
-            return Ok(finish(picture, Orientation::NoTransforms, None));
+        Some(Format::Jxl) => {
+            let picture = crate::jxl::decode(&read_all(file)?)?;
+            Ok(finish(picture, Orientation::NoTransforms, None))
         }
+        Some(Format::Svg) => {
+            let picture = crate::svg::decode(&read_all(file)?)?;
+            Ok(finish(picture, Orientation::NoTransforms, None))
+        }
+        Some(Format::Image(format)) => match decode_reader(ImageReader::with_format(BufReader::new(file), format)) {
+            Err(DecodeError::Decode) if format == ImageFormat::Ico => {
+                let png = ico_png_entry(path).ok_or(DecodeError::Decode)?;
+                decode_reader(ImageReader::with_format(Cursor::new(png), ImageFormat::Png))
+            }
+            result => result,
+        },
+        Some(Format::Video) | None => Err(DecodeError::Unsupported),
     }
-    let is_ico = reader.format() == Some(ImageFormat::Ico);
-    match decode_reader(reader) {
-        Err(DecodeError::Decode) if is_ico => {
-            let png = ico_png_entry(path).ok_or(DecodeError::Decode)?;
-            decode_reader(ImageReader::with_format(Cursor::new(png), ImageFormat::Png))
-        }
-        result => result,
-    }
+}
+
+/// The file, rewound after its first bytes were read, and what they say it is.
+fn open(path: &Path) -> Result<(File, Option<Format>), DecodeError> {
+    let mut file = File::open(path).map_err(|_| DecodeError::Io)?;
+    let head = sniff::head(&mut file).map_err(|_| DecodeError::Io)?;
+    file.rewind().map_err(|_| DecodeError::Io)?;
+    Ok((file, sniff::format(&head)))
 }
 
 fn decode_reader<R: BufRead + Seek>(reader: ImageReader<R>) -> Result<Decoded, DecodeError> {
@@ -176,12 +184,11 @@ struct Playback {
 
 impl Animation {
     pub fn open(path: &Path) -> Result<Animation, DecodeError> {
-        let reader = ImageReader::open(path)
-            .map_err(|_| DecodeError::Io)?
-            .with_guessed_format()
-            .map_err(|_| DecodeError::Io)?;
-        let playback = match reader.format() {
-            Some(format @ (ImageFormat::Gif | ImageFormat::WebP)) => Playback::open(reader.into_inner(), format)?,
+        let (file, format) = open(path)?;
+        let playback = match format {
+            Some(Format::Image(format @ (ImageFormat::Gif | ImageFormat::WebP))) => {
+                Playback::open(BufReader::new(file), format)?
+            }
             _ => None,
         };
         Ok(Animation {

@@ -1,7 +1,7 @@
 # The sample-file corpus: what each file in samples/ must produce.
 # How the files were made, and how to add one: README.md next to this file.
 #
-# Fields:
+# [[sample]] fields:
 #   file              path under samples/
 #   width, height     size as shown, after EXIF orientation
 #   reference         image in references/ the pixels must roughly match
@@ -14,6 +14,13 @@
 #   expected_failure  why the core can't open it yet; the test fails if
 #                     it starts passing, so the line gets removed
 #   note              shown in the output, not checked
+#
+# [[scan]] fields:
+#   file              path under samples/; all are in scan/, the folder
+#                     that is listed
+#   kind              "image" or "video" as the scan lists it, or "none" if
+#                     it must not be listed
+#   note              as for [[sample]]
 
 # JPEG
 [[sample]]
@@ -149,6 +156,14 @@ height = 64
 reference = "pattern.png"
 max_error = 1
 note = "10-bit 4:4:4, limited range, BT.709 matrix from the container's nclx"
+
+[[sample]]
+file = "avif/major-brand-mif1.avif"
+width = 96
+height = 64
+reference = "pattern-alpha.png"
+max_error = 4
+note = "alpha.avif with major brand mif1; avif is only a compatible brand"
 
 # SVG
 [[sample]]
@@ -319,3 +334,46 @@ file = "video/mpeg4.avi"
 width = 320
 height = 240
 duration = 2
+
+# Folder scan: samples/scan/ is listed through pv_folder_open, and the
+# listing must match these entries. Every file in it has one.
+[[scan]]
+file = "scan/png"
+kind = "image"
+
+[[scan]]
+file = "scan/photo.dat"
+kind = "image"
+note = "a JPEG with an extension that says nothing"
+
+[[scan]]
+file = "scan/svg"
+kind = "image"
+
+[[scan]]
+file = "scan/mp4"
+kind = "video"
+
+[[scan]]
+file = "scan/text.gif"
+kind = "image"
+note = "text, listed by its extension without being read; it fails to open"
+
+[[scan]]
+file = "scan/tiff"
+kind = "none"
+note = "TIFF is not listed by content: camera RAW files start the same way"
+
+[[scan]]
+file = "scan/vorbis"
+kind = "none"
+note = "Ogg Vorbis audio"
+
+[[scan]]
+file = "scan/notes.txt"
+kind = "none"
+
+[[scan]]
+file = "scan/junk"
+kind = "none"
+note = "BM and random bytes, not a BMP header"

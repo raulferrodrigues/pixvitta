@@ -17,6 +17,7 @@ mod image;
 mod jxl;
 mod mpv;
 mod player;
+mod sniff;
 mod svg;
 
 use std::ffi::{c_char, c_int, c_void, CStr};

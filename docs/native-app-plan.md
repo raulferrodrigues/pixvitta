@@ -254,3 +254,8 @@ own OpenGL surface. There is no bridge between graphics stacks.
   tarballs pinned in the repo. Pure-Rust HEIC decoders were measured against
   72 files; the best (`heifer`) decoded all of them correctly but is five
   weeks old, so it was not adopted.
+- 2026-11-12: The folder scan trusts recognised extensions and detects every
+  other file by content, because reading every file's header is too slow on
+  hard disks and network shares. The decoder always goes by content. TIFF
+  and ICO are not detected by content in the scan, because camera RAW shares
+  TIFF's signature.
