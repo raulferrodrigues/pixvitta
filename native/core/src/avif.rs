@@ -18,6 +18,7 @@ use rav1d::src::lib::{
     dav1d_picture_unref, dav1d_send_data,
 };
 use rav1d::Dav1dResult;
+use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 use std::ptr::{self, NonNull};
@@ -28,7 +29,7 @@ const MAX_PIXELS: u64 = 1 << 27;
 
 /// The picture, upright, and its ICC profile if it has one.
 pub fn decode(data: &[u8]) -> Result<(DynamicImage, Option<Vec<u8>>), DecodeError> {
-    let avif = avif_parse::read_avif(&mut &data[..]).map_err(|error| match error {
+    let avif = avif_parse::read_avif(&mut &with_avif_major_brand(data)[..]).map_err(|error| match error {
         avif_parse::Error::Unsupported(_) => DecodeError::Unsupported,
         _ => DecodeError::Decode,
     })?;
@@ -53,6 +54,21 @@ pub fn decode(data: &[u8]) -> Result<(DynamicImage, Option<Vec<u8>>), DecodeErro
         };
     }
     Ok((picture, properties.icc))
+}
+
+/// avif-parse refuses a file whose major brand isn't `avif` or `avis`, but
+/// AVIF only needs `avif` among the compatible brands, and writers may put
+/// `mif1` first. Such a file is read through a copy whose major brand says
+/// `avif`; the box keeps its size, so every offset stays the same.
+fn with_avif_major_brand(data: &[u8]) -> Cow<'_, [u8]> {
+    match data.get(8..12) {
+        Some(b"avif" | b"avis") | None => Cow::Borrowed(data),
+        Some(_) => {
+            let mut copy = data.to_vec();
+            copy[8..12].copy_from_slice(b"avif");
+            Cow::Owned(copy)
+        }
+    }
 }
 
 /// A decoded AV1 picture, held until dropped.

@@ -18,43 +18,6 @@ const MAX_PIXELS: u64 = 1 << 27;
 /// thread for the length of the decode.
 const MAX_THREADS: usize = 8;
 
-/// The `ftyp` brands of HEIF files whose images are HEVC: `heic` and `heix`
-/// for stills (`heix` for 10-bit, 4:2:2 and the like), `heim` and `heis` for
-/// multi-layer and scalable ones, `hevc` and the rest for sequences.
-const HEVC_BRANDS: &[&[u8; 4]] = &[b"heic", b"heix", b"heim", b"heis", b"hevc", b"hevx", b"hevm", b"hevs"];
-
-/// Brands any HEIF file may carry, whatever its codec.
-const HEIF_BRANDS: &[&[u8; 4]] = &[b"mif1", b"msf1", b"mif2"];
-
-/// Brands of AVIF, which is HEIF with AV1 inside and goes to `avif`.
-const AVIF_BRANDS: &[&[u8; 4]] = &[b"avif", b"avis", b"avio"];
-
-/// Whether the data starts with an `ftyp` box whose brands (major or
-/// compatible) say HEIF with HEVC, or HEIF without saying AVIF.
-pub fn is_heic(data: &[u8]) -> bool {
-    let Some(brands) = brands(data) else {
-        return false;
-    };
-    let has = |list: &[&[u8; 4]]| brands.iter().any(|brand| list.contains(brand));
-    has(HEVC_BRANDS) || (has(HEIF_BRANDS) && !has(AVIF_BRANDS))
-}
-
-/// The major brand and the compatible brands of a leading `ftyp` box.
-fn brands(data: &[u8]) -> Option<Vec<&[u8; 4]>> {
-    if data.get(4..8)? != b"ftyp" {
-        return None;
-    }
-    let size = u32::from_be_bytes(data.get(0..4)?.try_into().ok()?) as usize;
-    if size < 16 {
-        return None;
-    }
-    let ftyp = data.get(8..size)?;
-    // The minor version sits between the major brand and the rest.
-    let major = ftyp[0..4].try_into().ok()?;
-    let compatible = ftyp[8..].chunks_exact(4).filter_map(|brand| brand.try_into().ok());
-    Some(std::iter::once(major).chain(compatible).collect())
-}
-
 /// The primary image, upright, as RGBA8 with straight alpha, and its ICC
 /// profile if it has one.
 pub fn decode(data: &[u8]) -> Result<(DynamicImage, Option<Vec<u8>>), DecodeError> {

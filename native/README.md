@@ -7,7 +7,11 @@ through libmpv.
 
 - `core/`: the Rust core, built as a static library with a plain C API
   ([`core/include/pixvitta.h`](core/include/pixvitta.h)). It lists folders,
-  decodes images to sRGB RGBA, and owns the libmpv player. It decodes JPEG,
+  decodes images to sRGB RGBA, and owns the libmpv player. A folder lists a
+  file with an image or video extension as that kind without opening it, and
+  reads the first bytes of every other file to tell whether it is an image or
+  a video; TIFF and ICO are only listed by extension. The decoder always goes
+  by content, so a mislabelled file still opens. It decodes JPEG,
   PNG, GIF, WebP, BMP, TIFF, ICO, still AVIF (through rav1d, without its
   assembly for now), HEIC (the primary image, through libheif and libde265,
   built from the release tarballs in [`core/vendor/`](core/vendor)), JPEG XL
@@ -77,6 +81,8 @@ there is a reference per frame), and that the first frame follows the last. Vide
 machine's libmpv (size and duration only). Formats the core can't decode yet
 are listed with `expected_failure`. The run fails if a sample that should
 pass doesn't, or if an expected failure starts passing (then remove the
-line). To add a sample, put the file in `corpus/samples/<format>/` and add
-a `[[sample]]` entry; [`corpus/README.md`](corpus/README.md) has the details
-and how the existing files were made.
+line). It also lists `corpus/samples/scan/`, a folder of mislabelled files,
+and checks which are listed and as what. To add a sample, put the file in
+`corpus/samples/<format>/` and add a `[[sample]]` entry;
+[`corpus/README.md`](corpus/README.md) has the details and how the existing
+files were made.

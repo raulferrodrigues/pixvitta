@@ -41,6 +41,7 @@ The samples, from those references:
 | `avif/yuv420.avif` | `ffmpeg -c:v libaom-av1 -crf 12 -still-picture 1` |
 | `avif/10bit-444.avif` | ffmpeg 6.1 with libaom: `-vf scale=out_color_matrix=bt709:out_range=tv,format=yuv444p10le -colorspace bt709 -color_primaries bt709 -color_trc iec61966-2-1 -color_range tv -c:v libaom-av1 -crf 12 -still-picture 1` |
 | `avif/alpha.avif`, `heic/yuv420.heic` | `heif-enc` from libheif 1.23 with aom and x265, `-q 90` |
+| `avif/major-brand-mif1.avif` | `avif/alpha.avif` with the major brand of its `ftyp` box overwritten in place with `mif1` (`printf mif1 \| dd of=... bs=1 seek=8 conv=notrunc`); `avif` stays among the compatible brands |
 | `heic/10bit.heic` | `convert pattern.png -depth 16 PNG48:pattern16.png`, then `heif-enc -q 90 -b 10 pattern16.png` (`-b` only applies to 16-bit input; from an 8-bit PNG it writes 8-bit) |
 | `heic/grid.heic` | `heif-enc -q 90 --cut-tiles 128 photo.png`: a 2x2 grid whose bottom row is cut to 64 rows |
 | `heic/rotated-mirrored.heic` | `convert pattern.png -flop -rotate -90 -strip in.png`, then `heif-enc -q 90 --rotate-cw 90 --flip-h in.png`, which stores `in.png` as it is with `irot` and `imir` that show it as the pattern |
@@ -54,6 +55,15 @@ The samples, from those references:
 | `svg/data-png.svg` | written by hand: an `<image>` whose href is `pattern.png` as a base64 `data:` URL |
 | `ico/sizes-with-png.ico` | `convert square-256.png square-48.png square-16.png out.ico` |
 | `video/*` | ffmpeg from the pattern scaled to 320x240: `-loop 1 -framerate 10 -t 2`, plus a `sine` audio track where the container has one. Codecs: libx264, libx265 (`-pix_fmt yuv420p10le -tag:v hvc1` for 10-bit), `prores_ks -profile:v 3`, libvpx-vp9 with Opus, libtheora with Vorbis, mpeg4 |
+
+`scan/` is a folder for the scan check (`[[scan]]` in `corpus.toml`), not
+decoded on its own. Its files are copies of the samples above under other
+names: `png` (`png/rgba8.png`), `photo.dat` (`jpeg/baseline-420.jpg`), `svg`
+(`svg/viewbox-alpha.svg`), `mp4` (`video/h264.m4v`) and `tiff`
+(`tiff/lzw.tif`). The rest: `text.gif` and `notes.txt` are a line of text,
+`junk` is `BM` and 62 random bytes (Python's `random.Random(7)`), and
+`vorbis` is `ffmpeg -f lavfi -i sine=frequency=440:duration=0.2 -ac 1 -ar 8000
+-c:a libvorbis -map_metadata -1 -fflags +bitexact -f ogg`.
 
 Video-only Theora in Ogg made by ffmpeg reports a duration of 1.3 s for
 2 s of frames, so `theora.ogg` has an audio track like `theora.ogv`.

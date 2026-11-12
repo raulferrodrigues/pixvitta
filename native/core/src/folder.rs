@@ -2,19 +2,21 @@
 //! Same rules as the Electron app's scanner: hidden files are skipped and
 //! symlinks are followed to regular files.
 //!
-//! Files are recognised by extension for now. The plan detects them by
-//! content; that comes later.
+//! A file whose extension is in the image or video list is listed as that
+//! kind without being opened. Every other file, with no extension or an
+//! unrecognised one, is opened and its first bytes (one read of at most
+//! `sniff::HEAD_BYTES`) say whether it is an image or a video
+//! (`sniff::listed_kind`). Reading every file's header would cost a seek per
+//! file on a hard disk or network share, tens of seconds for a large folder,
+//! and nearly every media file has the right extension. The decoder goes by
+//! content either way, so a JPEG named `.png` still opens.
 
+use crate::sniff::{self, Kind};
 use std::cmp::Ordering;
 use std::ffi::CString;
+use std::fs::File;
 use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
-    Image = 1,
-    Video = 2,
-}
 
 pub struct Entry {
     /// NUL-terminated path bytes, handed to C as they are.
@@ -22,11 +24,12 @@ pub struct Entry {
     pub kind: Kind,
 }
 
-// Only what `image.rs` decodes today. The full list comes with the corpus.
+// The usual extensions of what the core opens: every format `image.rs`
+// decodes, and the video containers the plan lists.
 const IMAGE_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff", "ico", "avif", "heic", "heif", "hif", "jxl", "svg", "svgz"];
-const VIDEO_EXTENSIONS: &[&str] = &["mp4", "m4v", "mov", "webm", "ogv", "mkv", "avi"];
+const VIDEO_EXTENSIONS: &[&str] = &["mp4", "m4v", "mov", "webm", "ogv", "ogg", "mkv", "avi"];
 
-fn kind_of(path: &Path) -> Option<Kind> {
+fn kind_by_extension(path: &Path) -> Option<Kind> {
     let extension = path.extension()?.to_str()?.to_ascii_lowercase();
     if IMAGE_EXTENSIONS.contains(&extension.as_str()) {
         Some(Kind::Image)
@@ -35,6 +38,11 @@ fn kind_of(path: &Path) -> Option<Kind> {
     } else {
         None
     }
+}
+
+fn kind_by_content(path: &Path) -> Option<Kind> {
+    let head = sniff::head(&mut File::open(path).ok()?).ok()?;
+    sniff::listed_kind(&head)
 }
 
 pub fn scan(folder: &Path) -> std::io::Result<Vec<Entry>> {
@@ -46,12 +54,13 @@ pub fn scan(folder: &Path) -> std::io::Result<Vec<Entry>> {
                 return None;
             }
             let path = entry.path();
-            let kind = kind_of(&path)?;
+            let by_extension = kind_by_extension(&path);
             // fs::metadata follows symlinks; broken links and links to
             // directories drop out here.
             if !std::fs::metadata(&path).ok()?.is_file() {
                 return None;
             }
+            let kind = by_extension.or_else(|| kind_by_content(&path))?;
             let path = CString::new(path.as_os_str().as_bytes()).ok()?;
             Some((name.to_string_lossy().into_owned(), Entry { path, kind }))
         })
