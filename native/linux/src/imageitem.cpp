@@ -161,9 +161,8 @@ QSGNode *ImageItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
         node->setTexture(window()->createTextureFromImage(m_frame, QQuickWindow::TextureHasMipmaps));
         m_frameChanged = false;
     }
-    // Fitted to the item, keeping the aspect ratio, centred.
-    const QSizeF size = QSizeF(m_frame.size()).scaled(this->size(), Qt::KeepAspectRatio);
-    node->setRect(QRectF(QPointF((width() - size.width()) / 2, (height() - size.height()) / 2), size));
+    const pv_rect rect = pv_view_fit(m_frame.width(), m_frame.height(), width(), height());
+    node->setRect(QRectF(rect.x, rect.y, rect.width, rect.height));
     return node;
 }
 

@@ -118,5 +118,5 @@ jobs:
           key: native-cargo-${{ runner.os }}-${{ hashFiles('native/core/Cargo.lock') }}
           restore-keys: native-cargo-${{ runner.os }}-
 
-      - name: Corpus check
-        run: cargo test --release --manifest-path native/core/Cargo.toml --test corpus
+      - name: Core tests and corpus check
+        run: cargo test --release --manifest-path native/core/Cargo.toml

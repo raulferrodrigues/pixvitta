@@ -96,6 +96,22 @@ int pv_animation_next_frame(pv_animation *animation, pv_image **out, uint32_t *d
  * the same animation is running. */
 void pv_animation_release(pv_animation *animation);
 
+/* View ------------------------------------------------------------------- */
+
+/* Pure calculations, so every UI lays things out the same way. Sizes are in
+ * whatever unit the caller uses; nothing is rounded or snapped. */
+
+typedef struct pv_rect {
+    double x, y, width, height;
+} pv_rect;
+
+/* Where content of the given size is drawn in a view of the given size:
+ * scaled down to fit with its aspect ratio kept, never scaled up, and
+ * centred. If any size is zero, negative, NaN or infinite, the result is an
+ * empty rect at the origin. */
+pv_rect pv_view_fit(double content_width, double content_height, double view_width,
+                    double view_height);
+
 /* Video ------------------------------------------------------------------ */
 
 typedef struct pv_player pv_player;
