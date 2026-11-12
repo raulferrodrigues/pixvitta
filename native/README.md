@@ -9,17 +9,22 @@ through libmpv.
   ([`core/include/pixvitta.h`](core/include/pixvitta.h)). It lists folders,
   decodes images to sRGB RGBA, and owns the libmpv player. It decodes JPEG,
   PNG, GIF, WebP, BMP, TIFF, ICO, still AVIF (through rav1d, without its
-  assembly for now), JPEG XL (through jxl-oxide; the first frame of an
-  animation) and SVG and SVGZ (through resvg, at the size the file declares;
-  only `data:` images, nothing outside the file). Not yet: HEIC, animated or
-  grid AVIF, and animated JPEG XL.
+  assembly for now), HEIC (the primary image, through libheif and libde265,
+  built from the release tarballs in [`core/vendor/`](core/vendor)), JPEG XL
+  (through jxl-oxide; the first frame of an animation) and SVG and SVGZ
+  (through resvg, at the size the file declares; only `data:` images,
+  nothing outside the file). Not yet: animated or grid AVIF, HEIF sequences,
+  and animated JPEG XL.
 - `linux/`: the Linux app, Qt 6 and QML with a thin C++ layer over the C API.
   Video is drawn by libmpv into a `QQuickFramebufferObject`.
 
 ## Linux
 
-Needs Rust (through rustup), CMake, a C++17 compiler, and the system's Qt 6
-and libmpv. On Ubuntu 24.04 or Linux Mint 22:
+Needs Rust (through rustup), CMake, a C and C++17 compiler, and the system's
+Qt 6 and libmpv. The core needs CMake and the compilers too, even built on its
+own (the corpus check, for one): its build script builds libheif and libde265
+from source, and the result links the C++ standard library. On Ubuntu 24.04
+or Linux Mint 22:
 
 ```sh
 sudo apt install cmake g++ pkg-config qt6-base-dev qt6-declarative-dev libmpv-dev \

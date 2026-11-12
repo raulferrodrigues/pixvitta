@@ -40,7 +40,12 @@ The samples, from those references:
 | `webp/animated.webp` | Pillow 10.2: the three frames as RGB, `save(save_all=True, append_images=..., duration=[100, 200, 300], loop=0, lossless=True)` (ffmpeg's libwebp_anim does not keep the durations it is given) |
 | `avif/yuv420.avif` | `ffmpeg -c:v libaom-av1 -crf 12 -still-picture 1` |
 | `avif/10bit-444.avif` | ffmpeg 6.1 with libaom: `-vf scale=out_color_matrix=bt709:out_range=tv,format=yuv444p10le -colorspace bt709 -color_primaries bt709 -color_trc iec61966-2-1 -color_range tv -c:v libaom-av1 -crf 12 -still-picture 1` |
-| `avif/alpha.avif`, `heic/*.heic` | `heif-enc` from libheif 1.23 with aom and x265 (`-q 90`; `-b 10` for 10-bit) |
+| `avif/alpha.avif`, `heic/yuv420.heic` | `heif-enc` from libheif 1.23 with aom and x265, `-q 90` |
+| `heic/10bit.heic` | `convert pattern.png -depth 16 PNG48:pattern16.png`, then `heif-enc -q 90 -b 10 pattern16.png` (`-b` only applies to 16-bit input; from an 8-bit PNG it writes 8-bit) |
+| `heic/grid.heic` | `heif-enc -q 90 --cut-tiles 128 photo.png`: a 2x2 grid whose bottom row is cut to 64 rows |
+| `heic/rotated-mirrored.heic` | `convert pattern.png -flop -rotate -90 -strip in.png`, then `heif-enc -q 90 --rotate-cw 90 --flip-h in.png`, which stores `in.png` as it is with `irot` and `imir` that show it as the pattern |
+| `heic/alpha.heic` | `heif-enc -q 90 pattern-alpha.png` |
+| `heic/adobe-rgb.heic` | `convert pattern.png -profile sRGB.icc -profile AdobeRGB1998.icc in.png` (colord's profiles, as for `jpeg/adobe-rgb.jpg`), then `heif-enc -q 90 in.png`, which keeps the profile |
 | `jxl/lossless-alpha.jxl` | `cjxl -d 0` |
 | `jxl/lossy.jxl` | `cjxl -d 1 pattern.png` (libjxl 0.7) |
 | `jxl/jpeg-orientation-6.jxl`, `jxl/jpeg-adobe-rgb.jxl` | `cjxl` on `jpeg/orientation-6.jpg` and `jpeg/adobe-rgb.jpg`: lossless JPEG recompression, which keeps the orientation (in the codestream) and the ICC profile |
