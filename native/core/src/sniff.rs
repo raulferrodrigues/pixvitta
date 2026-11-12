@@ -22,8 +22,8 @@ pub enum Kind {
 pub enum Format {
     /// Decoded by the `image` crate: JPEG, PNG, GIF, WebP, BMP, TIFF or ICO.
     Image(ImageFormat),
-    Avif,
-    Heic,
+    /// HEIC, AVIF and other HEIF files, decoded by libheif.
+    Heif,
     Jxl,
     Svg,
     /// Any video container. libmpv tells them apart itself.
@@ -39,17 +39,16 @@ impl Format {
     }
 }
 
-/// The `ftyp` brands of AVIF, which is HEIF with AV1 inside: `avif` for
-/// stills, `avis` for sequences, `avio` for intra-only sequences.
-const AVIF_BRANDS: &[&[u8; 4]] = &[b"avif", b"avis", b"avio"];
-
-/// The `ftyp` brands of HEIF files whose images are HEVC: `heic` and `heix`
-/// for stills (`heix` for 10-bit, 4:2:2 and the like), `heim` and `heis` for
-/// multi-layer and scalable ones, `hevc` and the rest for sequences.
-const HEVC_BRANDS: &[&[u8; 4]] = &[b"heic", b"heix", b"heim", b"heis", b"hevc", b"hevx", b"hevm", b"hevs"];
-
-/// Brands any HEIF file may carry, whatever its codec.
-const HEIF_BRANDS: &[&[u8; 4]] = &[b"mif1", b"msf1", b"mif2"];
+/// The `ftyp` brands of HEIF files: those any HEIF file may carry, whatever
+/// its codec (`mif1`, `msf1`, `mif2`); AVIF's, for AV1 (`avif` for stills,
+/// `avis` for sequences, `avio` for intra-only sequences); and HEVC's
+/// (`heic` and `heix` for stills, `heix` for 10-bit, 4:2:2 and the like,
+/// `heim` and `heis` for multi-layer and scalable ones, `hevc` and the rest
+/// for sequences).
+const HEIF_BRANDS: &[&[u8; 4]] = &[
+    b"mif1", b"msf1", b"mif2", b"avif", b"avis", b"avio", b"heic", b"heix", b"heim", b"heis", b"hevc", b"hevx",
+    b"hevm", b"hevs",
+];
 
 /// Major brands of ISO media files that hold no video: iTunes audio, audio
 /// books and protected audio, Flash audio, Audible books, and Canon's CR3
@@ -112,8 +111,8 @@ pub fn listed_kind(data: &[u8]) -> Option<Kind> {
 }
 
 /// An ISO base media file (MP4, MOV, HEIF, AVIF), told apart by the brands
-/// of its leading `ftyp` box; the box's size doesn't matter. HEIF that
-/// doesn't say AVIF goes to libheif, which says what it can't decode.
+/// of its leading `ftyp` box; the box's size doesn't matter. libheif says
+/// what it can't decode among the HEIF files.
 fn iso_media(data: &[u8]) -> Option<Format> {
     let size = u32::from_be_bytes(data.get(0..4)?.try_into().ok()?) as usize;
     // Major brand, minor version, then four bytes per compatible brand.
@@ -128,11 +127,8 @@ fn iso_media(data: &[u8]) -> Option<Format> {
     let brands: Vec<&[u8; 4]> = std::iter::once(major)
         .chain(compatible.filter_map(|brand| brand.try_into().ok()))
         .collect();
-    let has = |list: &[&[u8; 4]]| brands.iter().any(|brand| list.contains(brand));
-    if has(AVIF_BRANDS) {
-        Some(Format::Avif)
-    } else if has(HEVC_BRANDS) || has(HEIF_BRANDS) {
-        Some(Format::Heic)
+    if brands.iter().any(|brand| HEIF_BRANDS.contains(brand)) {
+        Some(Format::Heif)
     } else if NOT_VIDEO_BRANDS.contains(&major) {
         None
     } else {

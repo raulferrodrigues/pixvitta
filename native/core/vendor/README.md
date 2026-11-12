@@ -4,7 +4,9 @@ Release tarballs of the C and C++ libraries the core builds into itself,
 exactly as published upstream. `build.rs` unpacks them into Cargo's build
 directory and builds them as static libraries with CMake: libde265 first,
 then libheif against it, with every other codec and helper library off. The
-HEIC decoder (`src/heic.rs`) uses them.
+HEIF decoder (`src/heif.rs`) uses them for HEIC and AVIF; AV1 is decoded by
+rav1d (a Rust crate), which `src/heif_shim.cc` registers with libheif as a
+decoder plugin at run time.
 
 | File | Source | SHA-256 |
 | --- | --- | --- |
@@ -25,5 +27,7 @@ Both are LGPL-3.0 (libheif's examples are MIT; they aren't built).
 4. Read the release's changes to `CMakeLists.txt` for new options, which
    may switch on a codec or look for a library on the system; turn them off
    in `build.rs`. A clean build's CMake output lists what libheif found.
-5. If libheif's API changed, check `src/heic_shim.cc` still compiles without
-   warnings, then run the corpus check.
+5. If libheif's API changed, check `src/heif_shim.cc` still compiles without
+   warnings, then run the corpus check. If the decoder plugin API version
+   went up, read the new fields in `heif_plugin.h`: the shim fills the
+   plugin struct by field name and leaves newer fields zero.
