@@ -82,6 +82,7 @@ machine's libmpv (size and duration only). Formats the core can't decode yet
 are listed with `expected_failure`. The run fails if a sample that should
 pass doesn't, or if an expected failure starts passing (then remove the
 line). It also lists `corpus/samples/scan/`, a folder of mislabelled files,
-and checks which are listed and as what. To add a sample, put the file in `corpus/samples/<format>/` and add
-a `[[sample]]` entry; [`corpus/README.md`](corpus/README.md) has the details
-and how the existing files were made.
+and checks which are listed and as what. To add a sample, put the file in
+`corpus/samples/<format>/` and add a `[[sample]]` entry;
+[`corpus/README.md`](corpus/README.md) has the details and how the existing
+files were made.
