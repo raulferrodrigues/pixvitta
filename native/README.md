@@ -12,13 +12,14 @@ through libmpv.
   reads the first bytes of every other file to tell whether it is an image or
   a video; TIFF and ICO are only listed by extension. The decoder always goes
   by content, so a mislabelled file still opens. It decodes JPEG,
-  PNG, GIF, WebP, BMP, TIFF, ICO, still AVIF (through rav1d, without its
-  assembly for now), HEIC (the primary image, through libheif and libde265,
-  built from the release tarballs in [`core/vendor/`](core/vendor)), JPEG XL
-  (through jxl-oxide; the first frame of an animation) and SVG and SVGZ
-  (through resvg, at the size the file declares; only `data:` images,
-  nothing outside the file). Not yet: animated or grid AVIF, HEIF sequences,
-  and animated JPEG XL.
+  PNG, GIF, WebP, BMP, TIFF, ICO, HEIC and AVIF (the primary image, grids
+  included, through libheif, built from the release tarballs in
+  [`core/vendor/`](core/vendor); HEVC decodes with libde265, AV1 with rav1d,
+  without its assembly for now), JPEG XL (through jxl-oxide; the first frame
+  of an animation) and SVG and SVGZ (through resvg, at the size the file
+  declares; only `data:` images, nothing outside the file). An animated
+  AVIF or HEIF sequence shows its still image, if it has one. Not yet:
+  playing animated AVIF, HEIF sequences and animated JPEG XL.
 - `linux/`: the Linux app, Qt 6 and QML with a thin C++ layer over the C API.
   Video is drawn by libmpv into a `QQuickFramebufferObject`.
 

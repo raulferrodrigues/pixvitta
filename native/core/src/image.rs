@@ -1,8 +1,8 @@
 //! Image decoding to sRGB RGBA8, straight alpha, EXIF orientation applied.
 //! `sniff` says what the file is from its content; the extension is never
 //! looked at. The `image` crate decodes; moxcms (which `image` already uses)
-//! converts embedded ICC profiles to sRGB; AVIF, HEIC, JPEG XL and SVG go
-//! through `avif`, `heic`, `jxl` and `svg`.
+//! converts embedded ICC profiles to sRGB; HEIF (HEIC and AVIF), JPEG XL and
+//! SVG go through `heif`, `jxl` and `svg`.
 //! `decode` reads a still (the first frame of an animated file); `Animation`
 //! plays GIF and WebP frame by frame.
 
@@ -48,13 +48,8 @@ pub fn decode(path: &Path) -> Result<Decoded, DecodeError> {
         file.read_to_end(&mut data).map(|_| data).map_err(|_| DecodeError::Io)
     };
     match format {
-        Some(Format::Avif) => {
-            let (picture, icc) = crate::avif::decode(&read_all(file)?)?;
-            let srgb = icc.and_then(|icc| srgb_transform(&icc));
-            Ok(finish(picture, Orientation::NoTransforms, srgb.as_deref()))
-        }
-        Some(Format::Heic) => {
-            let (picture, icc) = crate::heic::decode(&read_all(file)?)?;
+        Some(Format::Heif) => {
+            let (picture, icc) = crate::heif::decode(&read_all(file)?)?;
             let srgb = icc.and_then(|icc| srgb_transform(&icc));
             Ok(finish(picture, Orientation::NoTransforms, srgb.as_deref()))
         }

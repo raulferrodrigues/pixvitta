@@ -259,3 +259,6 @@ own OpenGL surface. There is no bridge between graphics stacks.
   hard disks and network shares. The decoder always goes by content. TIFF
   and ICO are not detected by content in the scan, because camera RAW shares
   TIFF's signature.
+- 2026-11-12: AVIF decodes through libheif, like HEIC, with rav1d registered
+  as libheif's AV1 decoder. It replaces avif-parse, which refuses grid
+  images.

@@ -1,9 +1,10 @@
 //! Builds libde265 and libheif from the release tarballs in `vendor/` as
-//! static libraries, and the small C++ shim (`src/heic_shim.cc`) the HEIC
+//! static libraries, and the small C++ shim (`src/heif_shim.cc`) the HEIF
 //! decoder calls them through. Nothing comes from the system but the C and
 //! C++ compilers, CMake and the C++ standard library: libheif gets every
 //! optional codec and helper library switched off, and is pointed at the
 //! libde265 built here, so it can't pick up a copy installed on the machine.
+//! Its AV1 decoder is rav1d, which the shim registers at run time.
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -15,7 +16,7 @@ fn main() {
     let out = PathBuf::from(std::env::var_os("OUT_DIR").unwrap());
     let vendor = Path::new(env!("CARGO_MANIFEST_DIR")).join("vendor");
     println!("cargo:rerun-if-changed=build.rs");
-    println!("cargo:rerun-if-changed=src/heic_shim.cc");
+    println!("cargo:rerun-if-changed=src/heif_shim.cc");
 
     let sources = out.join("src");
     let de265_source = extract(&vendor, &sources, LIBDE265);
@@ -87,12 +88,13 @@ fn main() {
         .cpp(true)
         .cpp_link_stdlib(None)
         .std("c++17")
-        .file("src/heic_shim.cc")
+        .file("src/heif_shim.cc")
         .include(heif.join("include"))
-        .compile("pixvitta_heic_shim");
+        .compile("pixvitta_heif_shim");
 
     // Order matters for the static link: the shim calls libheif, which calls
-    // libde265, and all three need the C++ standard library. A program that
+    // libde265, and all three need the C++ standard library. The shim also
+    // calls av1.rs, which is in the core itself. A program that
     // links the core's static library has to link that last one itself.
     println!("cargo:rustc-link-search=native={}", heif_lib.display());
     println!("cargo:rustc-link-search=native={}", de265_lib.display());

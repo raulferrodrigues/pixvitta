@@ -165,6 +165,29 @@ reference = "pattern-alpha.png"
 max_error = 4
 note = "alpha.avif with major brand mif1; avif is only a compatible brand"
 
+[[sample]]
+file = "avif/grid.avif"
+width = 256
+height = 192
+reference = "photo.png"
+note = "a 2x2 grid of 128x128 tiles; the bottom row is cut to 64 rows"
+
+[[sample]]
+file = "avif/rotated-mirrored.avif"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+note = "stored 64x96, shown upright through irot and imir"
+
+[[sample]]
+file = "avif/bitstream-colour.avif"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+note = "no colr box; BT.709 matrix and limited range only in the AV1 sequence header"
+
 # SVG
 [[sample]]
 file = "svg/pattern.svg"

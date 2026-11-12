@@ -1,21 +1,26 @@
-//! Still HEIC images, through libheif with libde265 (built from `vendor/` by
-//! build.rs), called through `heic_shim.cc`. libheif decodes the primary
-//! image, grids included, applies its rotation, mirroring and cropping
-//! (`irot`, `imir`, `clap`; an EXIF orientation is ignored, as the HEIF spec
-//! says), and converts it to 8-bit RGBA with the matrix and range of the
-//! file's nclx. The ICC profile is returned for the caller to convert, as for
-//! AVIF. Image sequences, auxiliary images and codecs other than HEVC are not
+//! HEIC and AVIF stills, through libheif (built from `vendor/` by build.rs),
+//! called through `heif_shim.cc`. HEVC decodes with libde265, AV1 with rav1d
+//! (`av1.rs`), which the shim registers with libheif as a decoder plugin.
+//! libheif decodes the primary image, grids and alpha included, applies its
+//! rotation, mirroring and cropping (`irot`, `imir`, `clap`; an EXIF
+//! orientation is ignored, as the HEIF spec says), and converts it to 8-bit
+//! RGBA with the matrix and range of the file's nclx, or of the bitstream when
+//! the file has none. The ICC profile is returned for the caller to convert.
+//! Image sequences (animated AVIF, HEIF sequences) show their primary still
+//! image if they have one; other auxiliary images and other codecs are not
 //! decoded.
 
 use crate::image::DecodeError;
 use image::{DynamicImage, RgbaImage};
 use std::ffi::c_int;
 
-/// Larger pictures are refused: 512 MiB of RGBA, as for AVIF.
-const MAX_PIXELS: u64 = 1 << 27;
+/// Larger pictures are refused: 512 MiB of RGBA, the `image` crate's
+/// default allocation limit.
+pub const MAX_PIXELS: u64 = 1 << 27;
 
-/// Grid tiles decoded at once. Each has its own libde265 decoder and worker
-/// thread for the length of the decode.
+/// Grid tiles decoded at once. Each has its own decoder for the length of the
+/// decode: libde265 with one worker thread, or rav1d with its share of the
+/// machine's threads (at least two).
 const MAX_THREADS: usize = 8;
 
 /// The primary image, upright, as RGBA8 with straight alpha, and its ICC
@@ -27,10 +32,11 @@ pub fn decode(data: &[u8]) -> Result<(DynamicImage, Option<Vec<u8>>), DecodeErro
     // lives, which `picture` holds until it is dropped at the end of this
     // function; `picture` is released once, by its Drop.
     let result = unsafe {
-        pv_heic_decode(
+        pv_heif_decode(
             data.as_ptr(),
             data.len(),
             MAX_PIXELS,
+            threads.min(256) as c_int,
             threads.min(MAX_THREADS) as c_int,
             &mut picture,
         )
@@ -45,7 +51,7 @@ pub fn decode(data: &[u8]) -> Result<(DynamicImage, Option<Vec<u8>>), DecodeErro
     Ok((DynamicImage::ImageRgba8(rgba), icc))
 }
 
-/// `pv_heic_picture` in heic_shim.cc.
+/// `pv_heif_picture` in heif_shim.cc.
 #[repr(C)]
 struct Picture {
     context: *mut std::ffi::c_void,
@@ -112,13 +118,20 @@ impl Picture {
 
 impl Drop for Picture {
     fn drop(&mut self) {
-        // SAFETY: the picture came from pv_heic_decode (or is empty, which
+        // SAFETY: the picture came from pv_heif_decode (or is empty, which
         // release accepts) and is released once, here.
-        unsafe { pv_heic_release(self) }
+        unsafe { pv_heif_release(self) }
     }
 }
 
 extern "C" {
-    fn pv_heic_decode(data: *const u8, size: usize, max_pixels: u64, threads: c_int, out: *mut Picture) -> c_int;
-    fn pv_heic_release(picture: *mut Picture);
+    fn pv_heif_decode(
+        data: *const u8,
+        size: usize,
+        max_pixels: u64,
+        threads: c_int,
+        tile_threads: c_int,
+        out: *mut Picture,
+    ) -> c_int;
+    fn pv_heif_release(picture: *mut Picture);
 }

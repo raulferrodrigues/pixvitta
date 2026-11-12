@@ -42,6 +42,9 @@ The samples, from those references:
 | `avif/10bit-444.avif` | ffmpeg 6.1 with libaom: `-vf scale=out_color_matrix=bt709:out_range=tv,format=yuv444p10le -colorspace bt709 -color_primaries bt709 -color_trc iec61966-2-1 -color_range tv -c:v libaom-av1 -crf 12 -still-picture 1` |
 | `avif/alpha.avif`, `heic/yuv420.heic` | `heif-enc` from libheif 1.23 with aom and x265, `-q 90` |
 | `avif/major-brand-mif1.avif` | `avif/alpha.avif` with the major brand of its `ftyp` box overwritten in place with `mif1` (`printf mif1 \| dd of=... bs=1 seek=8 conv=notrunc`); `avif` stays among the compatible brands |
+| `avif/grid.avif` | `heif-enc -A -q 90 --cut-tiles 128 photo.png`: a 2x2 grid whose bottom row is cut to 64 rows, as for `heic/grid.heic` |
+| `avif/rotated-mirrored.avif` | `in.png` as for `heic/rotated-mirrored.heic`, then `heif-enc -A -q 90 --rotate-cw 90 --flip-h in.png` |
+| `avif/bitstream-colour.avif` | `avifenc` 1.4 `-q 90 --cicp 1/13/1 -r limited -y 420 pattern.png`, then its `colr` box renamed in place to `free` (`printf free \| dd of=... bs=1 seek=229 conv=notrunc`), so the BT.709 matrix and limited range are only in the AV1 sequence header. No encoder writes AVIF without a `colr` box; the renamed box stays an (ignored) property, so the indices in `ipma` still hold |
 | `heic/10bit.heic` | `convert pattern.png -depth 16 PNG48:pattern16.png`, then `heif-enc -q 90 -b 10 pattern16.png` (`-b` only applies to 16-bit input; from an 8-bit PNG it writes 8-bit) |
 | `heic/grid.heic` | `heif-enc -q 90 --cut-tiles 128 photo.png`: a 2x2 grid whose bottom row is cut to 64 rows |
 | `heic/rotated-mirrored.heic` | `convert pattern.png -flop -rotate -90 -strip in.png`, then `heif-enc -q 90 --rotate-cw 90 --flip-h in.png`, which stores `in.png` as it is with `irot` and `imir` that show it as the pattern |
