@@ -2,12 +2,14 @@
 
 The native rewrite described in [`docs/native-app-plan.md`](../docs/native-app-plan.md).
 For now it is a thin slice: open a folder, show its images fitted to the
-window (animated GIF and WebP play), step through them, and play videos
+window (scaled down, never up) (animated GIF and WebP play), step through them, and play videos
 through libmpv.
 
 - `core/`: the Rust core, built as a static library with a plain C API
   ([`core/include/pixvitta.h`](core/include/pixvitta.h)). It lists folders,
-  decodes images to sRGB RGBA, and owns the libmpv player. A folder lists a
+  decodes images to sRGB RGBA, owns the libmpv player, and does the
+  view calculations both UIs share (for now, where an image is drawn to fit
+  the view: scaled down, never up, and centred). A folder lists a
   file with an image or video extension as that kind without opening it, and
   reads the first bytes of every other file to tell whether it is an image or
   a video; TIFF and ICO are only listed by extension. The decoder always goes
@@ -74,10 +76,10 @@ Left and Right step through the files, and Space plays or pauses a video.
 
 [`corpus/`](corpus) holds the sample files the core must open, and
 [`corpus/corpus.toml`](corpus/corpus.toml) says what each must produce. Run
-the check from the repository root:
+the check, with the core's unit tests, from the repository root:
 
 ```sh
-cargo test --release --manifest-path native/core/Cargo.toml --test corpus
+cargo test --release --manifest-path native/core/Cargo.toml
 ```
 
 For each sample it checks that the file opens, that its size is right, and

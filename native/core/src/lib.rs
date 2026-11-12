@@ -19,6 +19,7 @@ mod mpv;
 mod player;
 mod sniff;
 mod svg;
+mod view;
 
 use std::ffi::{c_char, c_int, c_void, CStr};
 use std::os::unix::ffi::OsStrExt;
@@ -236,6 +237,18 @@ pub unsafe extern "C" fn pv_animation_release(animation: *mut PvAnimation) {
     if !animation.is_null() {
         drop(Box::from_raw(animation));
     }
+}
+
+// View
+
+#[no_mangle]
+pub extern "C" fn pv_view_fit(
+    content_width: f64,
+    content_height: f64,
+    view_width: f64,
+    view_height: f64,
+) -> view::Rect {
+    view::fit(content_width, content_height, view_width, view_height)
 }
 
 // Video
