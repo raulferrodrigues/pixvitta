@@ -102,10 +102,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install libmpv
+      - name: Install libmpv and nasm
         uses: ./.github/actions/apt-install
         with:
-          packages: libmpv-dev
+          packages: libmpv-dev nasm
 
       - name: Cache Cargo
         uses: actions/cache@v6
