@@ -2,8 +2,9 @@
 
 The native rewrite described in [`docs/native-app-plan.md`](../docs/native-app-plan.md).
 For now it is a thin slice: open a folder, show its images fitted to the
-window (scaled down, never up) (animated GIF and WebP play), step through them, and play videos
-through libmpv.
+window (scaled down, never up; animated GIF and WebP play), step through
+them, and play videos through libmpv. What is known to be missing or wrong
+is listed in [`future-work.md`](future-work.md).
 
 - `core/`: the Rust core, built as a static library with a plain C API
   ([`core/include/pixvitta.h`](core/include/pixvitta.h)). It lists folders,
