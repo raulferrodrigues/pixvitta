@@ -250,3 +250,7 @@ own OpenGL surface. There is no bridge between graphics stacks.
   held back until the .deb is solid. Sparkle for macOS updates.
 - 2026-11-09: The native code lives in this repo under `native/`. The Linux
   app is built first; macOS follows once the Linux thin slice works.
+- 2026-11-12: HEIC decodes with libheif and libde265, built from release
+  tarballs pinned in the repo. Pure-Rust HEIC decoders were measured against
+  72 files; the best (`heifer`) decoded all of them correctly but is five
+  weeks old, so it was not adopted.

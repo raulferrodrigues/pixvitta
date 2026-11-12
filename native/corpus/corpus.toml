@@ -188,7 +188,6 @@ width = 96
 height = 64
 reference = "pattern.png"
 max_error = 4
-expected_failure = "no HEIC decoder in the core"
 
 [[sample]]
 file = "heic/10bit.heic"
@@ -196,7 +195,36 @@ width = 96
 height = 64
 reference = "pattern.png"
 max_error = 4
-expected_failure = "no HEIC decoder in the core"
+
+[[sample]]
+file = "heic/grid.heic"
+width = 256
+height = 192
+reference = "photo.png"
+note = "a 2x2 grid of 128x128 tiles; the bottom row is cut to 64 rows"
+
+[[sample]]
+file = "heic/rotated-mirrored.heic"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+note = "stored 64x96, shown upright through irot and imir"
+
+[[sample]]
+file = "heic/alpha.heic"
+width = 96
+height = 64
+reference = "pattern-alpha.png"
+max_error = 4
+
+[[sample]]
+file = "heic/adobe-rgb.heic"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+note = "Adobe RGB (1998) ICC profile, converted to sRGB"
 
 # JPEG XL
 [[sample]]

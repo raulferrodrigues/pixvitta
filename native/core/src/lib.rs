@@ -12,6 +12,7 @@
 
 mod avif;
 mod folder;
+mod heic;
 mod image;
 mod jxl;
 mod mpv;

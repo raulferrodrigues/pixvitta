@@ -88,8 +88,9 @@ set_target_properties(pixvitta_core PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${PIXVITTA_CORE_DIR}/include"
 )
 add_dependencies(pixvitta_core pixvitta_core_build)
-# The core calls libmpv; a static library can't carry that link itself.
-target_link_libraries(pixvitta_core INTERFACE PkgConfig::MPV Threads::Threads ${CMAKE_DL_LIBS} m)
+# The core calls libmpv, and its HEIC decoder (libheif) is C++; a static
+# library can't carry those links itself.
+target_link_libraries(pixvitta_core INTERFACE PkgConfig::MPV Threads::Threads ${CMAKE_DL_LIBS} m stdc++)
 
 qt_add_executable(pixvitta
     src/main.cpp
