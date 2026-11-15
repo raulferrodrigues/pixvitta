@@ -96,17 +96,22 @@ jobs:
   native-corpus:
     name: Native corpus check
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # A clean build of the bundled video libraries takes several minutes on
+    # the runner; the cache makes later runs fast.
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Install libmpv and nasm
+      # What native/README.md lists for the core.
+      - name: Install build tools and system libraries
         uses: ./.github/actions/apt-install
         with:
-          packages: libmpv-dev nasm
+          packages: nasm meson ninja-build python3 hwdata libva-dev libdrm-dev libegl-dev libpulse-dev libasound2-dev libfontconfig-dev
 
+      # The bundled libraries rebuild when their tarballs or build scripts
+      # change, so those are part of the key.
       - name: Cache Cargo
         uses: actions/cache@v6
         with:
@@ -115,7 +120,7 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             native/core/target
-          key: native-cargo-${{ runner.os }}-${{ hashFiles('native/core/Cargo.lock') }}
+          key: native-cargo-${{ runner.os }}-${{ hashFiles('native/core/Cargo.lock', 'native/core/build.rs', 'native/core/build_media.rs', 'native/core/vendor/**') }}
           restore-keys: native-cargo-${{ runner.os }}-
 
       - name: Core tests and corpus check

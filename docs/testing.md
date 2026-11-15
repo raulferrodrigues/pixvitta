@@ -149,7 +149,8 @@ The Validate workflow has three jobs on every pull request. *Test, typecheck, an
 build* runs `pnpm validate`, the same command the release builds run. *Stage and
 E2E tests* runs both Playwright projects on Linux under `xvfb` and uploads
 `test-results/` when something fails. *Native corpus check* runs the native
-core's corpus check (`native/README.md`) against Ubuntu's libmpv.
+core's corpus check (`native/README.md`), through the libmpv and FFmpeg the
+core builds from `native/core/vendor/`.
 
 ## Known limits
 

@@ -1,6 +1,6 @@
 //! Hand-written bindings for the part of libmpv the core uses: the client
-//! API and the OpenGL render API. The final link against libmpv happens in
-//! the app that links this static library.
+//! API and the OpenGL render API. libmpv itself is built into the core
+//! from `vendor/` (`build_media.rs`).
 
 use std::ffi::{c_char, c_int, c_void};
 

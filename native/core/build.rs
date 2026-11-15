@@ -5,9 +5,17 @@
 //! optional codec and helper library switched off, and is pointed at the
 //! libde265 built here, so it can't pick up a copy installed on the machine.
 //! Its AV1 decoder is rav1d, which the shim registers at run time.
+//!
+//! It also builds libmpv, FFmpeg and the libraries under them
+//! (`build_media.rs`) and links the core against them, so the app never
+//! uses the system's libmpv or FFmpeg.
+
+#[path = "build_media.rs"]
+mod media;
 
 use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 const LIBDE265: &str = "libde265-1.1.3";
 const LIBHEIF: &str = "libheif-1.23.7";
@@ -92,6 +100,21 @@ fn main() {
         .include(heif.join("include"))
         .compile("pixvitta_heif_shim");
 
+    let system = media::build(&vendor, &sources, &out).link();
+    // The core's static library can't carry its dynamic links, so the
+    // program that links it reads them from here, one per line
+    // (linux/CMakeLists.txt passes this variable).
+    println!("cargo:rerun-if-env-changed=PIXVITTA_CORE_SYSTEM_LIBS");
+    if let Some(file) = std::env::var_os("PIXVITTA_CORE_SYSTEM_LIBS") {
+        let flags: String = system.iter().map(|name| format!("-l{name}\n")).collect();
+        std::fs::write(file, flags).unwrap();
+    }
+    // Keep the bundled libraries' symbols out of the dynamic symbol table
+    // of the core's own tests, so a system library loaded with them still
+    // binds to its own dependencies (fontconfig to the system's FreeType,
+    // for one). The app does the same in CMake.
+    println!("cargo:rustc-link-arg-tests=-Wl,--exclude-libs,ALL");
+
     // Order matters for the static link: the shim calls libheif, which calls
     // libde265, and all three need the C++ standard library. The shim also
     // calls av1.rs, which is in the core itself. A program that
@@ -104,19 +127,33 @@ fn main() {
     println!("cargo:rustc-link-lib={}", if apple { "c++" } else { "stdc++" });
 }
 
-/// Unpacks `vendor/<name>.tar.gz` under `into`, once, and returns the source
-/// directory (the tarballs hold a single `<name>/` directory).
+fn run(command: &mut Command, what: &str) {
+    let status = command
+        .status()
+        .unwrap_or_else(|error| panic!("{what}: could not run {:?}: {error}", command.get_program()));
+    if !status.success() {
+        panic!("{what} failed ({status}); its output is above");
+    }
+}
+
+/// Unpacks `vendor/<name>.tar.gz` or `vendor/<name>.tar.xz` under `into`,
+/// once, and returns the source directory (the tarballs hold a single
+/// `<name>/` directory).
 fn extract(vendor: &Path, into: &Path, name: &str) -> PathBuf {
-    let tarball = vendor.join(format!("{name}.tar.gz"));
+    let gz = vendor.join(format!("{name}.tar.gz"));
+    let tarball = if gz.exists() { gz } else { vendor.join(format!("{name}.tar.xz")) };
     println!("cargo:rerun-if-changed={}", tarball.display());
     let source = into.join(name);
     let done = into.join(format!("{name}.extracted"));
     if !done.exists() {
         let _ = std::fs::remove_dir_all(&source);
         let file = File::open(&tarball).unwrap_or_else(|error| panic!("{}: {error}", tarball.display()));
-        tar::Archive::new(flate2::read::GzDecoder::new(file))
-            .unpack(into)
-            .unwrap_or_else(|error| panic!("unpacking {}: {error}", tarball.display()));
+        let unpacked = if tarball.extension().is_some_and(|extension| extension == "xz") {
+            tar::Archive::new(liblzma::read::XzDecoder::new(file)).unpack(into)
+        } else {
+            tar::Archive::new(flate2::read::GzDecoder::new(file)).unpack(into)
+        };
+        unpacked.unwrap_or_else(|error| panic!("unpacking {}: {error}", tarball.display()));
         File::create(&done).unwrap();
     }
     source

@@ -32,19 +32,26 @@ is listed in [`future-work.md`](future-work.md).
 
 ## Linux
 
-Needs Rust (through rustup), CMake, a C and C++17 compiler, nasm (on
-x86-64), and the system's Qt 6 and libmpv. The core needs CMake, nasm and the
-compilers too, even built on its own (the corpus check, for one): its build
-script builds libheif and libde265 from source, rav1d assembles its x86-64
-assembly with nasm, and the result links the C++ standard library. On Ubuntu 24.04
-or Linux Mint 22:
+Needs Rust (through rustup), CMake, make, meson (1.3 or newer), ninja,
+python3, a C and C++17 compiler, nasm (on x86-64), the system's Qt 6, and
+the development packages of the few system libraries video still links
+(libva, libdrm, EGL, PulseAudio, ALSA, fontconfig). The core needs all but
+Qt even built on its own (the corpus check, for one): its build script
+builds libheif and libde265, and libmpv, FFmpeg and the libraries under
+them, from [`core/vendor/`](core/vendor), and the result links the C++
+standard library. [`video-plan.md`](video-plan.md) says what is bundled and
+why. On Ubuntu 24.04 or Linux Mint 22:
 
 ```sh
-sudo apt install cmake g++ nasm pkg-config qt6-base-dev qt6-declarative-dev libmpv-dev \
+sudo apt install cmake g++ make nasm pkg-config meson ninja-build python3 hwdata \
+    libva-dev libdrm-dev libegl-dev libpulse-dev libasound2-dev libfontconfig-dev \
+    qt6-base-dev qt6-declarative-dev \
     qml6-module-qtquick qml6-module-qtqml qml6-module-qtqml-models qml6-module-qtqml-workerscript
 ```
 
-Build from the repository root. CMake runs cargo for the core.
+Build from the repository root. CMake runs cargo for the core. A clean
+build takes about 3 minutes on 16 cores, most of it the video libraries;
+later builds only rebuild what changed.
 
 ```sh
 cmake -S native/linux -B native/linux/build -DCMAKE_BUILD_TYPE=Release
@@ -54,7 +61,8 @@ cmake --build native/linux/build -j
 No other flags are needed, even with Homebrew ahead of the system on `PATH`:
 
 - CMake uses the system's `pkg-config` (`/usr/bin`), the only one that sees
-  the system's libmpv, even when another `pkg-config` comes first on `PATH`.
+  the system's libraries, even when another `pkg-config` comes first on
+  `PATH`.
 - It looks for `cargo` on `PATH`, then in `~/.cargo/bin`, then asks
   `rustup which cargo`, which covers a rustup installed by Homebrew.
 - It ignores Homebrew's prefix when looking for libraries, so the app links
@@ -64,6 +72,9 @@ To use a different tool, pass `-DCARGO=/path/to/cargo` or
 `-DPKG_CONFIG_EXECUTABLE=/path/to/pkg-config` (or set `PKG_CONFIG`) to the
 first command. These are cached, so remove the build directory to undo them.
 To use a library from Homebrew, pass `-DCMAKE_PREFIX_PATH=<homebrew>/opt/<formula>`.
+
+`MESON` and `PKG_CONFIG` (environment variables) choose other meson and
+pkg-config programs for the core's own build.
 
 Run it on a folder:
 
@@ -86,8 +97,9 @@ cargo test --release --manifest-path native/core/Cargo.toml
 For each sample it checks that the file opens, that its size is right, and
 for images that the pixels roughly match a reference. Images are also
 played through the animation API: each frame's duration (and pixels, where
-there is a reference per frame), and that the first frame follows the last. Videos go through the
-machine's libmpv (size and duration only). Formats the core can't decode yet
+there is a reference per frame), and that the first frame follows the last. Videos go through
+the core's libmpv: their first video frame must decode, and their audio if
+they have an audio track, and their size and duration must match. Formats the core can't decode yet
 are listed with `expected_failure`. The run fails if a sample that should
 pass doesn't, or if an expected failure starts passing (then remove the
 line). It also lists `corpus/samples/scan/`, a folder of mislabelled files,
