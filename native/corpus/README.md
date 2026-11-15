@@ -60,7 +60,7 @@ The samples, from those references:
 | `svg/viewbox-alpha.svg` | written by hand: a viewBox and no width or height, three semi-transparent rects |
 | `svg/data-png.svg` | written by hand: an `<image>` whose href is `pattern.png` as a base64 `data:` URL |
 | `ico/sizes-with-png.ico` | `convert square-256.png square-48.png square-16.png out.ico` |
-| `video/*` | ffmpeg from the pattern scaled to 320x240: `-loop 1 -framerate 10 -t 2`, plus a `sine` audio track where the container has one. Codecs: libx264, libx265 (`-pix_fmt yuv420p10le -tag:v hvc1` for 10-bit), `prores_ks -profile:v 3`, libvpx-vp9 with Opus, libtheora with Vorbis, mpeg4 |
+| `video/*` | ffmpeg from the pattern scaled to 320x240: `-loop 1 -framerate 10 -t 2`, plus a `sine` audio track where the container has one. Codecs: libx264, libx265 (`-pix_fmt yuv420p10le -tag:v hvc1` for 10-bit), `prores_ks -profile:v 3`, libvpx-vp9 with Opus, libtheora with Vorbis, mpeg4, and for `av1.mkv` (ffmpeg 6.1) `-vf scale=320:240,format=yuv420p -c:v libaom-av1 -crf 30 -cpu-used 8` with Opus |
 
 `scan/` is a folder for the scan check (`[[scan]]` in `corpus.toml`), not
 decoded on its own. Its files are copies of the samples above under other

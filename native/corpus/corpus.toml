@@ -311,7 +311,8 @@ height = 64
 reference = "pattern.png"
 max_error = 0.5
 
-# Video: through the machine's libmpv, until the core bundles its own.
+# Video: through the core's own libmpv. The first video frame, and audio if
+# the file has an audio track, must decode.
 [[sample]]
 file = "video/h264.mp4"
 width = 320
@@ -359,6 +360,13 @@ file = "video/hevc.mkv"
 width = 320
 height = 240
 duration = 2
+
+[[sample]]
+file = "video/av1.mkv"
+width = 320
+height = 240
+duration = 2
+note = "AV1 with Opus; the bundled libmpv decodes AV1 with rav1d"
 
 [[sample]]
 file = "video/mpeg4.avi"

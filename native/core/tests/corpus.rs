@@ -1,8 +1,9 @@
 //! Opens every file in native/corpus/corpus.toml and checks it against what
 //! the manifest says. Images go through the core's C API, both as a still
-//! and frame by frame; videos through libmpv, as the core's player does (the
-//! machine's libmpv for now). Then lists samples/scan/ through the C API and
-//! checks which files come back, and as what kind.
+//! and frame by frame; videos through the core's own libmpv, as the core's
+//! player does. Then
+//! lists samples/scan/ through the C API and checks which files come back,
+//! and as what kind.
 //!
 //!   cargo test --release --test corpus
 
@@ -164,7 +165,7 @@ struct MpvEvent {
     data: *mut c_void,
 }
 
-#[link(name = "mpv")]
+// The core links its own libmpv.
 extern "C" {
     fn mpv_create() -> *mut c_void;
     fn mpv_initialize(handle: *mut c_void) -> c_int;
@@ -173,11 +174,13 @@ extern "C" {
     fn mpv_command(handle: *mut c_void, args: *mut *const c_char) -> c_int;
     fn mpv_get_property(handle: *mut c_void, name: *const c_char, format: c_int, data: *mut c_void) -> c_int;
     fn mpv_wait_event(handle: *mut c_void, timeout: f64) -> *mut MpvEvent;
+    fn mpv_get_property_string(handle: *mut c_void, name: *const c_char) -> *mut c_char;
+    fn mpv_free(data: *mut c_void);
 }
 
 const MPV_EVENT_NONE: c_int = 0;
 const MPV_EVENT_END_FILE: c_int = 7;
-const MPV_EVENT_FILE_LOADED: c_int = 8;
+const MPV_EVENT_PLAYBACK_RESTART: c_int = 21;
 const MPV_FORMAT_INT64: c_int = 4;
 const MPV_FORMAT_DOUBLE: c_int = 5;
 
@@ -190,30 +193,59 @@ fn check_video(path: &CStr, sample: &toml::Table) -> Result<(), String> {
         mpv_initialize(mpv);
         let mut args = [c"loadfile".as_ptr(), path.as_ptr(), ptr::null()];
         mpv_command(mpv, args.as_mut_ptr());
-        // A timeout here means libmpv went quiet, not a pause in the test.
-        let loaded = loop {
+        // Playback is ready, paused, once the first video frame (and audio,
+        // if there is any) has been decoded. A timeout here means libmpv
+        // went quiet, not a pause in the test.
+        let ready = loop {
             match (*mpv_wait_event(mpv, 20.0)).event_id {
-                MPV_EVENT_FILE_LOADED => break true,
+                MPV_EVENT_PLAYBACK_RESTART => break true,
                 MPV_EVENT_END_FILE | MPV_EVENT_NONE => break false,
                 _ => {}
             }
         };
-        let (mut width, mut height, mut duration) = (0i64, 0i64, 0f64);
-        mpv_get_property(mpv, c"width".as_ptr(), MPV_FORMAT_INT64, &mut width as *mut _ as *mut c_void);
-        mpv_get_property(mpv, c"height".as_ptr(), MPV_FORMAT_INT64, &mut height as *mut _ as *mut c_void);
+        let int = |name: &CStr| {
+            let mut value = 0i64;
+            let status = mpv_get_property(mpv, name.as_ptr(), MPV_FORMAT_INT64, &mut value as *mut _ as *mut c_void);
+            (status >= 0).then_some(value)
+        };
+        // video-params and audio-params describe decoded frames, unlike
+        // width and height, which come from the container.
+        let (width, height) = (int(c"video-params/w"), int(c"video-params/h"));
+        // Every audio track in the file, decodable or not: one libmpv can't
+        // decode isn't selected, so current-tracks wouldn't show it.
+        let audio_track = (0..int(c"track-list/count").unwrap_or(0)).any(|index| {
+            let name = CString::new(format!("track-list/{index}/type")).unwrap();
+            let value = mpv_get_property_string(mpv, name.as_ptr());
+            let audio = !value.is_null() && CStr::from_ptr(value) == c"audio";
+            mpv_free(value.cast());
+            audio
+        });
+        let audio_rate = int(c"audio-params/samplerate");
+        let mut duration = 0f64;
         mpv_get_property(mpv, c"duration".as_ptr(), MPV_FORMAT_DOUBLE, &mut duration as *mut _ as *mut c_void);
         mpv_terminate_destroy(mpv);
 
-        if !loaded {
-            return Err("libmpv does not open it".into());
+        if !ready {
+            return Err("libmpv does not play it".into());
+        }
+        let (Some(width), Some(height)) = (width, height) else {
+            return Err("libmpv decodes no video frame".into());
+        };
+        if audio_track && audio_rate.is_none_or(|rate| rate <= 0) {
+            return Err("libmpv decodes no audio from its audio track".into());
         }
         check_size(width, height, sample)?;
-        let expected = number(sample, "duration").unwrap_or(0.0);
-        if (duration - expected).abs() > 0.15 {
-            return Err(format!("{duration:.2} s, expected {expected} s"));
-        }
-        Ok(())
+        check_duration(duration, sample)?;
     }
+    Ok(())
+}
+
+fn check_duration(duration: f64, sample: &toml::Table) -> Result<(), String> {
+    let expected = number(sample, "duration").unwrap_or(0.0);
+    if (duration - expected).abs() > 0.15 {
+        return Err(format!("{duration:.2} s, expected {expected} s"));
+    }
+    Ok(())
 }
 
 /// Lists samples/scan/ through the C API and compares it with the [[scan]]

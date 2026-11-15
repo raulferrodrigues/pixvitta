@@ -159,24 +159,20 @@ scroll in the core, with tests. Only fitting is there.
 
 ### Hardware decoding is not wired up
 
-The player asks libmpv for `hwdec=auto-safe`, but the Linux app does not
-pass its X11 or Wayland display to libmpv's render context, so VA-API
-cannot be used and video decodes in software.
+The player asks libmpv for `hwdec=auto-safe`, but the Linux app gives
+libmpv's render context nothing to reach the GPU with, so video decodes in
+software.
 
-Proposed direction: pass the display when creating the render context in
-`linux/src/videoitem.cpp`, then check a VA-API decode actually happens.
-
-### libmpv and FFmpeg come from the system
-
-The plan bundles and pins them like the image decoders. The corpus check
-uses the machine's libmpv, so a video result can differ between machines.
+Proposed direction: open the GPU's render node and pass it as
+`MPV_RENDER_PARAM_DRM_DISPLAY_v2` in `linux/src/videoitem.cpp`, then check
+a VA-API and an NVDEC decode actually happen. Step 4 of
+[`video-plan.md`](video-plan.md) has the details.
 
 ## Not yet seen working
 
-- AV1 video has not been watched playing on a real screen. The app is
-  linked so that rav1d's `dav1d_*` symbols cannot replace the system
-  libdav1d that FFmpeg uses, and that was checked with the dynamic linker's
-  debug output, not by eye.
+- No video, AV1 or other, has been watched playing on a real screen
+  through the bundled libmpv. The corpus check decodes every sample through
+  it, AV1 through rav1d, and the app starts with it.
 - No HEIC file has been opened in the running Linux app. The decode is
   covered by the corpus through the same C API call.
 - The core's link line for the C++ standard library on macOS (`c++`) is

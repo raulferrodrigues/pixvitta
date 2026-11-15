@@ -4,8 +4,9 @@ project(pixvitta LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Qt and libmpv come from the system's packages, which only the system's
-# pkg-config sees. Look for it in the system directories first, so one that
+# Qt, and the system libraries the core's bundled libmpv links (libva, EGL,
+# PulseAudio and so on), come from the system's packages, which only the
+# system's pkg-config sees. Look for it in the system directories first, so one that
 # another package manager (such as Homebrew) puts ahead on PATH isn't used.
 # Qt's package files call pkg-config too, so this comes before them.
 # -DPKG_CONFIG_EXECUTABLE or the PKG_CONFIG environment variable still win.
@@ -34,11 +35,6 @@ find_package(Threads REQUIRED)
 find_package(PkgConfig)
 if(NOT PKG_CONFIG_FOUND)
     message(FATAL_ERROR "pkg-config not found. Install it (on Ubuntu: sudo apt install pkg-config).")
-endif()
-pkg_check_modules(MPV IMPORTED_TARGET mpv)
-if(NOT MPV_FOUND)
-    message(FATAL_ERROR "${PKG_CONFIG_EXECUTABLE} can't find libmpv. Install its development package "
-        "(on Ubuntu: sudo apt install libmpv-dev), or pass -DPKG_CONFIG_EXECUTABLE=<pkg-config that sees it>.")
 endif()
 
 qt_standard_project_setup()
@@ -73,12 +69,20 @@ endif()
 get_filename_component(PIXVITTA_CARGO_DIR "${CARGO}" DIRECTORY)
 find_program(RUSTC rustc HINTS "${PIXVITTA_CARGO_DIR}" REQUIRED)
 
+# The core's build writes the system libraries its bundled libmpv needs
+# (libva, EGL, PulseAudio and so on) here, as linker flags. It gets the
+# system's pkg-config, found above, for the bundled libraries' builds.
+set(PIXVITTA_CORE_SYSTEM_LIBS "${CMAKE_CURRENT_BINARY_DIR}/core-system-libs.txt")
+
 add_custom_target(pixvitta_core_build
-    COMMAND "${CMAKE_COMMAND}" -E env "RUSTC=${RUSTC}"
+    COMMAND "${CMAKE_COMMAND}" -E env
+        "RUSTC=${RUSTC}"
+        "PIXVITTA_CORE_SYSTEM_LIBS=${PIXVITTA_CORE_SYSTEM_LIBS}"
+        "PKG_CONFIG=${PKG_CONFIG_EXECUTABLE}"
         "${CARGO}" build --release
         --manifest-path "${PIXVITTA_CORE_DIR}/Cargo.toml"
         --target-dir "${PIXVITTA_CORE_TARGET_DIR}"
-    BYPRODUCTS "${PIXVITTA_CORE_LIB}"
+    BYPRODUCTS "${PIXVITTA_CORE_LIB}" "${PIXVITTA_CORE_SYSTEM_LIBS}"
     USES_TERMINAL
 )
 
@@ -88,9 +92,12 @@ set_target_properties(pixvitta_core PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${PIXVITTA_CORE_DIR}/include"
 )
 add_dependencies(pixvitta_core pixvitta_core_build)
-# The core calls libmpv, and libheif, its decoder for HEIC and AVIF, is C++;
-# a static library can't carry those links itself.
-target_link_libraries(pixvitta_core INTERFACE PkgConfig::MPV Threads::Threads ${CMAKE_DL_LIBS} m stdc++)
+# A static library can't carry its dynamic links: the system libraries
+# under the core's libmpv, read at link time from the file the core's build
+# writes (a linker response file), and the C++ standard library, which
+# libheif, its decoder for HEIC and AVIF, needs.
+target_link_libraries(pixvitta_core INTERFACE "-Wl,@${PIXVITTA_CORE_SYSTEM_LIBS}"
+    Threads::Threads ${CMAKE_DL_LIBS} m stdc++)
 
 qt_add_executable(pixvitta
     src/main.cpp
@@ -108,9 +115,10 @@ qt_add_qml_module(pixvitta
         src/videoitem.h src/videoitem.cpp
 )
 
-# Keep the core's symbols out of the executable's exports. Its AV1 decoder
-# (rav1d) defines the same dav1d_* names as libdav1d, and libmpv's FFmpeg
-# would otherwise call ours instead of its own and fail to play AV1 video.
+# Keep the core's symbols, its bundled libraries' included, out of the
+# executable's exports. Otherwise the bundled FreeType would replace the
+# system's under the system's fontconfig, and the bundled FFmpeg could
+# clash with a system copy another library loads.
 target_link_options(pixvitta PRIVATE "LINKER:--exclude-libs,libpixvitta_core.a")
 
 # The generated QML type registrations include the headers by name.

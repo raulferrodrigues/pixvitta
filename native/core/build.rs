@@ -5,9 +5,18 @@
 //! optional codec and helper library switched off, and is pointed at the
 //! libde265 built here, so it can't pick up a copy installed on the machine.
 //! Its AV1 decoder is rav1d, which the shim registers at run time.
+//!
+//! It also builds libmpv, FFmpeg and the libraries under them
+//! (`build_media.rs`) and links the core against them, so the app never
+//! uses the system's libmpv or FFmpeg.
 
+#[path = "build_media.rs"]
+mod media;
+
+use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 const LIBDE265: &str = "libde265-1.1.3";
 const LIBHEIF: &str = "libheif-1.23.7";
@@ -92,6 +101,21 @@ fn main() {
         .include(heif.join("include"))
         .compile("pixvitta_heif_shim");
 
+    let system = media::build(&vendor, &sources, &out).link();
+    // The core's static library can't carry its dynamic links, so the
+    // program that links it reads them from here, one per line
+    // (linux/CMakeLists.txt passes this variable).
+    println!("cargo:rerun-if-env-changed=PIXVITTA_CORE_SYSTEM_LIBS");
+    if let Some(file) = std::env::var_os("PIXVITTA_CORE_SYSTEM_LIBS") {
+        let flags: String = system.iter().map(|name| format!("-l{name}\n")).collect();
+        std::fs::write(file, flags).unwrap();
+    }
+    // Keep the bundled libraries' symbols out of the dynamic symbol table
+    // of the core's own tests, so a system library loaded with them still
+    // binds to its own dependencies (fontconfig to the system's FreeType,
+    // for one). The app does the same in CMake.
+    println!("cargo:rustc-link-arg-tests=-Wl,--exclude-libs,ALL");
+
     // Order matters for the static link: the shim calls libheif, which calls
     // libde265, and all three need the C++ standard library. The shim also
     // calls av1.rs, which is in the core itself. A program that
@@ -104,22 +128,85 @@ fn main() {
     println!("cargo:rustc-link-lib={}", if apple { "c++" } else { "stdc++" });
 }
 
-/// Unpacks `vendor/<name>.tar.gz` under `into`, once, and returns the source
-/// directory (the tarballs hold a single `<name>/` directory).
+fn run(command: &mut Command, what: &str) {
+    let status = command
+        .status()
+        .unwrap_or_else(|error| panic!("{what}: could not run {:?}: {error}", command.get_program()));
+    if !status.success() {
+        panic!("{what} failed ({status}); its output is above");
+    }
+}
+
+/// Unpacks `vendor/<name>.tar.gz` or `vendor/<name>.tar.xz` under `into`
+/// and returns the source directory (the tarballs hold a single `<name>/`
+/// directory).
 fn extract(vendor: &Path, into: &Path, name: &str) -> PathBuf {
-    let tarball = vendor.join(format!("{name}.tar.gz"));
+    let tarball = tarball(vendor, name);
     println!("cargo:rerun-if-changed={}", tarball.display());
+    unpack(&tarball, into, name, &digest(&tarball))
+}
+
+/// `vendor/<name>.tar.gz`, or else `vendor/<name>.tar.xz`.
+fn tarball(vendor: &Path, name: &str) -> PathBuf {
+    let gz = vendor.join(format!("{name}.tar.gz"));
+    if gz.exists() {
+        gz
+    } else {
+        vendor.join(format!("{name}.tar.xz"))
+    }
+}
+
+/// Unpacks `tarball`, whose contents hash to `digest`, under `into`, unless
+/// the same contents were unpacked there before, and returns `into/<name>`.
+fn unpack(tarball: &Path, into: &Path, name: &str, digest: &str) -> PathBuf {
     let source = into.join(name);
     let done = into.join(format!("{name}.extracted"));
-    if !done.exists() {
+    if std::fs::read_to_string(&done).ok().as_deref() != Some(digest) {
+        let _ = std::fs::remove_file(&done);
         let _ = std::fs::remove_dir_all(&source);
-        let file = File::open(&tarball).unwrap_or_else(|error| panic!("{}: {error}", tarball.display()));
-        tar::Archive::new(flate2::read::GzDecoder::new(file))
-            .unpack(into)
-            .unwrap_or_else(|error| panic!("unpacking {}: {error}", tarball.display()));
-        File::create(&done).unwrap();
+        let file = File::open(tarball).unwrap_or_else(|error| panic!("{}: {error}", tarball.display()));
+        let unpacked = if tarball.extension().is_some_and(|extension| extension == "xz") {
+            tar::Archive::new(liblzma::read::XzDecoder::new(file)).unpack(into)
+        } else {
+            tar::Archive::new(flate2::read::GzDecoder::new(file)).unpack(into)
+        };
+        unpacked.unwrap_or_else(|error| panic!("unpacking {}: {error}", tarball.display()));
+        std::fs::write(&done, digest).unwrap();
     }
     source
+}
+
+/// The SHA-256 of a file's contents (the hash the vendor README lists), or
+/// of a directory's files, their paths included. Contents only, never
+/// modification times, which a fresh checkout resets.
+fn digest(path: &Path) -> String {
+    let mut hasher = Sha256::new();
+    if path.is_dir() {
+        let mut files = Vec::new();
+        list_files(path, &mut files);
+        files.sort();
+        for file in files {
+            let relative = file.strip_prefix(path).unwrap().to_string_lossy().into_owned();
+            let contents = std::fs::read(&file).unwrap();
+            hasher.update(format!("{relative}\0{}\0", contents.len()));
+            hasher.update(contents);
+        }
+    } else {
+        let mut file = File::open(path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        std::io::copy(&mut file, &mut hasher).unwrap();
+    }
+    hasher.finalize().iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn list_files(dir: &Path, files: &mut Vec<PathBuf>) {
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            list_files(&path, files);
+        } else {
+            files.push(path);
+        }
+    }
 }
 
 /// Where CMake installed the static library: `lib`, or `lib64` on
