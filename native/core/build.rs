@@ -13,6 +13,7 @@
 #[path = "build_media.rs"]
 mod media;
 
+use sha2::{Digest, Sha256};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -136,27 +137,76 @@ fn run(command: &mut Command, what: &str) {
     }
 }
 
-/// Unpacks `vendor/<name>.tar.gz` or `vendor/<name>.tar.xz` under `into`,
-/// once, and returns the source directory (the tarballs hold a single
-/// `<name>/` directory).
+/// Unpacks `vendor/<name>.tar.gz` or `vendor/<name>.tar.xz` under `into`
+/// and returns the source directory (the tarballs hold a single `<name>/`
+/// directory).
 fn extract(vendor: &Path, into: &Path, name: &str) -> PathBuf {
-    let gz = vendor.join(format!("{name}.tar.gz"));
-    let tarball = if gz.exists() { gz } else { vendor.join(format!("{name}.tar.xz")) };
+    let tarball = tarball(vendor, name);
     println!("cargo:rerun-if-changed={}", tarball.display());
+    unpack(&tarball, into, name, &digest(&tarball))
+}
+
+/// `vendor/<name>.tar.gz`, or else `vendor/<name>.tar.xz`.
+fn tarball(vendor: &Path, name: &str) -> PathBuf {
+    let gz = vendor.join(format!("{name}.tar.gz"));
+    if gz.exists() {
+        gz
+    } else {
+        vendor.join(format!("{name}.tar.xz"))
+    }
+}
+
+/// Unpacks `tarball`, whose contents hash to `digest`, under `into`, unless
+/// the same contents were unpacked there before, and returns `into/<name>`.
+fn unpack(tarball: &Path, into: &Path, name: &str, digest: &str) -> PathBuf {
     let source = into.join(name);
     let done = into.join(format!("{name}.extracted"));
-    if !done.exists() {
+    if std::fs::read_to_string(&done).ok().as_deref() != Some(digest) {
+        let _ = std::fs::remove_file(&done);
         let _ = std::fs::remove_dir_all(&source);
-        let file = File::open(&tarball).unwrap_or_else(|error| panic!("{}: {error}", tarball.display()));
+        let file = File::open(tarball).unwrap_or_else(|error| panic!("{}: {error}", tarball.display()));
         let unpacked = if tarball.extension().is_some_and(|extension| extension == "xz") {
             tar::Archive::new(liblzma::read::XzDecoder::new(file)).unpack(into)
         } else {
             tar::Archive::new(flate2::read::GzDecoder::new(file)).unpack(into)
         };
         unpacked.unwrap_or_else(|error| panic!("unpacking {}: {error}", tarball.display()));
-        File::create(&done).unwrap();
+        std::fs::write(&done, digest).unwrap();
     }
     source
+}
+
+/// The SHA-256 of a file's contents (the hash the vendor README lists), or
+/// of a directory's files, their paths included. Contents only, never
+/// modification times, which a fresh checkout resets.
+fn digest(path: &Path) -> String {
+    let mut hasher = Sha256::new();
+    if path.is_dir() {
+        let mut files = Vec::new();
+        list_files(path, &mut files);
+        files.sort();
+        for file in files {
+            let relative = file.strip_prefix(path).unwrap().to_string_lossy().into_owned();
+            let contents = std::fs::read(&file).unwrap();
+            hasher.update(format!("{relative}\0{}\0", contents.len()));
+            hasher.update(contents);
+        }
+    } else {
+        let mut file = File::open(path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        std::io::copy(&mut file, &mut hasher).unwrap();
+    }
+    hasher.finalize().iter().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn list_files(dir: &Path, files: &mut Vec<PathBuf>) {
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            list_files(&path, files);
+        } else {
+            files.push(path);
+        }
+    }
 }
 
 /// Where CMake installed the static library: `lib`, or `lib64` on

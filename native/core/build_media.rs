@@ -8,8 +8,8 @@
 //! that talk to it: OpenGL/EGL, libdrm and libva (the GPU driver), PulseAudio
 //! and ALSA (the sound server), fontconfig (the system's fonts) and libc.
 //!
-//! Each library is rebuilt only when its version or options, or those of a
-//! library built before it, change. They add about a minute to a clean
+//! Each library is rebuilt only when its source (the tarball's contents),
+//! version or options, or those of a library built before it, change. They add about a minute to a clean
 //! build on 16 cores.
 
 use std::ffi::OsString;
@@ -188,13 +188,6 @@ const SYSTEM_PACKAGES: &[&str] = &["egl", "libdrm", "libva", "libva-drm", "libpu
 /// directly with -l.
 const SYSTEM_LIBS: &[&str] = &["m", "dl", "pthread", "rt", "atomic", "stdc++"];
 
-/// Packages a bundled library's pkg-config file asks for that aren't linked,
-/// and why.
-const UNUSED_PACKAGES: &[(&str, &str)] = &[(
-    "vulkan",
-    "libplacebo always looks for the Vulkan loader for its headers, though it is built without Vulkan",
-)];
-
 pub struct Media {
     prefix: PathBuf,
     pkg_config: PathBuf,
@@ -225,7 +218,9 @@ pub fn build(vendor: &Path, sources: &Path, out: &Path) -> Media {
         let prefix = format!("PREFIX={}", build.prefix.display());
         build.make(source, &[prefix.as_str(), "install"]);
     });
-    build.step(RAV1D, &[], |build, _, dir| install_dav1d_api(build, dir));
+    let (major, minor, patch) = DAV1D_API_VERSION;
+    let api = format!("api={major}.{minor}.{patch}");
+    build.step(RAV1D, &[api.as_str()], |build, _, dir| install_dav1d_api(build, dir));
     build.step(FFMPEG, FFMPEG_OPTIONS, |build, source, dir| {
         let mut configure = build.command(source.join("configure"));
         configure
@@ -353,8 +348,6 @@ impl Walk {
         let Ok(text) = std::fs::read_to_string(&file) else {
             if SYSTEM_PACKAGES.contains(&package) {
                 self.packages.push(package.to_string());
-            } else if UNUSED_PACKAGES.iter().any(|(name, _)| *name == package) {
-                // Not linked; UNUSED_PACKAGES says why.
             } else {
                 panic!(
                     "the bundle needs {package} from the system; bundle it, or add it to SYSTEM_PACKAGES \
@@ -473,8 +466,8 @@ struct Build {
     cxx: PathBuf,
     pkg_config: PathBuf,
     meson: OsString,
-    /// The versions and options of every library so far, so a change to one
-    /// rebuilds those built after it.
+    /// The versions, source hashes and options of every library so far, so a
+    /// change to one rebuilds it and those built after it.
     chain: String,
 }
 
@@ -500,28 +493,24 @@ impl Build {
     }
 
     /// Runs `build(self, source, build_dir)` for the library in
-    /// `vendor/<name>.tar.*`, unless it was built before with the same
-    /// versions and options.
+    /// `vendor/<name>.tar.*` (or the directory `vendor/<name>`), unless it
+    /// was built before from the same contents with the same options, and
+    /// the same holds for every library built before it.
     fn step(&mut self, name: &str, options: &[&str], build: impl FnOnce(&Build, &Path, &Path)) {
-        self.chain.push_str(&format!("{name} {}\n", options.join(" ")));
-        // Watched even when the step is up to date, so replacing a tarball
-        // under the same name still rebuilds it.
-        for candidate in [name.to_string(), format!("{name}.tar.gz"), format!("{name}.tar.xz")] {
-            let path = self.vendor.join(candidate);
-            if path.exists() {
-                println!("cargo:rerun-if-changed={}", path.display());
-            }
-        }
+        let vendored = self.vendor.join(name);
+        let path = if vendored.is_dir() { vendored } else { crate::tarball(&self.vendor, name) };
+        // Cargo reruns the build script when the tarball changes, and the
+        // hash of its contents in the stamp then rebuilds it, even under the
+        // same name.
+        println!("cargo:rerun-if-changed={}", path.display());
+        let digest = crate::digest(&path);
+        self.chain.push_str(&format!("{name} {digest} {}\n", options.join(" ")));
         let stamp = self.stamps.join(name);
         if std::fs::read_to_string(&stamp).is_ok_and(|built| built == self.chain) {
             return;
         }
         let _ = std::fs::remove_file(&stamp);
-        let source = if self.vendor.join(name).is_dir() {
-            self.vendor.join(name)
-        } else {
-            crate::extract(&self.vendor, &self.sources, name)
-        };
+        let source = if path.is_dir() { path.clone() } else { crate::unpack(&path, &self.sources, name, &digest) };
         let dir = self.work.join(name);
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();

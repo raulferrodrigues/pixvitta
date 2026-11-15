@@ -77,7 +77,7 @@ library, and from there into the app. The app's link hides their symbols
 
 Decided earlier: builds work offline and nothing can change under us.
 
-- Against: `core/vendor/` is 49 MB, about half of it HarfBuzz (20 MB,
+- Against: `core/vendor/` is 50 MB, about half of it HarfBuzz (20 MB,
   mostly test fonts) and FFmpeg (12 MB). Every upgrade adds the new
   tarball to the history for good.
 - Later: if the repository gets too heavy, move `core/vendor/` to Git LFS,
@@ -88,8 +88,8 @@ Decided earlier: builds work offline and nothing can change under us.
 
 Built by Cargo, like libheif, instead of a separate script, so `cargo test`
 and the app's build both get it without an extra step. Each library is
-rebuilt only when its version or options, or those of one built before it,
-change. There is no switch back to the system's libmpv: one build, the one
+rebuilt only when its source (the tarball's contents), version or options,
+or those of one built before it, change. There is no switch back to the system's libmpv: one build, the one
 that ships, is the one tested.
 
 - For: one command builds everything; nothing to install into the system.

@@ -35,6 +35,8 @@ flate2 = "1.1"
 # FFmpeg's tarball is .tar.xz. "static" builds liblzma from the crate's own
 # copy instead of linking the system's; no bindgen, so no libclang needed.
 liblzma = { version = "0.4", default-features = false, features = ["static"] }
+# Hashes the vendored sources, so one replaced under the same name rebuilds.
+sha2 = "0.10"
 tar = "0.4"
 
 [dev-dependencies]

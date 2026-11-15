@@ -28,7 +28,7 @@ isn't, and why.
 | `libdisplay-info-0.4.0.tar.xz` | https://gitlab.freedesktop.org/emersion/libdisplay-info/-/releases/0.4.0 | `43b180baa143e2035654759d84e2b2f5ee77d5fe817c423838c7fe59c0d68459` | the `.sha256sum` published with it |
 | `nv-codec-headers-12.1.14.0.tar.gz` | https://github.com/FFmpeg/nv-codec-headers/releases/download/n12.1.14.0/nv-codec-headers-12.1.14.0.tar.gz | `62b30ab37e4e9be0d0c5b37b8fee4b094e38e570984d56e1135a6b6c2c164c9f` | none published (headers only) |
 | `ffmpeg-9.0.2.tar.xz` | https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz | `8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e` | signature, FFmpeg release key `FCF9 86EA 15E6 E293 A564 4F10 B432 2F04 D676 58D8` |
-| `libplacebo-7.387.0.tar.xz` | made here from https://code.videolan.org/videolan/libplacebo tag `v7.387.0` (commit `275f7dea27924cdd34ab2e6c20e448b6bc4fab65`); see below | `8d785898087858c42c71bf233faf5abbcfaf019c63968d3312e119e7bc3414a1` | the tag's commit |
+| `libplacebo-7.387.0.tar.xz` | made here from https://code.videolan.org/videolan/libplacebo tag `v7.387.0` (commit `275f7dea27924cdd34ab2e6c20e448b6bc4fab65`); see below | `7cee2b412283e124ec4e8b40beb405a7b76fa862e27d4f6eb4018e3afefcc86d` | the tag's commit |
 | `mpv-0.42.0.tar.gz` | https://github.com/mpv-player/mpv/archive/refs/tags/v0.42.0.tar.gz | `bcfebbfa2b65a6d88dc97ea18117831072373e38b5785a2afb874ed4df5070dd` | signature (`mpv-0.42.0.tar.gz.asc` on the release), Kacper Michajłow `D83F 25E4 4BD6 B948 724A B75F 6580 1323 38AB D4E2` |
 | `rav1d-1.1.0/` | `include/dav1d/*.h`, `version.h.in` and `COPYING` from https://github.com/memorysafety/rav1d tag `v1.1.0` | (files) | the tag |
 
@@ -44,10 +44,12 @@ line in the documentation).
 
 ### libplacebo's tarball
 
-libplacebo publishes no release tarball, and its git tag needs four of its
-submodules to build. The tarball here is the tag's commit and those four
-submodules at the commits the tag records, without `.git`, the Vulkan
-headers (Vulkan is off) or the demos' submodule:
+libplacebo publishes no release tarball, and its git tag needs five of its
+submodules to build. The tarball here is the tag's commit and those five
+submodules at the commits the tag records, without `.git` or the demos'
+submodule. The Vulkan headers are needed though Vulkan is off: libplacebo
+always compiles its Vulkan stubs, and without its own copy it takes the
+system's headers instead.
 
 ```sh
 git clone --depth 1 --branch v7.387.0 --recurse-submodules --shallow-submodules \
@@ -55,7 +57,8 @@ git clone --depth 1 --branch v7.387.0 --recurse-submodules --shallow-submodules 
 cd libplacebo-7.387.0
 N=libplacebo-7.387.0
 git archive --format=tar --prefix=$N/ HEAD > ../$N.tar
-for m in 3rdparty/glad 3rdparty/jinja 3rdparty/markupsafe 3rdparty/fast_float; do
+for m in 3rdparty/glad 3rdparty/jinja 3rdparty/markupsafe 3rdparty/fast_float \
+         3rdparty/Vulkan-Headers; do
     (cd $m && git archive --format=tar --prefix=$N/$m/ HEAD > ../../../part.tar)
     tar --concatenate -f ../$N.tar ../part.tar && rm ../part.tar
 done
@@ -64,8 +67,9 @@ xz -9 ../$N.tar
 
 The submodule commits were glad `73db193f853e2ee079bf3ca8a64aa2eaf6459043`,
 jinja `15206881c006c79667fe5154fe80c01c65410679`, markupsafe
-`297fc8e356e6836a62087949245d09a28e9f1b13` and fast_float
-`97b54ca9e75f5303507699d27c6b4f4efe4641a1` (`git submodule status`).
+`297fc8e356e6836a62087949245d09a28e9f1b13`, fast_float
+`97b54ca9e75f5303507699d27c6b4f4efe4641a1` and Vulkan-Headers
+`74d8a6cb930c68ef617b202c3ff3c59d919e086b` (`git submodule status`).
 
 ### rav1d's headers
 
@@ -108,4 +112,3 @@ whenever rav1d is upgraded.
    that the release supports the FFmpeg and libplacebo versions here (its
    release notes say which it needs).
 5. Run the corpus check.
-
