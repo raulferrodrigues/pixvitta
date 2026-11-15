@@ -26,6 +26,33 @@ per decoder today and would have to return every frame.
 Proposed direction: jxl-oxide gives each frame with its duration and does
 the blending; feed them to the animation API.
 
+### Animated PNG shows only its first frame
+
+The Electron app plays APNG, so this is a regression. `Animation::open` in
+`core/src/image.rs` only plays GIF and WebP.
+
+Proposed direction: the image crate's PNG decoder gives APNG frames through
+`apng()`; play them through the same path as GIF and WebP.
+
+### Variants of supported formats that no sample covers
+
+The corpus has one or two files each for JPEG, PNG, BMP and TIFF, so these
+are untested and may fail:
+
+- JPEG: arithmetic-coded, lossless and 12-bit files (zune-jpeg may refuse
+  them).
+- TIFF: only the first page of a multi-page file is shown; old-style JPEG,
+  CCITT fax, floating-point and unusual sample layouts.
+- BMP: RLE, 16-bit bitfields, and BMPs that embed a JPEG or PNG.
+
+Proposed direction: add samples for each to the corpus first, to find out
+which are real gaps.
+
+### CUR cursor files are not opened
+
+They are neither listed by extension nor recognised by content, though the
+ICO decoder could read most of them.
+
 ### HDR and wide-gamut files without an ICC profile have wrong colours
 
 For HEIC and AVIF, libheif applies the matrix and range from the file's
@@ -98,6 +125,12 @@ Proposed direction: when an image fails to decode as unsupported, look at
 its content again and treat it as a video if it is one. That needs either a
 C API call that returns a file's kind by content, or the scan correcting
 its entry.
+
+### TIFF and ICO files without their extension are not listed
+
+The scan only lists them by extension: TIFF because camera RAW files start
+the same way, ICO because its four-byte header is too weak to trust. A
+mislabelled or extensionless one is skipped.
 
 ### Some audio files are listed as videos
 
