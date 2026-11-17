@@ -65,8 +65,8 @@ closed out of scope for 5.15 to 6.4).
 
 Proposed direction: try EGL on X11 again when the oldest supported Qt is
 newer, on NVIDIA and on Intel or AMD. The core already passes the render
-node whenever the context is EGL, so it would only be the variable in
-`linux/src/main.cpp`.
+node whenever the context is EGL, so it would only take setting
+`QT_XCB_GL_INTEGRATION=xcb_egl` in `linux/src/main.cpp`.
 
 ### A panic on one of rav1d's worker threads still ends the app
 

@@ -148,9 +148,10 @@ copying frames back, then software.
   that context's GPU has (`core/src/render_node.rs`), opens it and passes it
   as `MPV_RENDER_PARAM_DRM_DISPLAY_V2` when it creates the render context.
   So decoding and drawing happen on the same GPU even with two of them.
-  It needs no X11 or Wayland code in mpv, only an EGL context. mpv's Wayland support couldn't be built anyway: it needs
-  wayland-client 1.23, and Ubuntu 24.04 has 1.22. The cost is
-  libdisplay-info, which mpv's DRM support requires.
+  It needs no X11 or Wayland code in mpv, only an EGL context. mpv's
+  Wayland support couldn't be built anyway: it needs wayland-client 1.23,
+  and Ubuntu 24.04 has 1.22. The cost is libdisplay-info, which mpv's DRM
+  support requires.
 - Zero-copy VA-API needs the app's OpenGL context to be EGL. Qt uses EGL on
   Wayland and GLX on X11, and the app keeps Qt's default. Under GLX, mpv
   opens a render node itself and copies frames back from the GPU
@@ -241,10 +242,11 @@ supported (Ubuntu 24.04), as is usual. The .deb then depends on `libva2`,
    with frames reaching OpenGL as CUDA surfaces, under GLX and EGL. AV1
    goes through FFmpeg's `av1` decoder. The other samples decode in
    software, as expected: the VP9 sample is profile 1 (4:4:4), which no
-   GPU decodes; MPEG-4 Part 2 isn't in mpv's default `hwdec-codecs`; ProRes and Theora
-   have no hardware decoder here. The first video the app showed used to
+   GPU decodes; MPEG-4 Part 2 isn't in mpv's default `hwdec-codecs`;
+   ProRes and Theora have no hardware decoder here. The first video the app showed used to
    play without a picture, because it was loaded before the render context
-   existed; the item now loads a file only once it has one.
+   existed; the item now loads a file only once it has one, from the GUI
+   thread, since libmpv's render thread may only use the render API.
 5. macOS: the same libraries with VideoToolbox, CoreText for libass instead
    of fontconfig, and CoreAudio. No DRM, VA-API, PulseAudio, ALSA or
    fontconfig.

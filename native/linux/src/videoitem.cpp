@@ -37,10 +37,14 @@ public:
                 qWarning("Could not create the video renderer: %s", pv_error_string(status));
             created = status == PV_OK;
         }
-        // libmpv drops the video track when a render context goes away, so a
-        // file still playing from an earlier renderer is loaded again.
-        if (m_renderer)
-            video->loadPendingSource(created);
+        // The load runs on the GUI thread: libmpv forbids its render thread
+        // from calling anything but the render API. libmpv drops the video
+        // track when a render context goes away, so a file still playing
+        // from an earlier renderer is loaded again.
+        if (m_renderer && (created || video->loadPending())) {
+            QMetaObject::invokeMethod(
+                video, [video, created] { video->loadPendingSource(created); }, Qt::QueuedConnection);
+        }
     }
 
     QOpenGLFramebufferObject *createFramebufferObject(const QSize &size) override
@@ -102,10 +106,10 @@ void VideoItem::setSource(const QString &source)
     // Stopping can't wait: the item is hidden and won't be drawn. A file is
     // loaded on the next draw instead (loadPendingSource), once the render
     // context exists; libmpv started without one shows no picture.
+    m_loadPending = !source.isEmpty();
     if (source.isEmpty()) {
         if (m_player)
             pv_player_stop(m_player);
-        m_loadedSource.clear();
     } else {
         update();
     }
@@ -119,9 +123,9 @@ void VideoItem::setSource(const QString &source)
 
 void VideoItem::loadPendingSource(bool reload)
 {
-    if (!m_player || m_source.isEmpty() || (m_source == m_loadedSource && !reload))
+    if (!m_player || m_source.isEmpty() || !(m_loadPending || reload))
         return;
-    m_loadedSource = m_source;
+    m_loadPending = false;
     pv_player_load(m_player, MediaFolder::pathFromId(m_source).constData());
     // Loading unpauses; keep a pause made while the load was waiting.
     if (m_paused)
