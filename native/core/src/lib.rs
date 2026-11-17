@@ -17,6 +17,8 @@ mod image;
 mod jxl;
 mod mpv;
 mod player;
+#[cfg(target_os = "linux")]
+mod render_node;
 mod sniff;
 mod svg;
 mod view;

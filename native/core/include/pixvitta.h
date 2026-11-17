@@ -130,7 +130,9 @@ void pv_player_destroy(pv_player *player);
 typedef void (*pv_wakeup_fn)(void *ctx);
 void pv_player_set_wakeup_callback(pv_player *player, pv_wakeup_fn callback, void *ctx);
 
-/* Starts playing a file from the beginning, unpaused, looping. */
+/* Starts playing a file from the beginning, unpaused, looping. Create the
+ * player's renderer first: libmpv drops the video track of a file loaded
+ * while it has none, and plays its sound only. */
 int pv_player_load(pv_player *player, const char *path);
 int pv_player_stop(pv_player *player);
 int pv_player_set_paused(pv_player *player, bool paused);
