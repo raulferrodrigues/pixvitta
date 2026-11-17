@@ -28,9 +28,9 @@ public:
 
     // Called by the renderer only while the GUI thread is blocked in sync.
     pv_player *player() const { return m_player; }
-    // Loads the source if it changed since the last load. The renderer calls
-    // it once libmpv's render context exists.
-    void loadPendingSource();
+    // Loads the source if it changed since the last load, or anyway with
+    // `reload`. The renderer calls it once libmpv's render context exists.
+    void loadPendingSource(bool reload);
 
 signals:
     void sourceChanged();

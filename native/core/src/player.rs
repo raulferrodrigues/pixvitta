@@ -46,7 +46,6 @@ pub struct Renderer {
     #[allow(dead_code)]
     wakeup: Arc<Mutex<Wakeup>>,
     // The GPU's render node, which mpv's VA-API decoder uses but doesn't own.
-    #[cfg(target_os = "linux")]
     #[allow(dead_code)]
     render_node: Option<std::fs::File>,
 }
@@ -123,8 +122,8 @@ impl Player {
     /// Hardware decoding: on Linux, when that context is EGL (Qt uses EGL on
     /// Wayland, GLX on X11), mpv gets the render node of its GPU, so VA-API
     /// frames reach OpenGL without a copy. Under GLX, VA-API copies frames
-    /// back through the CPU (`vaapi-copy`). NVDEC needs nothing passed in
-    /// and copies nothing under either.
+    /// back through the CPU (`vaapi-copy`). NVDEC needs nothing passed in,
+    /// and its frames stay on the GPU under either.
     pub fn create_renderer(&self, get_proc_address: mpv::GetProcAddress, ctx: *mut c_void) -> Option<Renderer> {
         let mut init = mpv::OpenGlInitParams {
             get_proc_address: Some(get_proc_address),
@@ -142,7 +141,8 @@ impl Player {
         ];
         #[cfg(target_os = "linux")]
         let render_node = crate::render_node::open_current();
-        #[cfg(target_os = "linux")]
+        #[cfg(not(target_os = "linux"))]
+        let render_node: Option<std::fs::File> = None;
         let mut drm = mpv::DrmParamsV2 {
             fd: -1,
             crtc_id: -1,
@@ -150,7 +150,6 @@ impl Player {
             atomic_request_ptr: ptr::null_mut(),
             render_fd: render_node.as_ref().map_or(-1, std::os::fd::AsRawFd::as_raw_fd),
         };
-        #[cfg(target_os = "linux")]
         if render_node.is_some() {
             params.push(mpv::RenderParam {
                 kind: mpv::PARAM_DRM_DISPLAY_V2,
@@ -177,7 +176,6 @@ impl Player {
             context,
             core: Arc::clone(&self.core),
             wakeup: Arc::clone(&self.wakeup),
-            #[cfg(target_os = "linux")]
             render_node,
         })
     }

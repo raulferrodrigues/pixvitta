@@ -148,8 +148,7 @@ copying frames back, then software.
   that context's GPU has (`core/src/render_node.rs`), opens it and passes it
   as `MPV_RENDER_PARAM_DRM_DISPLAY_V2` when it creates the render context.
   So decoding and drawing happen on the same GPU even with two of them.
-  That works under X11 and Wayland alike, without mpv's X11 or Wayland
-  code. mpv's Wayland support couldn't be built anyway: it needs
+  It needs no X11 or Wayland code in mpv, only an EGL context. mpv's Wayland support couldn't be built anyway: it needs
   wayland-client 1.23, and Ubuntu 24.04 has 1.22. The cost is
   libdisplay-info, which mpv's DRM support requires.
 - Zero-copy VA-API needs the app's OpenGL context to be EGL. Qt uses EGL on
@@ -162,8 +161,9 @@ copying frames back, then software.
 - NVDEC loads NVIDIA's driver at run time and links nothing. Its headers
   are 12.1, the oldest FFmpeg 9 accepts, so drivers from 530 on work
   (Ubuntu 24.04's NVIDIA 535 branch included). Newer headers would need
-  newer drivers and gain nothing for decoding. mpv's CUDA interop hands
-  frames to OpenGL without a copy under GLX and EGL alike.
+  newer drivers and gain nothing for decoding. mpv's CUDA interop copies
+  frames into OpenGL textures on the GPU, without a round trip through the
+  CPU, under GLX and EGL alike.
 - AV1: mpv opens `libdav1d` (rav1d) as the decoder, and with hardware
   decoding on it switches to FFmpeg's own `av1` decoder, which drives the
   hardware. Without hardware AV1, or if that fails, it stays on rav1d.
@@ -241,7 +241,7 @@ supported (Ubuntu 24.04), as is usual. The .deb then depends on `libva2`,
    with frames reaching OpenGL as CUDA surfaces, under GLX and EGL. AV1
    goes through FFmpeg's `av1` decoder. The other samples decode in
    software, as expected: the VP9 sample is profile 1 (4:4:4), which no
-   GPU decodes; MPEG-4 Part 2 isn't on mpv's safe list; ProRes and Theora
+   GPU decodes; MPEG-4 Part 2 isn't in mpv's default `hwdec-codecs`; ProRes and Theora
    have no hardware decoder here. The first video the app showed used to
    play without a picture, because it was loaded before the render context
    existed; the item now loads a file only once it has one.

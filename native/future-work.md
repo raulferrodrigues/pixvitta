@@ -55,8 +55,8 @@ scroll in the core, with tests. Only fitting is there.
 Qt draws with GLX on X11, and only an EGL context takes VA-API frames from
 the GPU directly, so on Intel and AMD under X11 mpv uses `vaapi-copy`: it
 decodes on the GPU and copies each frame back through the CPU. Fine at
-1080p; costly at 4K or high frame rates. NVIDIA (NVDEC) and Wayland copy
-nothing.
+1080p; costly at 4K or high frame rates. NVDEC keeps frames on the GPU,
+and VA-API under Wayland should too (untested).
 
 Forcing EGL (`QT_XCB_GL_INTEGRATION=xcb_egl`) was tried: with Qt 6.4
 (Ubuntu 24.04, Mint 22) and NVIDIA 580 the whole window is black, images
