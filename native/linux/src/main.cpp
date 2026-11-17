@@ -1,6 +1,6 @@
 #include "mediafolder.h"
 
-#include <QGuiApplication>
+#include <QApplication>
 #include <QQmlApplicationEngine>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
@@ -12,20 +12,23 @@ int main(int argc, char *argv[])
     // libmpv's render API draws with OpenGL, so the scene graph has to as well.
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
 
-    QGuiApplication app(argc, argv);
-    QGuiApplication::setApplicationName(QStringLiteral("Pixvitta"));
-    // QGuiApplication applies the user's locale; libmpv refuses to start
+    // QApplication rather than QGuiApplication for QFileDialog, the folder
+    // picker, which uses the desktop's own dialog where Qt has one.
+    QApplication app(argc, argv);
+    QApplication::setApplicationName(QStringLiteral("Pixvitta"));
+    // QApplication applies the user's locale; libmpv refuses to start
     // unless numbers are formatted the C way.
     std::setlocale(LC_NUMERIC, "C");
 
-    const QStringList arguments = QGuiApplication::arguments();
-    if (arguments.size() != 2) {
-        qCritical("Usage: pixvitta <folder>");
+    const QStringList arguments = QApplication::arguments();
+    if (arguments.size() > 2) {
+        qCritical("Usage: pixvitta [folder]");
         return 2;
     }
 
+    // Without a folder, the window opens empty and asks for one.
     MediaFolder folder;
-    if (!folder.open(arguments.at(1)))
+    if (arguments.size() == 2 && !folder.open(arguments.at(1)))
         return 1;
 
     QQmlApplicationEngine engine;
@@ -35,5 +38,5 @@ int main(int argc, char *argv[])
     if (engine.rootObjects().isEmpty())
         return 1;
 
-    return QGuiApplication::exec();
+    return QApplication::exec();
 }

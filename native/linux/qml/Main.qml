@@ -27,8 +27,10 @@ Window {
 
     Text {
         anchors.centerIn: parent
-        visible: window.folder.count === 0
-        text: "No images or videos in this folder"
+        visible: window.folder.count === 0 || window.folder.error !== ""
+        text: window.folder.error !== "" ? window.folder.error
+            : window.folder.isOpen ? "No images or videos in this folder"
+            : "Open a folder to start (Ctrl+O)"
         color: "#aaaaaa"
         font.pixelSize: 18
     }
@@ -42,11 +44,11 @@ Window {
         }
         height: 44
         color: "#b0000000"
-        visible: window.folder.count > 0
 
         Row {
             anchors.centerIn: parent
             spacing: 24
+            visible: window.folder.count > 0
 
             BarButton {
                 label: "Previous"
@@ -69,9 +71,20 @@ Window {
                 leftMargin: 16
                 verticalCenter: parent.verticalCenter
             }
+            visible: window.folder.count > 0
             text: (window.folder.index + 1) + " / " + window.folder.count + "   " + window.folder.name
             color: "white"
             font.pixelSize: 14
+        }
+
+        BarButton {
+            anchors {
+                right: parent.right
+                rightMargin: 16
+                verticalCenter: parent.verticalCenter
+            }
+            label: "Open Folder"
+            onClicked: window.folder.choose()
         }
     }
 
@@ -102,6 +115,8 @@ Window {
                 window.folder.previous()
             } else if (event.key === Qt.Key_Space && window.folder.isVideo) {
                 video.paused = !video.paused
+            } else if (event.key === Qt.Key_O && (event.modifiers & Qt.ControlModifier)) {
+                window.folder.choose()
             } else {
                 return
             }
