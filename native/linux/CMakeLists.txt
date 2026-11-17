@@ -30,7 +30,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT DEFINED CMAKE_IGNORE_PREFIX_PATH)
     endif()
 endif()
 
-find_package(Qt6 6.4 REQUIRED COMPONENTS Gui OpenGL Qml Quick)
+find_package(Qt6 6.4 REQUIRED COMPONENTS Gui OpenGL Qml Quick Widgets)
 find_package(Threads REQUIRED)
 find_package(PkgConfig)
 if(NOT PKG_CONFIG_FOUND)
@@ -129,5 +129,6 @@ target_link_libraries(pixvitta PRIVATE
     Qt6::OpenGL
     Qt6::Qml
     Qt6::Quick
+    Qt6::Widgets
     pixvitta_core
 )

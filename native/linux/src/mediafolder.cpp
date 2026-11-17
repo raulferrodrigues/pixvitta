@@ -2,7 +2,9 @@
 
 #include <pixvitta.h>
 
+#include <QDir>
 #include <QFile>
+#include <QFileDialog>
 #include <QFileInfo>
 
 MediaFolder::MediaFolder(QObject *parent)
@@ -15,20 +17,35 @@ MediaFolder::~MediaFolder()
     pv_folder_release(m_folder);
 }
 
+// On failure the folder already open, if any, stays open, and error() says
+// what went wrong.
 bool MediaFolder::open(const QString &path)
 {
     const QByteArray encoded = QFile::encodeName(path);
     pv_folder *folder = nullptr;
     const int status = pv_folder_open(encoded.constData(), &folder);
     if (status != PV_OK) {
-        qCritical("Could not open %s: %s", encoded.constData(), pv_error_string(status));
+        m_error = QStringLiteral("Could not open %1: %2").arg(path, QString::fromUtf8(pv_error_string(status)));
+        qCritical("%s", qUtf8Printable(m_error));
+        emit folderChanged();
         return false;
     }
     pv_folder_release(m_folder);
     m_folder = folder;
+    m_path = path;
+    m_error.clear();
     m_index = 0;
+    emit folderChanged();
     emit indexChanged();
     return true;
+}
+
+void MediaFolder::choose()
+{
+    const QString start = m_path.isEmpty() ? QDir::homePath() : m_path;
+    const QString path = QFileDialog::getExistingDirectory(nullptr, QStringLiteral("Open Folder"), start);
+    if (!path.isEmpty())
+        open(path);
 }
 
 int MediaFolder::count() const

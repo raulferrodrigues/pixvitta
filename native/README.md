@@ -76,13 +76,15 @@ To use a library from Homebrew, pass `-DCMAKE_PREFIX_PATH=<homebrew>/opt/<formul
 `MESON` and `PKG_CONFIG` (environment variables) choose other meson and
 pkg-config programs for the core's own build.
 
-Run it on a folder:
+Run it, optionally on a folder:
 
 ```sh
 native/linux/build/pixvitta path/to/folder
 ```
 
-Left and Right step through the files, and Space plays or pauses a video.
+Without a folder it opens empty. Open Folder in the bar, or Ctrl+O, picks
+one with the system's folder dialog. Left and Right step through the files,
+and Space plays or pauses a video.
 
 ## Corpus
 
