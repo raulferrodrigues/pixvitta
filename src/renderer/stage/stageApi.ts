@@ -1,12 +1,16 @@
+import type { AccountState } from "../../shared/accounts";
 import { createAppBuildInfo } from "../../shared/appBuild";
 import type {
+  AddSourceRequest,
+  AddSourceResult,
   DownloadActivitySnapshot,
   MediaCollection,
   OpenSourceError,
-  OpenSourceRequest
+  OpenSourceRequest,
+  ReplaceConfirmation
 } from "../../shared/media";
 import type { PixvittaApi, PixvittaCommand, WindowChromeState } from "../../shared/pixvittaApi";
-import type { RecentSource } from "../../shared/recentSources";
+import { isRecentMix, mixTitle, type RecentEntry } from "../../shared/recentSources";
 import { defaultSettings, type AppSettings } from "../../shared/settings";
 import { createUpdateState, type UpdateState } from "../../shared/updates";
 
@@ -25,8 +29,12 @@ const EMPTY_DOWNLOADS: DownloadActivitySnapshot = { revision: 0, rows: [], itemS
 
 type StageCall = { method: string; args: unknown[] };
 
-/** What opening a location does: a collection appears, or it fails with an error. */
-export type StageSource = MediaCollection | OpenSourceError;
+/**
+ * What opening a location does: a collection appears, or it fails with an
+ * error. "already-added" is main's answer to adding a source that is already
+ * a member: nothing changes, and the add says so.
+ */
+export type StageSource = MediaCollection | OpenSourceError | "already-added";
 
 export type StageControls = {
   readonly calls: StageCall[];
@@ -34,10 +42,17 @@ export type StageControls = {
   /** Every PixvittaApi method the renderer called, with arguments, in order. */
   callsTo(method: string): unknown[][];
   isViewerReady(): boolean;
-  /** Defines what openSource does for a location, or for the folder picker with "pick-directory". */
+  /**
+   * Defines what openSource and addSource do for a location, for the folder
+   * picker with "pick-directory", or for a saved mix with "saved-mix:<id>".
+   */
   defineSource(location: string, source: StageSource): void;
-  setRecentSources(sources: RecentSource[]): void;
+  setRecentSources(sources: RecentEntry[]): void;
+  /** Asks the renderer to rename a saved mix, as main does from the mix's menu. */
+  requestMixRename(id: string): void;
   setSettings(settings: Partial<AppSettings>): void;
+  /** Replaces the provider accounts and pushes them, as main does on every change. */
+  setAccounts(accounts: AccountState[]): void;
   /** Pushes an update state, as main does on every change. Update calls only record. */
   setUpdateState(state: Partial<UpdateState>): void;
   /** Holds openSource in its loading state until releaseOpen is called. */
@@ -45,7 +60,7 @@ export type StageControls = {
   releaseOpens(): void;
   deliverCollection(collection: MediaCollection): void;
   setLoading(isLoading: boolean): void;
-  showSourceError(error: OpenSourceError): void;
+  showSourceError(error: OpenSourceError, accountId?: string): void;
   setDownloadActivity(snapshot: DownloadActivitySnapshot): void;
   sendCommand(command: PixvittaCommand): void;
 };
@@ -62,9 +77,10 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
   const violations: string[] = [];
   const sources = new Map<string, StageSource>();
   let settings: AppSettings = defaultSettings;
-  let recentSources: RecentSource[] = [];
+  let recentSources: RecentEntry[] = [];
   let downloadActivity = EMPTY_DOWNLOADS;
   let updateState: UpdateState = createUpdateState("0.0.0-stage", "latest", null);
+  let accounts: AccountState[] = [];
   let chrome: WindowChromeState = { zoomFactor: 1, isFullScreen: false, hasMacTrafficLights: false };
   let currentCollection: MediaCollection | null = null;
   let viewerReady = false;
@@ -74,16 +90,34 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
 
   const collectionListeners: Listeners<MediaCollection> = new Set();
   const loadingListeners: Listeners<boolean> = new Set();
-  const errorListeners: Listeners<OpenSourceError> = new Set();
+  const errorListeners = new Set<(error: OpenSourceError, accountId?: string) => void>();
+  const replaceListeners: Listeners<ReplaceConfirmation> = new Set();
   const commandListeners: Listeners<PixvittaCommand> = new Set();
   const chromeListeners: Listeners<WindowChromeState> = new Set();
   const downloadListeners: Listeners<DownloadActivitySnapshot> = new Set();
-  const recentListeners: Listeners<RecentSource[]> = new Set();
+  const recentListeners: Listeners<RecentEntry[]> = new Set();
+  const renameListeners: Listeners<string> = new Set();
   const settingsListeners: Listeners<AppSettings> = new Set();
   const updateListeners: Listeners<UpdateState> = new Set();
+  const accountListeners: Listeners<AccountState[]> = new Set();
 
   function record(method: string, ...args: unknown[]): void {
     calls.push({ method, args });
+  }
+
+  function requestKey(request: OpenSourceRequest): string {
+    if (request.kind === "location") return request.location;
+    return request.kind === "saved-mix" ? `saved-mix:${request.id}` : "pick-directory";
+  }
+
+  // Changes a saved mix as main's store would, and returns the new list.
+  function changeMix(id: string, change: (mix: Extract<RecentEntry, { kind: "mix" }>) => RecentEntry | null): RecentEntry[] {
+    recentSources = recentSources.flatMap((entry) => {
+      if (!isRecentMix(entry) || entry.id !== id) return [entry];
+      const changed = change(entry);
+      return changed ? [changed] : [];
+    });
+    return recentSources;
   }
 
   // Like the real main process, nothing reaches the renderer before viewer:ready,
@@ -113,34 +147,73 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     });
   }
 
-  function showSourceError(error: OpenSourceError): void {
+  function showSourceError(error: OpenSourceError, accountId?: string): void {
     whenViewerReady(() => {
-      for (const listener of errorListeners) listener(error);
+      for (const listener of errorListeners) listener(error, accountId);
     });
   }
 
-  function open(key: string): void {
+  function setAccountStatus(accountId: string, status: AccountState["status"]): void {
+    accounts = accounts.map((account) => (account.id === accountId ? { ...account, status } : account));
+    for (const listener of accountListeners) listener(accounts);
+  }
+
+  // Resolves as main answers an add: after the collection or the error it
+  // produced has been sent.
+  function open(key: string): Promise<AddSourceResult> {
     setLoading(true);
-    const finish = () => {
-      const source = sources.get(key) ?? "not-found";
-      if (typeof source === "string") {
-        setLoading(false);
-        showSourceError(source);
-      } else {
-        deliverCollection(source);
-      }
-    };
-    if (held) held.push(finish);
-    else finish();
+    return new Promise((resolve) => {
+      const finish = () => {
+        const source = sources.get(key) ?? "not-found";
+        if (source === "already-added") {
+          setLoading(false);
+          whenViewerReady(() => resolve("already-added"));
+        } else if (typeof source === "string") {
+          setLoading(false);
+          showSourceError(source);
+          whenViewerReady(() => resolve("not-added"));
+        } else {
+          deliverCollection(source);
+          whenViewerReady(() => resolve("added"));
+        }
+      };
+      if (held) held.push(finish);
+      else finish();
+    });
   }
 
   const api: PixvittaApi = {
     async getBuildInfo() {
       return createAppBuildInfo({ flavorOverride: "dev", version: "0.0.0-stage" });
     },
-    openSource(request: OpenSourceRequest) {
-      record("openSource", request);
-      open(request.kind === "location" ? request.location : "pick-directory");
+    // Like main, an open that would replace a mix asks first.
+    openSource(request: OpenSourceRequest, options) {
+      record("openSource", request, ...(options ? [options] : []));
+      const members = currentCollection?.source.members.length ?? 0;
+      if (members > 1 && !options?.replaceConfirmed) {
+        const confirmation: ReplaceConfirmation = {
+          request,
+          title: currentCollection?.source.title ?? "",
+          sourceCount: members,
+          saved: currentCollection?.source.mixId !== undefined
+        };
+        whenViewerReady(() => {
+          for (const listener of replaceListeners) listener(confirmation);
+        });
+        return;
+      }
+      void open(requestKey(request));
+    },
+    // The stage delivers whatever collection the scenario defined for the
+    // location, so a scenario defines the merged collection an add produces.
+    addSource(request: AddSourceRequest) {
+      record("addSource", request);
+      return open(requestKey(request));
+    },
+    // Removing needs the library's merge, which the stage does not have; a
+    // scenario delivers the resulting collection itself if it needs one.
+    removeSource(memberId: string) {
+      record("removeSource", memberId);
     },
     refreshSource() {
       record("refreshSource");
@@ -152,17 +225,50 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
       record("openSourceOrigin", sourceId);
       return true;
     },
-    async signInExHentai() {
-      record("signInExHentai");
-      return false;
+    async getAccounts() {
+      return accounts;
+    },
+    // The stage has no sign-in window, so signing in succeeds at once.
+    async signIn(accountId) {
+      record("signIn", accountId);
+      if (!accounts.some((account) => account.id === accountId)) return false;
+      setAccountStatus(accountId, "signed-in");
+      return true;
+    },
+    async signOut(accountId) {
+      record("signOut", accountId);
+      setAccountStatus(accountId, "signed-out");
     },
     async getRecentSources() {
       return recentSources;
     },
     async removeRecentSource(location) {
       record("removeRecentSource", location);
-      recentSources = recentSources.filter((source) => source.location !== location);
+      recentSources = recentSources.filter((source) => isRecentMix(source) || source.location !== location);
       return recentSources;
+    },
+    async removeSavedMix(id) {
+      record("removeSavedMix", id);
+      return changeMix(id, () => null);
+    },
+    async pinSavedMix(id, pinned) {
+      record("pinSavedMix", id, pinned);
+      return changeMix(id, (mix) => ({ ...mix, pinned }));
+    },
+    async renameSavedMix(id, name) {
+      record("renameSavedMix", id, name);
+      return changeMix(id, (mix) => {
+        if (!mix.pinned) return mix;
+        const { name: previousName, ...rest } = mix;
+        void previousName;
+        const trimmed = name.trim();
+        return trimmed
+          ? { ...rest, name: trimmed, title: trimmed }
+          : { ...rest, title: mixTitle(mix.members.map((member) => member.title)) };
+      });
+    },
+    showSavedMixMenu(id, position) {
+      record("showSavedMixMenu", id, ...(position ? [position] : []));
     },
     async getSettings() {
       return settings;
@@ -221,6 +327,9 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     setSelectedMedia(mediaId) {
       record("setSelectedMedia", mediaId);
     },
+    setTextEntryFocused(focused) {
+      record("setTextEntryFocused", focused);
+    },
     async getUpdateState() {
       return updateState;
     },
@@ -240,10 +349,13 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
     onCollectionChanged: (callback) => subscribe(collectionListeners, callback),
     onSourceLoadingChanged: (callback) => subscribe(loadingListeners, callback),
     onSourceError: (callback) => subscribe(errorListeners, callback),
+    onReplaceConfirmation: (callback) => subscribe(replaceListeners, callback),
     onDownloadActivityChanged: (callback) => subscribe(downloadListeners, callback),
     onRecentSourcesChanged: (callback) => subscribe(recentListeners, callback),
+    onSavedMixRenameRequested: (callback) => subscribe(renameListeners, callback),
     onSettingsChanged: (callback) => subscribe(settingsListeners, callback),
-    onUpdateStateChanged: (callback) => subscribe(updateListeners, callback)
+    onUpdateStateChanged: (callback) => subscribe(updateListeners, callback),
+    onAccountsChanged: (callback) => subscribe(accountListeners, callback)
   };
 
   const controls: StageControls = {
@@ -258,9 +370,18 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
       recentSources = next;
       for (const listener of recentListeners) listener(next);
     },
+    requestMixRename(id) {
+      whenViewerReady(() => {
+        for (const listener of renameListeners) listener(id);
+      });
+    },
     setSettings(next) {
       settings = { ...settings, ...next };
       for (const listener of settingsListeners) listener(settings);
+    },
+    setAccounts(next) {
+      accounts = next;
+      for (const listener of accountListeners) listener(accounts);
     },
     setUpdateState(next) {
       updateState = { ...updateState, ...next };

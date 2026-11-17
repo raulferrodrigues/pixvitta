@@ -2,3 +2,4 @@
 .settings-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .settings-scrollbar::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: var(--pix-scrollbar-thumb); background-clip: padding-box; }
 .settings-scrollbar::-webkit-scrollbar-thumb:hover { background: var(--pix-scrollbar-thumb-hover); background-clip: padding-box; }
+.settings-select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%23b8c2c7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-position: right 9px center; background-repeat: no-repeat; }

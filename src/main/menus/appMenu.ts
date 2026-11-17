@@ -75,6 +75,12 @@ export function createAppMenu(): void {
           click: () => sendViewerCommand("open-folder")
         },
         {
+          label: "Add Folder...",
+          accelerator: MAIN_HOTKEYS.addFolder,
+          // Adds a folder to the open collection, interleaving its items.
+          click: () => sendViewerCommand("add-folder")
+        },
+        {
           label: "Refresh Source",
           accelerator: MAIN_HOTKEYS.refreshSource,
           click: () => sendViewerCommand("refresh-source")

@@ -46,7 +46,8 @@ const CMD = modifier("cmd", "CommandOrControl", (event) => (isApplePlatform() ? 
 export const RENDERER_HOTKEYS = {
   downloadCurrentMedia: hotkey({ modifiers: [], key: "0", code: "Numpad0" }),
   imageZoomIn: hotkey({ modifiers: [CMD], key: "=", aliases: ["+"] }),
-  imageZoomOut: hotkey({ modifiers: [CMD], key: "-", aliases: ["_"] })
+  imageZoomOut: hotkey({ modifiers: [CMD], key: "-", aliases: ["_"] }),
+  toggleSourcesPanel: hotkey({ modifiers: [CMD], key: "b", aliases: ["B"] })
 } as const;
 
 function expectsModifier(hotkey: RendererHotkey, modifierId: ModifierId): boolean {
@@ -73,6 +74,15 @@ export function matchesRendererHotkey(event: KeyboardEvent, hotkey: RendererHotk
     ? event.code === hotkey.code
     : hotkey.keys.includes(event.key);
   return matchesKey && matchesModifiers(event, hotkey);
+}
+
+// A field the user types into keeps its keys, so plain-key shortcuts must not
+// act while one has focus. Shortcuts with Cmd or Ctrl still do.
+export function isTextEntryTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && (
+    target.isContentEditable ||
+    target.matches("textarea, select, input:not([type='checkbox'], [type='radio'], [type='range'], [type='button'], [type='submit'])")
+  );
 }
 
 // Opening the cheat sheet takes "?" however the layout produces it, so Shift

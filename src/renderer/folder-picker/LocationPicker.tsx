@@ -1,4 +1,4 @@
-import { Globe2 } from "lucide-react";
+import { Globe2, Link2 } from "lucide-react";
 import { useGT } from "gt-react";
 import { useState, type FormEvent } from "react";
 import { useViewerStore } from "../state/ViewerStoreProvider";
@@ -24,15 +24,17 @@ export function LocationPicker({
   return (
     <form className="grid gap-2.5" onSubmit={submit}>
       <label
-        className={showHeading ? "text-xs font-bold uppercase text-pix-section" : "sr-only"}
+        className={showHeading ? "text-[11px] font-semibold uppercase tracking-[0.08em] text-pix-section" : "sr-only"}
         htmlFor="source-location"
       >
         {gt("Open from the web")}
       </label>
       <div className="flex gap-2.5 max-[560px]:flex-col">
+        <div className="relative flex min-w-0 flex-1">
+        <Link2 className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-pix-recent-path" size={16} aria-hidden />
         <input
           id="source-location"
-          className="min-h-11 min-w-0 flex-1 rounded-lg border border-pix-control-border bg-pix-recent px-3 text-sm text-pix-recent-text outline-none placeholder:text-pix-recent-path focus:border-pix-accent focus:ring-1 focus:ring-pix-accent"
+          className="min-h-11 min-w-0 flex-1 rounded-lg border border-pix-control-border bg-pix-bg/70 pl-9 pr-3 text-sm text-pix-recent-text outline-none transition-colors placeholder:text-pix-recent-path focus:border-pix-accent disabled:opacity-60"
           type="url"
           value={location}
           placeholder={gt("Paste a supported URL")}
@@ -42,12 +44,13 @@ export function LocationPicker({
           disabled={isSourceLoading}
           onChange={(event) => setLocation(event.target.value)}
         />
+        </div>
         <PrimaryButton type="submit" className="shrink-0" disabled={isSourceLoading}>
           <Globe2 size={18} aria-hidden />
           <span>{gt("Open source")}</span>
         </PrimaryButton>
       </div>
-      <p className="m-0 min-h-5 text-xs text-pix-recent-path">
+      <p className="m-0 text-xs text-pix-recent-path">
         {gt("Supports 4chan thread, E-Hentai, ExHentai, and nhentai gallery URLs.")}
       </p>
       <SourceOpenError />

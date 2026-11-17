@@ -1,0 +1,51 @@
+[package]
+name = "pixvitta-core"
+version = "0.0.0"
+edition = "2021"
+license = "GPL-3.0-only"
+publish = false
+
+[lib]
+name = "pixvitta_core"
+# rlib lets the corpus test (tests/corpus.rs) call the C API.
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+# For SVGZ, with a limit on the decompressed size. Already used by png.
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp", "tiff", "ico"] }
+# Without "rayon": decodes on the calling thread, with no thread pool of its
+# own. "moxcms" lets it convert embedded ICC profiles.
+jxl-oxide = { version = "0.12.6", default-features = false, features = ["moxcms"] }
+moxcms = { version = "0.8", default-features = false }
+# libheif's AV1 decoder (av1.rs). Its default features: both bit depths and
+# its assembly, picked at run time by CPU. The x86-64 assembly needs nasm.
+rav1d = "1.1.0"
+# Without "memmap-fonts": font files are read, not mapped, so one changing
+# on disk can't crash the app.
+resvg = { version = "0.49", default-features = false, features = ["text", "system-fonts", "svgz", "raster-images"] }
+
+[build-dependencies]
+# build.rs builds libde265 and libheif from the tarballs in vendor/ with
+# CMake, and compiles the HEIF shim (cmake already depends on cc).
+# build_media.rs builds libmpv, FFmpeg and what they need.
+cc = "1"
+cmake = "0.1"
+flate2 = "1.1"
+# FFmpeg's tarball is .tar.xz. "static" builds liblzma from the crate's own
+# copy instead of linking the system's; no bindgen, so no libclang needed.
+liblzma = { version = "0.4", default-features = false, features = ["static"] }
+# Hashes the vendored sources, so one replaced under the same name rebuilds.
+sha2 = "0.10"
+tar = "0.4"
+
+[dev-dependencies]
+toml = "0.9"
+
+[[test]]
+name = "corpus"
+harness = false
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

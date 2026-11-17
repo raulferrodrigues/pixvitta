@@ -105,6 +105,7 @@ async function fileResponse(
 export class NHentaiProvider implements MediaProvider {
   readonly id = "nhentai";
   readonly sourceKind = "web";
+  readonly siteName = "nhentai";
   private readonly galleries = new Map<string, NHentaiGallery>();
   private readonly resources = new ResourceAcquisitions();
   private cdn: { servers: NHentaiCdnServers; fetchedAtMs: number } | null = null;
@@ -270,6 +271,8 @@ export class NHentaiProvider implements MediaProvider {
           const index = indexByKey.get(key);
           if (index !== undefined) runtime.select(index);
         },
+        standBy: (key) =>
+          runtime.standBy(key === undefined ? undefined : indexByKey.get(key)),
         deactivate: () => runtime.deactivate()
       },
       canonicalLocation: reference.pageUrl,

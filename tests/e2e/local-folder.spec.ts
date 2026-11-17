@@ -41,6 +41,29 @@ test("a picked folder shows only its supported top-level media, and each kind re
   await viewer.expectShowing("alpha.png");
 });
 
+test("viewer keys edit a focused text field, and drive the viewer again once it is gone", async ({ launch, sampleFolder }) => {
+  const { viewer, pressNativeKey, typeNative, expectMainHearsTextEntryFocus } = await launch({ dialogs: [sampleFolder] });
+  await viewer.pickFolder();
+  await viewer.expectShowing("alpha.png");
+
+  await viewer.openWebSourceDialog();
+  await expectMainHearsTextEntryFocus(true);
+  await typeNative("jkl");
+  await pressNativeKey("Left");
+  await pressNativeKey("Left");
+  await typeNative("J");
+  await pressNativeKey("Right");
+  await typeNative("K");
+  await expect(viewer.webSourceField).toHaveValue("jJkKl");
+  await viewer.expectShowing("alpha.png");
+
+  await viewer.closeWebSourceDialog();
+  await pressNativeKey("Right");
+  await viewer.expectShowing("bravo.png");
+  await pressNativeKey("Left");
+  await viewer.expectShowing("alpha.png");
+});
+
 test("thumbnails and recent sources survive a restart without being regenerated", async ({ launch, sampleFolder, sandbox }) => {
   const first = await launch({ dialogs: [sampleFolder] });
   await first.viewer.pickFolder();

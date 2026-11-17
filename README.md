@@ -15,6 +15,16 @@ Pixvitta is under active development.
 - Web sources: paste a 4chan thread or an E-Hentai, ExHentai, or nhentai
   gallery URL under **Open from the web** to browse and download its media.
   ExHentai requires signing in to the E-Hentai forums from inside the app.
+- Mixes: add more folders, threads, or galleries to what is open and browse
+  them as one stream, one item from each source in turn. The sources panel
+  (`Ctrl/Cmd + B`) lists the sources in the mix, adds one from a URL, a path,
+  a folder, or your recent sources, and removes one. A source that fails to
+  refresh keeps its items and shows why on its row. Opening a source while a
+  mix is open asks before replacing it.
+- Saved mixes: a mix is saved in your recent sources as you build it, and
+  reopens from the start screen or the sources panel. Pin a mix to keep it at
+  the top, and rename it once pinned, from its right-click menu (or `F2`). A
+  source that no longer loads stays in the mix, marked with its error.
 - Recent sources, sorting options, fullscreen, and auto-hiding controls.
 
 Folder scans are not recursive: only supported files at the top level of the
@@ -59,6 +69,8 @@ with `pnpm dist:mac`.
 | Action | Shortcut |
 | --- | --- |
 | Open folder | `Ctrl/Cmd + O` |
+| Add folder to the mix | `Ctrl/Cmd + Shift + O` |
+| Show or hide sources | `Ctrl/Cmd + B` |
 | Previous or next media | `Left` / `Right` |
 | Play or pause video | `Space` or `K` |
 | Toggle fullscreen | `F` |

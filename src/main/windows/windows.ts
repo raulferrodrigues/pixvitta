@@ -2,10 +2,12 @@ import { app, BrowserWindow, dialog, ipcMain } from "electron";
 import type {
   DownloadActivitySnapshot,
   MediaCollection,
-  OpenSourceError
+  OpenSourceError,
+  ReplaceConfirmation
 } from "../../shared/media";
+import type { AccountState } from "../../shared/accounts";
 import type { PixvittaCommand } from "../../shared/pixvittaApi";
-import type { RecentSource } from "../../shared/recentSources";
+import type { RecentEntry } from "../../shared/recentSources";
 import { rendererUrl } from "../app";
 import { createMainWindow as createMainBrowserWindow } from "./mainWindow";
 import { notifyWindowChromeChanged } from "./windowChrome";
@@ -62,7 +64,7 @@ type PendingCollectionDelivery = {
 // changes remain queued until the renderer is ready.
 const pendingCollectionDeliveries: PendingCollectionDelivery[] = [];
 let pendingLoadingState: boolean | null = null;
-let pendingSourceError: OpenSourceError | null = null;
+let pendingSourceError: { error: OpenSourceError; accountId?: string } | null = null;
 let latestLoadingState = false;
 
 // Sending before React has called viewer:ready from preload would drop the IPC
@@ -85,7 +87,7 @@ function flushMainWindowEvents(): void {
     pendingLoadingState = null;
   }
   if (pendingSourceError !== null) {
-    readyWindow.webContents.send("library:source-error", pendingSourceError);
+    readyWindow.webContents.send("library:source-error", pendingSourceError.error, pendingSourceError.accountId);
     pendingSourceError = null;
   }
   while (pendingCollectionDeliveries.length > 0) {
@@ -147,13 +149,24 @@ export function publishMainWindowLoading(isLoading: boolean): void {
   pendingLoadingState = isLoading;
 }
 
-export function publishMainWindowSourceError(error: OpenSourceError): void {
+export function publishMainWindowSourceError(error: OpenSourceError, accountId?: string): void {
   const readyWindow = getReadyMainWindow();
   if (readyWindow) {
-    readyWindow.webContents.send("library:source-error", error);
+    readyWindow.webContents.send("library:source-error", error, accountId);
     return;
   }
-  pendingSourceError = error;
+  pendingSourceError = { error, accountId };
+}
+
+export function publishMainWindowAccounts(accounts: AccountState[]): void {
+  getReadyMainWindow()?.webContents.send("accounts:changed", accounts);
+}
+
+// Only ever an answer to the window's own open request, so it is ready.
+export function publishMainWindowReplaceConfirmation(
+  confirmation: ReplaceConfirmation
+): void {
+  getReadyMainWindow()?.webContents.send("library:confirm-replace", confirmation);
 }
 
 export function publishMainWindowDownloadActivity(
@@ -166,9 +179,14 @@ export function publishMainWindowDownloadActivity(
 }
 
 export function publishMainWindowRecentSources(
-  sources: RecentSource[]
+  sources: RecentEntry[]
 ): void {
   getReadyMainWindow()?.webContents.send("recent-sources:changed", sources);
+}
+
+// Only ever an answer to the window's own menu on a saved mix, so it is ready.
+export function publishMainWindowSavedMixRename(id: string): void {
+  getReadyMainWindow()?.webContents.send("saved-mixes:rename-requested", id);
 }
 
 export function isMainWindow(window: BrowserWindow | null): boolean {

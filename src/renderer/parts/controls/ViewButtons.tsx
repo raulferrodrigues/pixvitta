@@ -1,7 +1,8 @@
-import { Eye, EyeOff, GalleryVertical, Maximize, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { Eye, EyeOff, GalleryVertical, Layers, Maximize, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useGT } from "gt-react";
 import { useViewerStore } from "../../state/ViewerStoreProvider";
 import { IconButton } from "../../ui/IconButton";
+import "./controls.css";
 
 export function FullscreenButton() {
   const gt = useGT();
@@ -74,6 +75,34 @@ export function DownloadPanelToggle() {
       ) : (
         <PanelRightOpen size={17} aria-hidden />
       )}
+    </IconButton>
+  );
+}
+
+// Shows the sources panel. With several sources the collection merges, so the
+// button carries their count, in red while a source's last load failed, so
+// the failure shows with the panel closed too.
+export function SourcesPanelToggle() {
+  const gt = useGT();
+  const sourceCount = useViewerStore((state) => state.source?.members.length ?? 0);
+  const failedCount = useViewerStore((state) => state.source?.members.filter((member) => member.error).length ?? 0);
+  const isSourcesPanelOpen = useViewerStore((state) => state.isSourcesPanelOpen);
+  const toggleSourcesPanel = useViewerStore((state) => state.toggleSourcesPanel);
+  const action = isSourcesPanelOpen ? gt("Hide sources") : gt("Show sources");
+  const counted = sourceCount > 1 ? gt("{label} ({count})", { label: action, count: sourceCount }) : action;
+  const label = failedCount > 0 ? gt("{label}, {failed} failed", { label: counted, failed: failedCount }) : counted;
+  return (
+    <IconButton
+      label={label}
+      aria-pressed={isSourcesPanelOpen}
+      className="sources-panel-toggle"
+      data-testid="sources-panel-toggle"
+      onClick={toggleSourcesPanel}
+    >
+      <Layers size={17} aria-hidden />
+      {sourceCount > 1 ? (
+        <span className="sources-panel-toggle-count" data-failed={failedCount > 0 || undefined} aria-hidden>{sourceCount}</span>
+      ) : null}
     </IconButton>
   );
 }

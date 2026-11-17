@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { AppSettings } from "../../../shared/settings";
 import { useViewerStore } from "../../state/ViewerStoreProvider";
 import { Switch } from "../../ui/Switch";
+import { AccountRow } from "./AccountRow";
 import { settingSections, type SelectSettingRow, type SettingRow } from "./settingsSections";
 import { UpdateRow } from "./UpdateRow";
 
@@ -10,6 +11,7 @@ import { UpdateRow } from "./UpdateRow";
 // store owns saving and rolls back a value whose save fails.
 export function SettingsList() {
   const gt = useGT();
+  const accounts = useViewerStore((state) => state.accounts);
   return (
     <div className="grid content-start gap-6">
       {settingSections.map((section) => (
@@ -19,6 +21,13 @@ export function SettingsList() {
           ))}
         </SettingsSection>
       ))}
+      {accounts.length > 0 ? (
+        <SettingsSection label={gt("Accounts")}>
+          {accounts.map((account) => (
+            <AccountRow key={account.id} account={account} />
+          ))}
+        </SettingsSection>
+      ) : null}
       <SettingsSection label={gt("Updates")}>
         <UpdateRow />
       </SettingsSection>
@@ -29,7 +38,7 @@ export function SettingsList() {
 function SettingsSection({ label, children }: { label: string; children: ReactNode }) {
   return (
     <section className="grid gap-2" aria-label={label}>
-      <h3 className="m-0 px-1 text-xs font-semibold uppercase tracking-wide text-pix-section">{label}</h3>
+      <h3 className="m-0 px-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-pix-section">{label}</h3>
       <div className="rounded-xl border border-pix-border bg-pix-panel/40 [&>*+*]:border-t [&>*+*]:border-pix-border-subtle">
         {children}
       </div>
@@ -78,7 +87,7 @@ function SettingSelect({
       data-testid={row.testId}
       aria-labelledby={`${row.testId}-label`}
       aria-describedby={`${row.testId}-description`}
-      className="min-h-8 w-48 max-w-full rounded-lg border border-pix-control-border bg-pix-control px-2.5 text-sm text-pix-text shadow-none [color-scheme:dark]"
+      className="settings-select min-h-8 w-48 max-w-full cursor-pointer appearance-none rounded-lg border border-pix-control-border bg-pix-control pl-2.5 pr-8 text-sm text-pix-text shadow-none outline-none transition-colors [color-scheme:dark] hover:border-pix-tile-border-hover focus-visible:border-pix-accent"
       value={value}
       onChange={(event) => {
         const option = row.options.find((candidate) => candidate.value === event.currentTarget.value);
@@ -98,7 +107,7 @@ function RowLayout({ id, label, description, children }: { id: string; label: st
   return (
     <div className="grid min-h-14 grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-2.5">
       <div className="flex min-w-0 flex-col gap-0.5">
-        <span id={`${id}-label`} className="text-sm text-pix-text">{label}</span>
+        <span id={`${id}-label`} className="text-sm font-medium text-pix-text">{label}</span>
         <span id={`${id}-description`} className="text-xs text-pix-muted">{description}</span>
       </div>
       {children}

@@ -69,6 +69,8 @@ export async function createLibraryHarness(context: { after(callback: () => void
     providers: new ProviderRegistry([new FourChanProvider(), new NHentaiProvider(), new LocalFolderProvider()]),
     getSettings: async () => settings,
     remember: async (source) => { remembered.push(source.location); },
+    saveMix: async () => {},
+    savedMix: async () => null,
     publishCollection: (collection, onDelivered) => {
       collections.push(collection);
       onDelivered();

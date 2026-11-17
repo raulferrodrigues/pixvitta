@@ -1,8 +1,9 @@
 import { app } from "electron";
 import path from "node:path";
 import type {
-  RecentSource,
-  RecentSourceInput
+  RecentEntry,
+  RecentSourceInput,
+  SavedMixInput
 } from "../../shared/recentSources";
 import type { AppSettings } from "../../shared/settings";
 import { RecentSourcesStore } from "./recentSources";
@@ -11,8 +12,8 @@ import { SettingsStore } from "./settings";
 /*
  * Stores is the persistence box for main-process features.
  *
- * Callers should ask for persisted app data through four plain verbs:
- * getSettings, saveSettings, getRecentSources, and saveRecentSource. They should
+ * Callers should ask for persisted app data through plain verbs, such as
+ * getSettings, saveSettings, getRecentSources, and saveMix. They should
  * not know which JSON files exist, where userData lives, when data is first
  * loaded, or which store class performs sanitization.
  *
@@ -24,7 +25,7 @@ let settingsStore: SettingsStore | null = null;
 let settingsLoadPromise: Promise<AppSettings> | null = null;
 
 let recentSourcesStore: RecentSourcesStore | null = null;
-let recentSourcesLoadPromise: Promise<RecentSource[]> | null = null;
+let recentSourcesLoadPromise: Promise<RecentEntry[]> | null = null;
 
 function getSettingsStore(): SettingsStore {
   // Resolve userData at first use. Tests can redirect app paths after imports,
@@ -49,7 +50,7 @@ function getRecentSourcesStore(): RecentSourcesStore {
   return recentSourcesStore;
 }
 
-async function ensureRecentSourcesLoaded(): Promise<RecentSource[]> {
+async function ensureRecentSourcesLoaded(): Promise<RecentEntry[]> {
   recentSourcesLoadPromise ??= getRecentSourcesStore().load();
   return recentSourcesLoadPromise;
 }
@@ -64,21 +65,46 @@ export async function saveSettings(settings: AppSettings): Promise<AppSettings> 
   return getSettingsStore().save(settings);
 }
 
-export async function getRecentSources(): Promise<RecentSource[]> {
+export async function getRecentSources(): Promise<RecentEntry[]> {
   await ensureRecentSourcesLoaded();
   return getRecentSourcesStore().get();
 }
 
 export async function saveRecentSource(
   source: RecentSourceInput
-): Promise<RecentSource[]> {
+): Promise<RecentEntry[]> {
   await ensureRecentSourcesLoaded();
   return getRecentSourcesStore().add(source);
 }
 
 export async function removeRecentSource(
   location: string
-): Promise<RecentSource[]> {
+): Promise<RecentEntry[]> {
   await ensureRecentSourcesLoaded();
   return getRecentSourcesStore().remove(location);
+}
+
+export async function getSavedMix(id: string): Promise<SavedMixInput | null> {
+  await ensureRecentSourcesLoaded();
+  return getRecentSourcesStore().getMix(id);
+}
+
+export async function saveMix(mix: SavedMixInput): Promise<RecentEntry[]> {
+  await ensureRecentSourcesLoaded();
+  return getRecentSourcesStore().saveMix(mix);
+}
+
+export async function removeSavedMix(id: string): Promise<RecentEntry[]> {
+  await ensureRecentSourcesLoaded();
+  return getRecentSourcesStore().removeMix(id);
+}
+
+export async function pinSavedMix(id: string, pinned: boolean): Promise<RecentEntry[]> {
+  await ensureRecentSourcesLoaded();
+  return getRecentSourcesStore().pinMix(id, pinned);
+}
+
+export async function renameSavedMix(id: string, name: string): Promise<RecentEntry[]> {
+  await ensureRecentSourcesLoaded();
+  return getRecentSourcesStore().renameMix(id, name);
 }

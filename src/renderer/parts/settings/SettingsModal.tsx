@@ -1,14 +1,17 @@
 import { ArrowLeft, Keyboard, Settings, X } from "lucide-react";
 import { useGT } from "gt-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ComponentProps } from "react";
 import { hasPendingUpdate } from "../../../shared/updates";
 import { useViewerStore } from "../../state/ViewerStoreProvider";
+import { classNames } from "../../ui/classNames";
 import { IconButton } from "../../ui/IconButton";
 import { SettingsList } from "./SettingsList";
 import { ShortcutsList } from "./ShortcutsList";
 import "./settings.css";
 
-export function SettingsToggle() {
+type SettingsToggleProps = Pick<ComponentProps<typeof IconButton>, "variant" | "className">;
+
+export function SettingsToggle({ variant, className }: SettingsToggleProps) {
   const gt = useGT();
   const isOpen = useViewerStore((state) => state.settingsView !== null);
   const openSettings = useViewerStore((state) => state.openSettings);
@@ -20,7 +23,8 @@ export function SettingsToggle() {
     <IconButton
       label={updatePending ? gt("Settings, update available") : gt("Settings")}
       aria-pressed={isOpen}
-      className="settings-toggle relative"
+      variant={variant}
+      className={classNames("settings-toggle relative", className)}
       data-testid="settings-toggle"
       data-update-pending={updatePending || undefined}
       onClick={() => (isOpen ? closeSettings() : openSettings(updatePending ? "updates" : "settings"))}
@@ -73,7 +77,7 @@ export function SettingsModal() {
   return (
     <dialog
       ref={dialogRef}
-      className="m-auto w-[min(720px,calc(100vw-32px))] overflow-hidden rounded-xl border border-pix-border bg-pix-bg p-0 text-pix-text shadow-2xl outline-none backdrop:bg-black/70"
+      className="m-auto w-[min(720px,calc(100vw-32px))] overflow-hidden rounded-2xl border border-pix-border bg-pix-bg p-0 text-pix-text shadow-[0_30px_80px_-20px_rgb(0_0_0/80%)] outline-none backdrop:bg-black/60 backdrop:backdrop-blur-[3px]"
       tabIndex={-1}
       aria-labelledby="settings-modal-title"
       data-testid="settings-modal"
@@ -88,7 +92,7 @@ export function SettingsModal() {
       }}
     >
       <div className="flex max-h-[min(900px,88vh)] flex-col">
-        <header className="flex items-center gap-2 border-b border-pix-border px-4 py-3">
+        <header className="flex items-center gap-2 border-b border-pix-border-subtle px-4 py-3">
           {isShortcuts ? (
             <IconButton
               ref={headerButtonRef}

@@ -2,25 +2,34 @@ name: Validate
 
 # Every PR is tested, typechecked, and built before it can reach a release.
 # The release builds run the same `pnpm validate`, but only after CI has
-# already committed the version.
+# already committed the version. The native core's sample-file corpus is
+# checked on every PR too.
+#
+# It also runs on every push to dev. PRs can only restore caches saved on their
+# own branch or their base branch, so this is what lets the Cargo and apt
+# caches carry over from one PR to the next.
 
 on:
   pull_request:
     branches:
       - dev
       - main
+  push:
+    branches:
+      - dev
 
 permissions:
   contents: read
 
 concurrency:
-  group: pixvitta-validate-${{ github.event.pull_request.number }}
+  group: pixvitta-validate-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   validate:
     name: Test, typecheck, and build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -62,11 +71,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Electron and a virtual display
-        run: |
-          pnpm exec install-electron
-          sudo apt-get update
-          sudo apt-get install -y xvfb libnss3 libgbm1 libasound2t64 libgtk-3-0t64 libatk-bridge2.0-0t64
+      - name: Install Electron
+        run: pnpm exec install-electron
+
+      - name: Install a virtual display and Electron's libraries
+        uses: ./.github/actions/apt-install
+        with:
+          packages: xvfb libnss3 libgbm1 libasound2t64 libgtk-3-0t64 libatk-bridge2.0-0t64
 
       - name: Stage tests
         run: pnpm test:stage
@@ -81,3 +92,36 @@ jobs:
           name: test-results
           path: test-results/
           retention-days: 7
+
+  native-corpus:
+    name: Native corpus check
+    runs-on: ubuntu-latest
+    # A clean build of the bundled video libraries takes several minutes on
+    # the runner; the cache makes later runs fast.
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # What native/README.md lists for the core.
+      - name: Install build tools and system libraries
+        uses: ./.github/actions/apt-install
+        with:
+          packages: nasm meson ninja-build python3 hwdata libva-dev libdrm-dev libegl-dev libpulse-dev libasound2-dev libfontconfig-dev
+
+      # The bundled libraries rebuild when their tarballs or build scripts
+      # change, so those are part of the key.
+      - name: Cache Cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            native/core/target
+          key: native-cargo-${{ runner.os }}-${{ hashFiles('native/core/Cargo.lock', 'native/core/build.rs', 'native/core/build_media.rs', 'native/core/vendor/**') }}
+          restore-keys: native-cargo-${{ runner.os }}-
+
+      - name: Core tests and corpus check
+        run: cargo test --release --manifest-path native/core/Cargo.toml

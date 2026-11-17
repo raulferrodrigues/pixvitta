@@ -8,7 +8,7 @@ test("each delivered collection is acknowledged exactly once, however fast they 
   // subscription under React StrictMode would be fatal in production.
   await page.evaluate(() => {
     const collection = (title: string, id: string) => ({
-      source: { id: title, title, capabilities: { canRefresh: true, canSort: true, canDownload: false, canDownloadCollection: false, canOpenOrigin: false } },
+      source: { id: title, title, capabilities: { canRefresh: true, canSort: true, canDownload: false, canDownloadCollection: false, canOpenOrigin: false }, members: [{ id, title, kind: "folder" as const, itemCount: 1 }] },
       items: [{
         id, name: `${id}.svg`, url: new URL(`/stage-media/320x240/${id}.svg`, location.origin).href,
         thumbnailUrl: null, kind: "image" as const, sizeBytes: 1, lastOpenedMs: 0, addedMs: 0, modifiedMs: 0, createdMs: 0

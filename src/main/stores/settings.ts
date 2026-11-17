@@ -71,7 +71,8 @@ export function sanitizeSettings(value: unknown): AppSettings {
       : isMediaScaleMode((raw as { videoScaleMode?: unknown }).videoScaleMode)
         ? (raw as { videoScaleMode: MediaScaleMode }).videoScaleMode
         : defaultSettings.mediaScaleMode,
-    viewerLayout: isViewerLayout(raw.viewerLayout) ? raw.viewerLayout : defaultSettings.viewerLayout
+    viewerLayout: isViewerLayout(raw.viewerLayout) ? raw.viewerLayout : defaultSettings.viewerLayout,
+    glowEffects: typeof raw.glowEffects === "boolean" ? raw.glowEffects : defaultSettings.glowEffects
   };
 }
 

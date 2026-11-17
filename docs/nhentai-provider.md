@@ -176,8 +176,8 @@ gallery.
 
 ## Deferred
 
-- API-key authentication, behind the generic provider authentication work in
-  [Future Work](future-work.md).
+- API-key authentication, as a `ProviderAccount` (see
+  [Accounts](media-provider-architecture.md#accounts)).
 - Archive downloads through `POST /galleries/{id}/download`, which needs an
   API key and would fit the collection-download flow.
 - Retrying a page on another CDN server after a failure.

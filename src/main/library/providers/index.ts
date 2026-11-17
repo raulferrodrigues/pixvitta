@@ -19,6 +19,7 @@ export type {
   MediaProvider,
   MediaResource,
   ProviderCollection,
+  ProviderAccount,
   ProviderLoadRequest,
   ProviderMediaItem
 } from "./provider";

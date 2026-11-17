@@ -29,8 +29,9 @@ const HELP = `pnpm app <command>
   status               Is it running, and where do its files live?
   stop                 Quit the app and the daemon.
 
-  open <location>      Open a folder, file, or URL. "sample-folder" and
-                       "sample-thread" and "sample-gallery" are always available.
+  open <location>      Open a folder, file, or URL. "sample-folder",
+                       "sample-thread", "second-thread", and "sample-gallery"
+                       are always available.
   snapshot             Print what is on screen as an ARIA tree.
   screenshot [path]    Save a PNG and print its path.
   click <testid|text>  Click an element by data-testid, or else by visible text.
@@ -39,9 +40,13 @@ const HELP = `pnpm app <command>
   eval <expression>    Evaluate JavaScript in the renderer and print the result.
   main <expression>    Evaluate JavaScript in the main process; "electron" is in scope.
   logs                 Print main-process and renderer output.
-  requests             Print everything the app requested from the fake web.`;
+  requests             Print everything the app requested from the fake web.
+  web-status <url> <status>
+                       Make the fake web answer a URL with that status from now
+                       on, as a site that went away would.`;
 
 const SAMPLE_THREAD_ID = 1000;
+const SECOND_THREAD_ID = 2000;
 const SAMPLE_GALLERY_ID = 1000;
 
 const home = path.join(repositoryRoot, ".tmp", "app");
@@ -86,6 +91,7 @@ async function send(state: DaemonState, command: string, args: string[]): Promis
 async function runDaemon(startFolder: string | undefined): Promise<void> {
   const web = new FakeWeb();
   addFourChanThread(web, { threadId: SAMPLE_THREAD_ID, files: 8, subject: "Sample thread" });
+  addFourChanThread(web, { threadId: SECOND_THREAD_ID, files: 8, subject: "Second thread" });
   addNHentaiGallery(web, { galleryId: SAMPLE_GALLERY_ID, pages: 8 });
   const server = await serveFakeWeb(web);
 
@@ -100,6 +106,7 @@ async function runDaemon(startFolder: string | undefined): Promise<void> {
   const samples: Record<string, string> = {
     "sample-folder": sampleFolder,
     "sample-thread": `https://boards.4chan.org/g/thread/${SAMPLE_THREAD_ID}`,
+    "second-thread": `https://boards.4chan.org/g/thread/${SECOND_THREAD_ID}`,
     "sample-gallery": `https://nhentai.net/g/${SAMPLE_GALLERY_ID}/`
   };
   const running = await launchPixvitta({ sandbox, args: startFolder ? [startFolder] : [] });
@@ -197,6 +204,12 @@ async function runCommand({ running, web, samples }: Session, command: string, a
       return logs.join("\n") || "(no output yet)";
     case "requests":
       return web.requests.map((request) => `${request.status} ${request.url}`).join("\n") || "(no requests yet)";
+    case "web-status": {
+      const [url, status] = args;
+      if (!url || !Number(status)) throw new Error("Usage: web-status <url> <status>");
+      web.route(url, () => new Response(null, { status: Number(status) }));
+      return `${url} now answers ${status}.`;
+    }
     default:
       throw new Error(`Unknown command "${command}".\n\n${HELP}`);
   }

@@ -1,0 +1,418 @@
+# The sample-file corpus: what each file in samples/ must produce.
+# How the files were made, and how to add one: README.md next to this file.
+#
+# [[sample]] fields:
+#   file              path under samples/
+#   width, height     size as shown, after EXIF orientation
+#   reference         image in references/ the pixels must roughly match
+#   max_error         mean difference per channel allowed, 0-255 (default 3)
+#   frames            animations: each frame's duration in ms, as the core
+#                     reports it; without it the file must be a still (one
+#                     frame, duration 0)
+#   frame_references  animations: a reference per frame, like reference
+#   duration          video only: seconds, within 0.15
+#   expected_failure  why the core can't open it yet; the test fails if
+#                     it starts passing, so the line gets removed
+#   note              shown in the output, not checked
+#
+# [[scan]] fields:
+#   file              path under samples/; all are in scan/, the folder
+#                     that is listed
+#   kind              "image" or "video" as the scan lists it, or "none" if
+#                     it must not be listed
+#   note              as for [[sample]]
+
+# JPEG
+[[sample]]
+file = "jpeg/baseline-420.jpg"
+width = 96
+height = 64
+reference = "pattern.png"
+
+[[sample]]
+file = "jpeg/progressive.jpg"
+width = 256
+height = 192
+reference = "photo.png"
+
+[[sample]]
+file = "jpeg/orientation-3.jpg"
+width = 96
+height = 64
+reference = "pattern.png"
+
+[[sample]]
+file = "jpeg/orientation-6.jpg"
+width = 96
+height = 64
+reference = "pattern.png"
+
+[[sample]]
+file = "jpeg/cmyk.jpg"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+
+[[sample]]
+file = "jpeg/adobe-rgb.jpg"
+width = 96
+height = 64
+reference = "pattern.png"
+
+# PNG
+[[sample]]
+file = "png/rgba8.png"
+width = 96
+height = 64
+reference = "pattern-alpha.png"
+max_error = 0.5
+
+[[sample]]
+file = "png/rgb16.png"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 0.5
+
+# GIF
+[[sample]]
+file = "gif/static.gif"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 0.5
+
+[[sample]]
+file = "gif/animated.gif"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 0.5
+frames = [100, 200, 300]
+frame_references = ["pattern.png", "pattern-mirrored.png", "pattern-flipped.png"]
+note = "3 frames; every frame is checked, and that the first follows the last"
+
+[[sample]]
+file = "gif/short-delays.gif"
+width = 8
+height = 8
+frames = [100, 100, 20]
+note = "delays of 0, 10 and 20 ms; 10 ms or less is shown for 100 ms, as browsers do"
+
+# WebP
+[[sample]]
+file = "webp/lossy.webp"
+width = 96
+height = 64
+reference = "pattern.png"
+
+[[sample]]
+file = "webp/lossless-alpha.webp"
+width = 96
+height = 64
+reference = "pattern-alpha.png"
+max_error = 0.5
+
+[[sample]]
+file = "webp/animated.webp"
+width = 96
+height = 64
+reference = "pattern.png"
+# image-webp blends like libwebp's anim_decode, which rounds opaque pixels
+# of a blended frame down by one level, so frames 2 and 3 are off by 0.75.
+max_error = 1
+frames = [100, 200, 300]
+frame_references = ["pattern.png", "pattern-mirrored.png", "pattern-flipped.png"]
+note = "3 frames; every frame is checked, and that the first follows the last"
+
+# BMP
+[[sample]]
+file = "bmp/rgb24.bmp"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 0.5
+
+# AVIF
+[[sample]]
+file = "avif/yuv420.avif"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+
+[[sample]]
+file = "avif/alpha.avif"
+width = 96
+height = 64
+reference = "pattern-alpha.png"
+max_error = 4
+
+[[sample]]
+file = "avif/10bit-444.avif"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 1
+note = "10-bit 4:4:4, limited range, BT.709 matrix from the container's nclx"
+
+[[sample]]
+file = "avif/major-brand-mif1.avif"
+width = 96
+height = 64
+reference = "pattern-alpha.png"
+max_error = 4
+note = "alpha.avif with major brand mif1; avif is only a compatible brand"
+
+[[sample]]
+file = "avif/grid.avif"
+width = 256
+height = 192
+reference = "photo.png"
+note = "a 2x2 grid of 128x128 tiles; the bottom row is cut to 64 rows"
+
+[[sample]]
+file = "avif/rotated-mirrored.avif"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+note = "stored 64x96, shown upright through irot and imir"
+
+[[sample]]
+file = "avif/bitstream-colour.avif"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+note = "no colr box; BT.709 matrix and limited range only in the AV1 sequence header"
+
+[[sample]]
+file = "avif/unspecified-nclx-full.avif"
+width = 96
+height = 64
+reference = "unspecified-nclx-full.png"
+max_error = 1
+note = "colr nclx 2/2/2 full range over a limited-range AV1 sequence header; the colr box wins, so it looks washed out"
+
+# SVG
+[[sample]]
+file = "svg/pattern.svg"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 1.5
+
+[[sample]]
+file = "svg/viewbox-alpha.svg"
+width = 96
+height = 64
+reference = "viewbox-alpha.png"
+note = "only a viewBox, no width or height; semi-transparent shapes on a transparent background"
+
+[[sample]]
+file = "svg/data-png.svg"
+width = 96
+height = 64
+reference = "pattern.png"
+note = "the pattern as an embedded data: PNG"
+
+# ICO
+[[sample]]
+file = "ico/sizes-with-png.ico"
+width = 256
+height = 256
+reference = "square-256.png"
+max_error = 0.5
+note = "256 (PNG), 48 and 16 pixel entries; the largest should be shown"
+
+# HEIC
+[[sample]]
+file = "heic/yuv420.heic"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+
+[[sample]]
+file = "heic/10bit.heic"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+
+[[sample]]
+file = "heic/grid.heic"
+width = 256
+height = 192
+reference = "photo.png"
+note = "a 2x2 grid of 128x128 tiles; the bottom row is cut to 64 rows"
+
+[[sample]]
+file = "heic/rotated-mirrored.heic"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+note = "stored 64x96, shown upright through irot and imir"
+
+[[sample]]
+file = "heic/alpha.heic"
+width = 96
+height = 64
+reference = "pattern-alpha.png"
+max_error = 4
+
+[[sample]]
+file = "heic/adobe-rgb.heic"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 4
+note = "Adobe RGB (1998) ICC profile, converted to sRGB"
+
+# JPEG XL
+[[sample]]
+file = "jxl/lossless-alpha.jxl"
+width = 96
+height = 64
+reference = "pattern-alpha.png"
+max_error = 0.5
+
+[[sample]]
+file = "jxl/lossy.jxl"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 2.5
+
+[[sample]]
+file = "jxl/jpeg-orientation-6.jxl"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 0.5
+note = "a JPEG recompressed losslessly; orientation 6 is in the codestream"
+
+[[sample]]
+file = "jxl/jpeg-adobe-rgb.jxl"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 1
+note = "a JPEG recompressed losslessly, with an Adobe RGB ICC profile"
+
+# TIFF
+[[sample]]
+file = "tiff/lzw.tif"
+width = 96
+height = 64
+reference = "pattern.png"
+max_error = 0.5
+
+# Video: through the core's own libmpv. The first video frame, and audio if
+# the file has an audio track, must decode.
+[[sample]]
+file = "video/h264.mp4"
+width = 320
+height = 240
+duration = 2
+
+[[sample]]
+file = "video/h264.m4v"
+width = 320
+height = 240
+duration = 2
+
+[[sample]]
+file = "video/hevc-10bit.mp4"
+width = 320
+height = 240
+duration = 2
+
+[[sample]]
+file = "video/prores.mov"
+width = 320
+height = 240
+duration = 1
+
+[[sample]]
+file = "video/vp9.webm"
+width = 320
+height = 240
+duration = 2
+
+[[sample]]
+file = "video/theora.ogv"
+width = 320
+height = 240
+duration = 2
+
+[[sample]]
+file = "video/theora.ogg"
+width = 320
+height = 240
+duration = 2
+
+[[sample]]
+file = "video/hevc.mkv"
+width = 320
+height = 240
+duration = 2
+
+[[sample]]
+file = "video/av1.mkv"
+width = 320
+height = 240
+duration = 2
+note = "AV1 with Opus; the bundled libmpv decodes AV1 with rav1d"
+
+[[sample]]
+file = "video/mpeg4.avi"
+width = 320
+height = 240
+duration = 2
+
+# Folder scan: samples/scan/ is listed through pv_folder_open, and the
+# listing must match these entries. Every file in it has one.
+[[scan]]
+file = "scan/png"
+kind = "image"
+
+[[scan]]
+file = "scan/photo.dat"
+kind = "image"
+note = "a JPEG with an extension that says nothing"
+
+[[scan]]
+file = "scan/svg"
+kind = "image"
+
+[[scan]]
+file = "scan/mp4"
+kind = "video"
+
+[[scan]]
+file = "scan/text.gif"
+kind = "image"
+note = "text, listed by its extension without being read; it fails to open"
+
+[[scan]]
+file = "scan/tiff"
+kind = "none"
+note = "TIFF is not listed by content: camera RAW files start the same way"
+
+[[scan]]
+file = "scan/vorbis"
+kind = "none"
+note = "Ogg Vorbis audio"
+
+[[scan]]
+file = "scan/notes.txt"
+kind = "none"
+
+[[scan]]
+file = "scan/junk"
+kind = "none"
+note = "BM and random bytes, not a BMP header"

@@ -17,6 +17,7 @@ jobs:
   linux:
     name: Build and publish Linux packages
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     # Only the newest dev build matters, so a newer run cancels an older build.
     concurrency:
       group: pixvitta-linux-nightly-release
@@ -41,9 +42,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install Linux packaging tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes imagemagick
+        uses: ./.github/actions/apt-install
+        with:
+          packages: imagemagick
 
       - name: Set Nightly version
         id: version

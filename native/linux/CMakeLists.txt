@@ -1,0 +1,133 @@
+cmake_minimum_required(VERSION 3.23)
+project(pixvitta LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Qt, and the system libraries the core's bundled libmpv links (libva, EGL,
+# PulseAudio and so on), come from the system's packages, which only the
+# system's pkg-config sees. Look for it in the system directories first, so one that
+# another package manager (such as Homebrew) puts ahead on PATH isn't used.
+# Qt's package files call pkg-config too, so this comes before them.
+# -DPKG_CONFIG_EXECUTABLE or the PKG_CONFIG environment variable still win.
+if("$ENV{PKG_CONFIG}" STREQUAL "")
+    find_program(PKG_CONFIG_EXECUTABLE NAMES pkg-config pkgconf
+        PATHS /usr/bin /bin NO_DEFAULT_PATH)
+endif()
+
+# find_package also searches the prefix of each PATH entry ending in bin, so
+# with Homebrew ahead on PATH its config-mode packages would win over the
+# system's, and the app would load Homebrew's libraries. Ignore its prefix.
+# This doesn't stop find_program finding rustup in Homebrew's bin on PATH.
+# To use a Homebrew library anyway, pass
+# -DCMAKE_PREFIX_PATH=<homebrew>/opt/<formula>, or -DCMAKE_IGNORE_PREFIX_PATH=
+# (empty) to search all of Homebrew again.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT DEFINED CMAKE_IGNORE_PREFIX_PATH)
+    if(NOT "$ENV{HOMEBREW_PREFIX}" STREQUAL "")
+        set(CMAKE_IGNORE_PREFIX_PATH "$ENV{HOMEBREW_PREFIX}")
+    else()
+        set(CMAKE_IGNORE_PREFIX_PATH /home/linuxbrew/.linuxbrew)
+    endif()
+endif()
+
+find_package(Qt6 6.4 REQUIRED COMPONENTS Gui OpenGL Qml Quick)
+find_package(Threads REQUIRED)
+find_package(PkgConfig)
+if(NOT PKG_CONFIG_FOUND)
+    message(FATAL_ERROR "pkg-config not found. Install it (on Ubuntu: sudo apt install pkg-config).")
+endif()
+
+qt_standard_project_setup()
+
+# The Rust core, built by cargo as a static library. Cargo decides what is
+# out of date, so the step runs on every build and is quick when nothing
+# changed.
+set(PIXVITTA_CORE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../core")
+set(PIXVITTA_CORE_TARGET_DIR "${CMAKE_CURRENT_BINARY_DIR}/cargo")
+set(PIXVITTA_CORE_LIB "${PIXVITTA_CORE_TARGET_DIR}/release/libpixvitta_core.a")
+find_program(CARGO cargo HINTS "$ENV{HOME}/.cargo/bin")
+if(NOT CARGO)
+    # rustup installed by a package manager (Homebrew, for one) doesn't put
+    # cargo on PATH or in ~/.cargo/bin, so ask rustup where its toolchain is.
+    find_program(RUSTUP rustup HINTS "$ENV{HOME}/.cargo/bin")
+    if(RUSTUP)
+        execute_process(COMMAND "${RUSTUP}" which cargo
+            WORKING_DIRECTORY "${PIXVITTA_CORE_DIR}"
+            OUTPUT_VARIABLE PIXVITTA_RUSTUP_CARGO
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET)
+        if(EXISTS "${PIXVITTA_RUSTUP_CARGO}")
+            set(CARGO "${PIXVITTA_RUSTUP_CARGO}" CACHE FILEPATH "Path to cargo." FORCE)
+        endif()
+    endif()
+endif()
+if(NOT CARGO)
+    message(FATAL_ERROR "cargo not found. Install Rust through rustup (https://rustup.rs) and run "
+        "'rustup default stable', or pass -DCARGO=/path/to/cargo.")
+endif()
+# Cargo finds rustc on PATH, which may not hold the toolchain CARGO points at.
+get_filename_component(PIXVITTA_CARGO_DIR "${CARGO}" DIRECTORY)
+find_program(RUSTC rustc HINTS "${PIXVITTA_CARGO_DIR}" REQUIRED)
+
+# The core's build writes the system libraries its bundled libmpv needs
+# (libva, EGL, PulseAudio and so on) here, as linker flags. It gets the
+# system's pkg-config, found above, for the bundled libraries' builds.
+set(PIXVITTA_CORE_SYSTEM_LIBS "${CMAKE_CURRENT_BINARY_DIR}/core-system-libs.txt")
+
+add_custom_target(pixvitta_core_build
+    COMMAND "${CMAKE_COMMAND}" -E env
+        "RUSTC=${RUSTC}"
+        "PIXVITTA_CORE_SYSTEM_LIBS=${PIXVITTA_CORE_SYSTEM_LIBS}"
+        "PKG_CONFIG=${PKG_CONFIG_EXECUTABLE}"
+        "${CARGO}" build --release
+        --manifest-path "${PIXVITTA_CORE_DIR}/Cargo.toml"
+        --target-dir "${PIXVITTA_CORE_TARGET_DIR}"
+    BYPRODUCTS "${PIXVITTA_CORE_LIB}" "${PIXVITTA_CORE_SYSTEM_LIBS}"
+    USES_TERMINAL
+)
+
+add_library(pixvitta_core STATIC IMPORTED)
+set_target_properties(pixvitta_core PROPERTIES
+    IMPORTED_LOCATION "${PIXVITTA_CORE_LIB}"
+    INTERFACE_INCLUDE_DIRECTORIES "${PIXVITTA_CORE_DIR}/include"
+)
+add_dependencies(pixvitta_core pixvitta_core_build)
+# A static library can't carry its dynamic links: the system libraries
+# under the core's libmpv, read at link time from the file the core's build
+# writes (a linker response file), and the C++ standard library, which
+# libheif, its decoder for HEIC and AVIF, needs.
+target_link_libraries(pixvitta_core INTERFACE "-Wl,@${PIXVITTA_CORE_SYSTEM_LIBS}"
+    Threads::Threads ${CMAKE_DL_LIBS} m stdc++)
+
+qt_add_executable(pixvitta
+    src/main.cpp
+)
+
+qt_add_qml_module(pixvitta
+    URI Pixvitta
+    VERSION 1.0
+    RESOURCE_PREFIX /qt/qml
+    QML_FILES
+        qml/Main.qml
+    SOURCES
+        src/imageitem.h src/imageitem.cpp
+        src/mediafolder.h src/mediafolder.cpp
+        src/videoitem.h src/videoitem.cpp
+)
+
+# Keep the core's symbols, its bundled libraries' included, out of the
+# executable's exports. Otherwise the bundled FreeType would replace the
+# system's under the system's fontconfig, and the bundled FFmpeg could
+# clash with a system copy another library loads.
+target_link_options(pixvitta PRIVATE "LINKER:--exclude-libs,libpixvitta_core.a")
+
+# The generated QML type registrations include the headers by name.
+target_include_directories(pixvitta PRIVATE src)
+
+target_link_libraries(pixvitta PRIVATE
+    Qt6::Gui
+    Qt6::OpenGL
+    Qt6::Qml
+    Qt6::Quick
+    pixvitta_core
+)
