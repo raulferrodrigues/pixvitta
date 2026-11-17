@@ -12,8 +12,8 @@ is listed in [`future-work.md`](future-work.md).
   view calculations both UIs share: where an image is drawn to fit the
   view (scaled down, never up, and centred), and how it zooms and pans. A
   folder lists a file with an image or video extension as that kind without
-  opening it, and reads the first bytes of every other file to tell whether it is an image or
-  a video; TIFF and ICO are only listed by extension. The decoder always goes
+  opening it, and reads the first bytes of every other file to tell whether
+  it is an image or a video; TIFF and ICO are only listed by extension. The decoder always goes
   by content, so a mislabelled file still opens. It decodes JPEG,
   PNG, GIF, WebP, BMP, TIFF, ICO, HEIC and AVIF (the primary image, grids
   included, through libheif, built from the release tarballs in

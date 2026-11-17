@@ -35,10 +35,13 @@ pub const MIN_ZOOM: f64 = 1.0;
 pub const MAX_ZOOM: f64 = 10.0;
 pub const UNZOOMED: Zoom = Zoom { scale: MIN_ZOOM, pan_x: 0.0, pan_y: 0.0 };
 
-/// A wheel turn larger than this, in pixels, zooms as much as this.
-const WHEEL_DELTA_LIMIT: f64 = 24.0;
-/// Percent of zoom per pixel of wheel turn.
-const WHEEL_ZOOM_PER_PIXEL: f64 = 2.4;
+/// One keyboard zoom step.
+const ZOOM_STEP: f64 = 1.35;
+/// One wheel notch, as in the Electron app: Chromium gives a notch 24 pixels
+/// or more, and it zooms 2.4% a pixel up to 24.
+const WHEEL_NOTCH_ZOOM: f64 = 1.576;
+/// One pixel of touchpad scroll, as in the Electron app.
+const TOUCHPAD_PIXEL_ZOOM: f64 = 1.024;
 
 const EMPTY: Rect = Rect { x: 0.0, y: 0.0, width: 0.0, height: 0.0 };
 
@@ -79,9 +82,9 @@ pub fn zoomed(content: Size, view: Size, zoom: Zoom) -> Rect {
 
 /// Multiplies the zoom by `factor`, kept between 1x and 10x, so that the
 /// point of the content under (`x`, `y`) in the view stays there, as far as
-/// the pan limits allow. Zoom by keys around the view's centre and by wheel
-/// or pinch around the pointer. Unusable sizes give `UNZOOMED`; a factor that
-/// is not finite and positive changes nothing.
+/// the pan limits allow. Zoom by wheel or pinch around the pointer.
+/// Unusable sizes give `UNZOOMED`; a factor that is not finite and positive,
+/// or a point that is not finite, only keeps the zoom within its limits.
 pub fn zoom_by(content: Size, view: Size, zoom: Zoom, factor: f64, x: f64, y: f64) -> Zoom {
     if !usable(content) || !usable(view) {
         return UNZOOMED;
@@ -108,6 +111,12 @@ pub fn zoom_by(content: Size, view: Size, zoom: Zoom, factor: f64, x: f64, y: f6
     )
 }
 
+/// Zooms in by `steps` keyboard steps (out if negative) around the view's
+/// centre.
+pub fn step_zoom(content: Size, view: Size, zoom: Zoom, steps: i32) -> Zoom {
+    zoom_by(content, view, zoom, ZOOM_STEP.powi(steps), view.width / 2.0, view.height / 2.0)
+}
+
 /// Moves the content by (`dx`, `dy`) within the pan limits: the content's
 /// edge never comes inside the view's, and content smaller than the view
 /// stays centred. Call it with no movement after the view or content
@@ -130,20 +139,25 @@ fn clamp(content: Size, view: Size, zoom: Zoom) -> Zoom {
     Zoom { scale, pan_x: pan(zoom.pan_x, limit_x), pan_y: pan(zoom.pan_y, limit_y) }
 }
 
-/// The zoom factor for a wheel turn of `delta` pixels, positive to zoom in
-/// (Qt's angle delta, 120 a notch, can be passed as it is). Turns past 24
-/// pixels count as 24, so one notch zooms by about 1.58x, as in the Electron
-/// app.
-pub fn wheel_zoom_factor(delta: f64) -> f64 {
-    if !delta.is_finite() {
+/// The zoom factor for a wheel turn of `notches`, positive to zoom in.
+/// Fractions count: a wheel that reports a notch in eight parts zooms as
+/// much as one that reports it whole.
+pub fn wheel_zoom_factor(notches: f64) -> f64 {
+    growth(WHEEL_NOTCH_ZOOM, notches)
+}
+
+/// The zoom factor for a touchpad scroll of `pixels`, positive to zoom in.
+pub fn touchpad_zoom_factor(pixels: f64) -> f64 {
+    growth(TOUCHPAD_PIXEL_ZOOM, pixels)
+}
+
+/// `base` to the power `amount`, kept within what can change a zoom between
+/// 1x and 10x, so a huge amount still zooms all the way.
+fn growth(base: f64, amount: f64) -> f64 {
+    if !amount.is_finite() {
         return 1.0;
     }
-    let step = 1.0 + delta.abs().min(WHEEL_DELTA_LIMIT) * WHEEL_ZOOM_PER_PIXEL / 100.0;
-    if delta >= 0.0 {
-        step
-    } else {
-        1.0 / step
-    }
+    base.powf(amount).clamp(MIN_ZOOM / MAX_ZOOM, MAX_ZOOM / MIN_ZOOM)
 }
 
 #[cfg(test)]
@@ -162,8 +176,6 @@ mod tests {
         Zoom { scale, pan_x, pan_y }
     }
 
-    // PV_ZOOM_STEP in pixvitta.h, which the UIs use for keyboard zoom.
-    const ZOOM_STEP: f64 = 1.35;
     const VIEW: Size = Size { width: 800.0, height: 600.0 };
     // Fits the view as 800 x 400.
     const WIDE: Size = Size { width: 2000.0, height: 1000.0 };
@@ -216,9 +228,16 @@ mod tests {
         assert_eq!(zoomed(WIDE, VIEW, zoom(2.0, 30.0, -20.0)), rect(-370.0, -120.0, 1600.0, 800.0));
     }
 
+    fn close(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-12
+    }
+
     #[test]
-    fn zooming_at_the_centre_keeps_the_content_centred() {
-        assert_eq!(zoom_by(WIDE, VIEW, UNZOOMED, ZOOM_STEP, 400.0, 300.0), zoom(ZOOM_STEP, 0.0, 0.0));
+    fn a_step_zooms_around_the_view_centre() {
+        let panned = zoom(2.0, 100.0, 50.0);
+        assert_eq!(step_zoom(WIDE, VIEW, panned, 1), zoom_by(WIDE, VIEW, panned, 1.35, 400.0, 300.0));
+        assert_eq!(step_zoom(WIDE, VIEW, UNZOOMED, 1), zoom(1.35, 0.0, 0.0));
+        assert_eq!(step_zoom(WIDE, VIEW, UNZOOMED, 2).scale, 1.35 * 1.35);
     }
 
     #[test]
@@ -249,10 +268,17 @@ mod tests {
     fn stepping_in_and_back_out_returns_to_1x() {
         let mut current = UNZOOMED;
         for _ in 0..5 {
-            current = zoom_by(WIDE, VIEW, current, ZOOM_STEP, 123.0, 456.0);
+            current = zoom_by(WIDE, VIEW, current, 1.35, 123.0, 456.0);
         }
         for _ in 0..5 {
-            current = zoom_by(WIDE, VIEW, current, 1.0 / ZOOM_STEP, 321.0, 54.0);
+            current = zoom_by(WIDE, VIEW, current, 1.0 / 1.35, 321.0, 54.0);
+        }
+        assert_eq!(current, UNZOOMED);
+        for _ in 0..5 {
+            current = step_zoom(WIDE, VIEW, current, 1);
+        }
+        for _ in 0..5 {
+            current = step_zoom(WIDE, VIEW, current, -1);
         }
         assert_eq!(current, UNZOOMED);
     }
@@ -292,16 +318,30 @@ mod tests {
     }
 
     #[test]
-    fn a_wheel_notch_zooms_by_the_limit() {
-        assert_eq!(wheel_zoom_factor(120.0), 1.576);
-        assert_eq!(wheel_zoom_factor(-120.0), 1.0 / 1.576);
-        assert_eq!(wheel_zoom_factor(24.0), 1.576);
+    fn a_wheel_notch_zooms_as_in_the_electron_app() {
+        assert_eq!(wheel_zoom_factor(1.0), 1.576);
+        assert!(close(wheel_zoom_factor(-1.0), 1.0 / 1.576));
+        assert_eq!(wheel_zoom_factor(0.0), 1.0);
     }
 
     #[test]
-    fn a_small_wheel_turn_zooms_a_little() {
-        assert_eq!(wheel_zoom_factor(5.0), 1.12);
-        assert_eq!(wheel_zoom_factor(0.0), 1.0);
+    fn a_notch_in_parts_zooms_as_much_as_a_whole_one() {
+        assert!(close(wheel_zoom_factor(0.125).powi(8), wheel_zoom_factor(1.0)));
+        assert!(close(touchpad_zoom_factor(2.5).powi(4), touchpad_zoom_factor(10.0)));
+    }
+
+    #[test]
+    fn a_touchpad_pixel_zooms_as_in_the_electron_app() {
+        assert_eq!(touchpad_zoom_factor(1.0), 1.024);
+        assert!(close(touchpad_zoom_factor(-1.0), 1.0 / 1.024));
+    }
+
+    #[test]
+    fn a_huge_turn_zooms_all_the_way() {
+        assert_eq!(wheel_zoom_factor(1e6), 10.0);
+        assert_eq!(touchpad_zoom_factor(-1e6), 0.1);
+        assert_eq!(zoom_by(WIDE, VIEW, UNZOOMED, wheel_zoom_factor(1e6), 400.0, 300.0).scale, MAX_ZOOM);
         assert_eq!(wheel_zoom_factor(f64::NAN), 1.0);
+        assert_eq!(touchpad_zoom_factor(f64::INFINITY), 1.0);
     }
 }

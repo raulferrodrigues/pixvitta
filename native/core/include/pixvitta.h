@@ -112,14 +112,11 @@ typedef struct pv_rect {
 /* How far content is zoomed and panned in a view. `scale` multiplies the
  * fitted size, from 1 to 10; `pan_x` and `pan_y` move the content's centre
  * away from the view's. Start from {1, 0, 0}, keep one per item shown, and
- * change it only through pv_view_zoom_by and pv_view_pan_by, which keep it
- * within its limits. */
+ * change it only through the calls below, which keep it within its
+ * limits. */
 typedef struct pv_zoom {
     double scale, pan_x, pan_y;
 } pv_zoom;
-
-/* One keyboard zoom step: zoom in by this factor, out by its inverse. */
-#define PV_ZOOM_STEP 1.35
 
 /* Where content of the given size is drawn in a view of the given size:
  * scaled down to fit with its aspect ratio kept, never scaled up, and
@@ -133,8 +130,9 @@ pv_rect pv_view_zoomed(pv_size content, pv_size view, pv_zoom zoom);
 
 /* Multiplies the zoom by `factor`, kept between 1 and 10, so that the
  * content under the point (x, y) of the view stays there, as far as the pan
- * limits allow. Zoom by keys around the view's centre, by wheel around the
- * pointer. A factor that is not finite and positive changes nothing. */
+ * limits allow. Zoom by wheel or pinch around the pointer. A factor that is
+ * not finite and positive, or a point that is not finite, only keeps the
+ * zoom within its limits. */
 pv_zoom pv_view_zoom_by(pv_size content, pv_size view, pv_zoom zoom, double factor, double x,
                         double y);
 
@@ -144,10 +142,16 @@ pv_zoom pv_view_zoom_by(pv_size content, pv_size view, pv_zoom zoom, double fact
  * bring the pan back within the new limits. */
 pv_zoom pv_view_pan_by(pv_size content, pv_size view, pv_zoom zoom, double dx, double dy);
 
-/* The zoom factor for a wheel turn of `delta` pixels, positive to zoom in.
- * Qt's angle delta (120 a notch) can be passed as it is: turns past 24
- * pixels count as 24, so a notch zooms by about 1.58. */
-double pv_view_wheel_zoom_factor(double delta);
+/* Zooms in by `steps` keyboard steps (out if negative) around the view's
+ * centre. */
+pv_zoom pv_view_step_zoom(pv_size content, pv_size view, pv_zoom zoom, int steps);
+
+/* The zoom factors for pv_view_zoom_by from a wheel turn of `notches` (Qt's
+ * angle delta divided by 120) and from a touchpad scroll of `pixels`,
+ * positive to zoom in. Fractions count, so a turn zooms the same however
+ * the device splits it into events. */
+double pv_view_wheel_zoom_factor(double notches);
+double pv_view_touchpad_zoom_factor(double pixels);
 
 /* Video ------------------------------------------------------------------ */
 

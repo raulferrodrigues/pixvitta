@@ -50,6 +50,7 @@ void ImageItem::setSource(const QString &source)
     m_source = source;
     stop();
     setZoom({1, 0, 0});
+    m_dragStart = m_zoom;
     m_frame = QImage();
     m_frameChanged = true;
     update();
@@ -192,20 +193,37 @@ void ImageItem::setZoom(const pv_zoom &zoom)
 
 void ImageItem::zoomIn()
 {
-    setZoom(pv_view_zoom_by(contentSize(), {width(), height()}, m_zoom, PV_ZOOM_STEP, width() / 2, height() / 2));
+    setZoom(pv_view_step_zoom(contentSize(), {width(), height()}, m_zoom, 1));
 }
 
 void ImageItem::zoomOut()
 {
-    setZoom(pv_view_zoom_by(contentSize(), {width(), height()}, m_zoom, 1 / PV_ZOOM_STEP, width() / 2, height() / 2));
+    setZoom(pv_view_step_zoom(contentSize(), {width(), height()}, m_zoom, -1));
 }
 
-void ImageItem::wheelZoom(qreal delta, qreal x, qreal y)
+void ImageItem::wheelZoom(qreal notches, qreal x, qreal y)
 {
-    setZoom(pv_view_zoom_by(contentSize(), {width(), height()}, m_zoom, pv_view_wheel_zoom_factor(delta), x, y));
+    setZoom(pv_view_zoom_by(contentSize(), {width(), height()}, m_zoom, pv_view_wheel_zoom_factor(notches), x, y));
+}
+
+void ImageItem::touchpadZoom(qreal pixels, qreal x, qreal y)
+{
+    setZoom(pv_view_zoom_by(contentSize(), {width(), height()}, m_zoom, pv_view_touchpad_zoom_factor(pixels), x, y));
 }
 
 void ImageItem::panBy(qreal dx, qreal dy)
 {
     setZoom(pv_view_pan_by(contentSize(), {width(), height()}, m_zoom, dx, dy));
+}
+
+void ImageItem::startDrag()
+{
+    m_dragStart = m_zoom;
+}
+
+void ImageItem::dragBy(qreal dx, qreal dy)
+{
+    // From the pan at the start, at today's scale.
+    const pv_zoom start = {m_zoom.scale, m_dragStart.pan_x, m_dragStart.pan_y};
+    setZoom(pv_view_pan_by(contentSize(), {width(), height()}, start, dx, dy));
 }

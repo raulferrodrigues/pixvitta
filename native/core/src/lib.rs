@@ -277,8 +277,23 @@ pub extern "C" fn pv_view_pan_by(
 }
 
 #[no_mangle]
-pub extern "C" fn pv_view_wheel_zoom_factor(delta: f64) -> f64 {
-    view::wheel_zoom_factor(delta)
+pub extern "C" fn pv_view_step_zoom(
+    content: view::Size,
+    view: view::Size,
+    zoom: view::Zoom,
+    steps: c_int,
+) -> view::Zoom {
+    view::step_zoom(content, view, zoom, steps)
+}
+
+#[no_mangle]
+pub extern "C" fn pv_view_wheel_zoom_factor(notches: f64) -> f64 {
+    view::wheel_zoom_factor(notches)
+}
+
+#[no_mangle]
+pub extern "C" fn pv_view_touchpad_zoom_factor(pixels: f64) -> f64 {
+    view::touchpad_zoom_factor(pixels)
 }
 
 // Video

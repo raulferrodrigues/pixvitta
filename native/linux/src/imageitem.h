@@ -34,10 +34,15 @@ public:
     // Zoom by one step around the item's centre.
     Q_INVOKABLE void zoomIn();
     Q_INVOKABLE void zoomOut();
-    // Zoom for a wheel turn of `delta` pixels (positive zooms in) around the
-    // point (x, y) of the item.
-    Q_INVOKABLE void wheelZoom(qreal delta, qreal x, qreal y);
+    // Zoom around the point (x, y) of the item for a wheel turn of
+    // `notches`, or a touchpad scroll of `pixels`; positive zooms in.
+    Q_INVOKABLE void wheelZoom(qreal notches, qreal x, qreal y);
+    Q_INVOKABLE void touchpadZoom(qreal pixels, qreal x, qreal y);
     Q_INVOKABLE void panBy(qreal dx, qreal dy);
+    // A drag pans by how far the pointer has moved since it started, so the
+    // content stays at its edge until the pointer comes back past it.
+    Q_INVOKABLE void startDrag();
+    Q_INVOKABLE void dragBy(qreal dx, qreal dy);
 
 signals:
     void sourceChanged();
@@ -67,4 +72,5 @@ private:
     // The frame on screen has had its time.
     bool m_due = false;
     pv_zoom m_zoom = {1, 0, 0};
+    pv_zoom m_dragStart = {1, 0, 0};
 };

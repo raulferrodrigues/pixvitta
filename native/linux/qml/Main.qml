@@ -21,16 +21,22 @@ Window {
         // Ctrl and the wheel zoom at the pointer. Once zoomed in, the wheel
         // and dragging pan, as in the Electron app.
         MouseArea {
-            property point last
+            property point start
 
             anchors.fill: parent
             cursorShape: image.zoomed ? (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.ArrowCursor
 
             onWheel: (wheel) => {
                 const touchpad = wheel.pixelDelta.x !== 0 || wheel.pixelDelta.y !== 0
+                // A wheel notch pans 120 pixels, as Chromium's does.
                 let delta = touchpad ? wheel.pixelDelta : wheel.angleDelta
                 if (wheel.modifiers & Qt.ControlModifier) {
-                    image.wheelZoom(delta.y, wheel.x, wheel.y)
+                    if (touchpad)
+                        image.touchpadZoom(delta.y, wheel.x, wheel.y)
+                    else
+                        image.wheelZoom(delta.y / 120, wheel.x, wheel.y)
+                    // Sideways still pans.
+                    image.panBy(delta.x, 0)
                 } else if (image.zoomed) {
                     // Shift turns a plain wheel sideways.
                     if (delta.x === 0 && (wheel.modifiers & Qt.ShiftModifier))
@@ -42,12 +48,10 @@ Window {
             }
             onPressed: (mouse) => {
                 mouse.accepted = image.zoomed
-                last = Qt.point(mouse.x, mouse.y)
+                start = Qt.point(mouse.x, mouse.y)
+                image.startDrag()
             }
-            onPositionChanged: (mouse) => {
-                image.panBy(mouse.x - last.x, mouse.y - last.y)
-                last = Qt.point(mouse.x, mouse.y)
-            }
+            onPositionChanged: (mouse) => image.dragBy(mouse.x - start.x, mouse.y - start.y)
         }
     }
 
