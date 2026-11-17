@@ -45,6 +45,10 @@ pub struct Renderer {
     core: Arc<Core>,
     #[allow(dead_code)]
     wakeup: Arc<Mutex<Wakeup>>,
+    // The GPU's render node, which mpv's VA-API decoder uses but doesn't own.
+    #[cfg(target_os = "linux")]
+    #[allow(dead_code)]
+    render_node: Option<std::fs::File>,
 }
 
 // Options that this libmpv doesn't know are skipped. `config=no` keeps the
@@ -115,12 +119,18 @@ impl Player {
     }
 
     /// Must run on the UI's render thread with its OpenGL context current.
+    ///
+    /// Hardware decoding: on Linux, when that context is EGL (Qt uses EGL on
+    /// Wayland, GLX on X11), mpv gets the render node of its GPU, so VA-API
+    /// frames reach OpenGL without a copy. Under GLX, VA-API copies frames
+    /// back through the CPU (`vaapi-copy`). NVDEC needs nothing passed in
+    /// and copies nothing under either.
     pub fn create_renderer(&self, get_proc_address: mpv::GetProcAddress, ctx: *mut c_void) -> Option<Renderer> {
         let mut init = mpv::OpenGlInitParams {
             get_proc_address: Some(get_proc_address),
             get_proc_address_ctx: ctx,
         };
-        let mut params = [
+        let mut params = vec![
             mpv::RenderParam {
                 kind: mpv::PARAM_API_TYPE,
                 data: mpv::RENDER_API_TYPE_OPENGL.as_ptr() as *mut c_void,
@@ -129,11 +139,28 @@ impl Player {
                 kind: mpv::PARAM_OPENGL_INIT_PARAMS,
                 data: (&mut init as *mut mpv::OpenGlInitParams).cast(),
             },
-            mpv::RenderParam {
-                kind: mpv::PARAM_INVALID,
-                data: ptr::null_mut(),
-            },
         ];
+        #[cfg(target_os = "linux")]
+        let render_node = crate::render_node::open_current();
+        #[cfg(target_os = "linux")]
+        let mut drm = mpv::DrmParamsV2 {
+            fd: -1,
+            crtc_id: -1,
+            connector_id: -1,
+            atomic_request_ptr: ptr::null_mut(),
+            render_fd: render_node.as_ref().map_or(-1, std::os::fd::AsRawFd::as_raw_fd),
+        };
+        #[cfg(target_os = "linux")]
+        if render_node.is_some() {
+            params.push(mpv::RenderParam {
+                kind: mpv::PARAM_DRM_DISPLAY_V2,
+                data: (&mut drm as *mut mpv::DrmParamsV2).cast(),
+            });
+        }
+        params.push(mpv::RenderParam {
+            kind: mpv::PARAM_INVALID,
+            data: ptr::null_mut(),
+        });
         let mut context = ptr::null_mut();
         unsafe {
             if mpv::mpv_render_context_create(&mut context, self.core.0, params.as_mut_ptr()) < 0 || context.is_null() {
@@ -150,6 +177,8 @@ impl Player {
             context,
             core: Arc::clone(&self.core),
             wakeup: Arc::clone(&self.wakeup),
+            #[cfg(target_os = "linux")]
+            render_node,
         })
     }
 }

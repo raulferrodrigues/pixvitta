@@ -36,11 +36,23 @@ pub struct OpenGlFbo {
     pub internal_format: c_int,
 }
 
+/// For `PARAM_DRM_DISPLAY_V2`. Only `render_fd` matters to the render
+/// API; the rest describe a display mpv would drive itself.
+#[repr(C)]
+pub struct DrmParamsV2 {
+    pub fd: c_int,
+    pub crtc_id: c_int,
+    pub connector_id: c_int,
+    pub atomic_request_ptr: *mut *mut c_void,
+    pub render_fd: c_int,
+}
+
 pub const PARAM_INVALID: c_int = 0;
 pub const PARAM_API_TYPE: c_int = 1;
 pub const PARAM_OPENGL_INIT_PARAMS: c_int = 2;
 pub const PARAM_OPENGL_FBO: c_int = 3;
 pub const PARAM_FLIP_Y: c_int = 4;
+pub const PARAM_DRM_DISPLAY_V2: c_int = 16;
 
 pub const RENDER_API_TYPE_OPENGL: &std::ffi::CStr = c"opengl";
 

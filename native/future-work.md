@@ -50,16 +50,23 @@ scroll in the core, with tests. Only fitting is there.
 
 ## Video
 
-### Hardware decoding is not wired up
+### VA-API copies every frame on X11
 
-The player asks libmpv for `hwdec=auto-safe`, but the Linux app gives
-libmpv's render context nothing to reach the GPU with, so video decodes in
-software.
+Qt draws with GLX on X11, and only an EGL context takes VA-API frames from
+the GPU directly, so on Intel and AMD under X11 mpv uses `vaapi-copy`: it
+decodes on the GPU and copies each frame back through the CPU. Fine at
+1080p; costly at 4K or high frame rates. NVIDIA (NVDEC) and Wayland copy
+nothing.
 
-Proposed direction: open the GPU's render node and pass it as
-`MPV_RENDER_PARAM_DRM_DISPLAY_v2` in `linux/src/videoitem.cpp`, then check
-a VA-API and an NVDEC decode actually happen. Step 4 of
-[`video-plan.md`](video-plan.md) has the details.
+Forcing EGL (`QT_XCB_GL_INTEGRATION=xcb_egl`) was tried: with Qt 6.4
+(Ubuntu 24.04, Mint 22) and NVIDIA 580 the whole window is black, images
+included ([QTBUG-106065](https://bugreports.qt.io/browse/QTBUG-106065),
+closed out of scope for 5.15 to 6.4).
+
+Proposed direction: try EGL on X11 again when the oldest supported Qt is
+newer, on NVIDIA and on Intel or AMD. The core already passes the render
+node whenever the context is EGL, so it would only be the variable in
+`linux/src/main.cpp`.
 
 ### A panic on one of rav1d's worker threads still ends the app
 
@@ -75,9 +82,9 @@ separate process would contain it but is a large change.
 
 ## Not yet seen working
 
-- No video, AV1 or other, has been watched playing on a real screen
-  through the bundled libmpv. The corpus check decodes every sample through
-  it, AV1 through rav1d, and the app starts with it.
+- VA-API decoding of any kind, zero-copy (Wayland) or `vaapi-copy` (X11).
+  Only NVDEC has been seen working, on an NVIDIA card. Under EGL the render
+  node reaches libva, which found no VA-API driver on that machine.
 - The core's link line for the C++ standard library on macOS (`c++`) is
   written and has never been built.
 

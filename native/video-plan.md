@@ -9,8 +9,8 @@ into [`future-work.md`](future-work.md), when the work is done.
 
 The whole video stack builds from `core/vendor/` and links into the core,
 always: there is no build that uses the system's libmpv or FFmpeg. The
-corpus check passes through it, AV1 included, and the Linux app builds and
-starts. Video has not been watched on a screen with it yet.
+corpus check passes through it, AV1 included, and the Linux app plays
+video through it, decoded on the GPU with NVDEC on NVIDIA.
 
 ## What is bundled
 
@@ -139,23 +139,34 @@ only `dav1d_version`. The final link takes the real functions from rav1d.
 ### Hardware decoding: VA-API through the DRM render node, and NVDEC
 
 FFmpeg and mpv are built with VA-API (Intel, AMD, and NVIDIA through
-nvidia-vaapi-driver) and NVDEC (NVIDIA's own driver). Nothing is wired
-up in the app yet (step 4).
+nvidia-vaapi-driver) and NVDEC (NVIDIA's own driver). libmpv picks one
+itself (`hwdec=auto-safe`): NVDEC first, then VA-API, then the same two
+copying frames back, then software.
 
-- VA-API reaches the GPU through its render node (`/dev/dri/renderD128`),
-  which the app opens and hands to libmpv. That works under X11 and Wayland
-  alike, without mpv's X11 or Wayland code. mpv's Wayland support couldn't
-  be built anyway: it needs wayland-client 1.23, and Ubuntu 24.04 has 1.22.
-  The cost is libdisplay-info, which mpv's DRM support requires.
+- VA-API reaches the GPU through its render node (`/dev/dri/renderD*`).
+  When the app's OpenGL context is EGL, the core asks EGL which render node
+  that context's GPU has (`core/src/render_node.rs`), opens it and passes it
+  as `MPV_RENDER_PARAM_DRM_DISPLAY_V2` when it creates the render context.
+  So decoding and drawing happen on the same GPU even with two of them.
+  That works under X11 and Wayland alike, without mpv's X11 or Wayland
+  code. mpv's Wayland support couldn't be built anyway: it needs
+  wayland-client 1.23, and Ubuntu 24.04 has 1.22. The cost is
+  libdisplay-info, which mpv's DRM support requires.
 - Zero-copy VA-API needs the app's OpenGL context to be EGL. Qt uses EGL on
-  Wayland, but GLX on X11 unless told otherwise. Under GLX, mpv falls back
-  to copying frames back from the GPU (`vaapi-copy`), which is slower but
-  works.
+  Wayland and GLX on X11, and the app keeps Qt's default. Under GLX, mpv
+  opens a render node itself and copies frames back from the GPU
+  (`vaapi-copy`), which is slower but works. mpv itself prefers EGL on X11,
+  but Qt 6.4 (Ubuntu 24.04) draws Qt Quick windows black with EGL on X11,
+  at least on NVIDIA 580 ([QTBUG-106065](https://bugreports.qt.io/browse/QTBUG-106065)).
+  `future-work.md` says when to try again.
 - NVDEC loads NVIDIA's driver at run time and links nothing. Its headers
   are 12.1, the oldest FFmpeg 9 accepts, so drivers from 530 on work
   (Ubuntu 24.04's NVIDIA 535 branch included). Newer headers would need
-  newer drivers and gain nothing for decoding. On NVIDIA, mpv's CUDA
-  interop works with GLX too.
+  newer drivers and gain nothing for decoding. mpv's CUDA interop hands
+  frames to OpenGL without a copy under GLX and EGL alike.
+- AV1: mpv opens `libdav1d` (rav1d) as the decoder, and with hardware
+  decoding on it switches to FFmpeg's own `av1` decoder, which drives the
+  hardware. Without hardware AV1, or if that fails, it stays on rav1d.
 - Not built: Vulkan video, VDPAU (deprecated). Vulkan would need the Vulkan
   loader and mpv's Vulkan output, which the OpenGL render API doesn't use.
 
@@ -223,12 +234,17 @@ supported (Ubuntu 24.04), as is usual. The .deb then depends on `libva2`,
    AV1 sample was added.
 3. **Done:** always use the bundled libmpv. The app and CI no longer use
    the system's libmpv at all.
-4. Hardware decoding in the app: open the render node and pass it as
-   `MPV_RENDER_PARAM_DRM_DISPLAY_v2`, decide whether Qt should use EGL on
-   X11, and check that decoding really happens on the GPU (VA-API on Intel
-   or AMD, NVDEC on NVIDIA). Check too which AV1 decoder mpv picks with
-   hardware decoding on: hardware AV1 goes through FFmpeg's own `av1`
-   decoder, not libdav1d.
+4. **Done (NVDEC seen working; VA-API not yet):** hardware decoding in the
+   app. The core passes the render node under EGL; Qt stays on GLX on X11
+   (see the decision above). On an RTX 4070 SUPER with driver 580 under
+   X11, `hwdec-current` is `nvdec` for H.264, HEVC (8- and 10-bit) and AV1,
+   with frames reaching OpenGL as CUDA surfaces, under GLX and EGL. AV1
+   goes through FFmpeg's `av1` decoder. The other samples decode in
+   software, as expected: the VP9 sample is profile 1 (4:4:4), which no
+   GPU decodes; MPEG-4 Part 2 isn't on mpv's safe list; ProRes and Theora
+   have no hardware decoder here. The first video the app showed used to
+   play without a picture, because it was loaded before the render context
+   existed; the item now loads a file only once it has one.
 5. macOS: the same libraries with VideoToolbox, CoreText for libass instead
    of fontconfig, and CoreAudio. No DRM, VA-API, PulseAudio, ALSA or
    fontconfig.
@@ -238,8 +254,8 @@ supported (Ubuntu 24.04), as is usual. The .deb then depends on `libva2`,
 
 ## Not yet seen working
 
-- A video played on a screen through the bundled libmpv. The corpus check
-  decodes through it, and the app starts with it, but nothing has been
-  watched.
 - Subtitles through the bundled libass (no sample has subtitles).
-- Hardware decoding of any kind (step 4).
+- VA-API, on Intel or AMD: zero-copy under Wayland, `vaapi-copy` under
+  X11. The machine step 4 was checked on has no VA-API driver. Under EGL,
+  libva got the render node and found no driver to load, so the
+  hand-over itself works.
