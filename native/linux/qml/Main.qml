@@ -13,9 +13,49 @@ Window {
     title: folder.count > 0 ? folder.name + " - Pixvitta" : "Pixvitta"
 
     ImageItem {
+        id: image
         anchors.fill: parent
         visible: !window.folder.isVideo
         source: window.folder.count > 0 && !window.folder.isVideo ? window.folder.pathId : ""
+
+        // Ctrl and the wheel zoom at the pointer. Once zoomed in, the wheel
+        // and dragging pan, as in the Electron app.
+        MouseArea {
+            property point start
+
+            anchors.fill: parent
+            cursorShape: image.zoomed ? (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.ArrowCursor
+
+            onWheel: (wheel) => {
+                // A touchpad scrolls in phases; a slow scroll can round its
+                // pixels to nothing, which must not count as a wheel turn.
+                const touchpad = wheel.phase !== Qt.NoScrollPhase
+                    || wheel.pixelDelta.x !== 0 || wheel.pixelDelta.y !== 0
+                // A wheel notch pans 120 pixels.
+                let delta = touchpad ? wheel.pixelDelta : wheel.angleDelta
+                // Shift turns a plain wheel sideways, with Ctrl too.
+                if (delta.x === 0 && (wheel.modifiers & Qt.ShiftModifier))
+                    delta = Qt.point(delta.y, 0)
+                if (wheel.modifiers & Qt.ControlModifier) {
+                    if (touchpad)
+                        image.touchpadZoom(delta.y, wheel.x, wheel.y)
+                    else
+                        image.wheelZoom(delta.y / 120, wheel.x, wheel.y)
+                    // Sideways still pans.
+                    image.panBy(delta.x, 0)
+                } else if (image.zoomed) {
+                    image.panBy(delta.x, delta.y)
+                } else {
+                    wheel.accepted = false
+                }
+            }
+            onPressed: (mouse) => {
+                mouse.accepted = image.zoomed
+                start = Qt.point(mouse.x, mouse.y)
+                image.startDrag()
+            }
+            onPositionChanged: (mouse) => image.dragBy(mouse.x - start.x, mouse.y - start.y)
+        }
     }
 
     VideoItem {
@@ -96,12 +136,19 @@ Window {
     Item {
         focus: true
         Keys.onPressed: (event) => {
+            // Ctrl alone, on either the main keys or the keypad.
+            const zoomKeys = (event.modifiers & ~Qt.KeypadModifier) === Qt.ControlModifier
+                && !window.folder.isVideo
             if (event.key === Qt.Key_Right) {
                 window.folder.next()
             } else if (event.key === Qt.Key_Left) {
                 window.folder.previous()
             } else if (event.key === Qt.Key_Space && window.folder.isVideo) {
                 video.paused = !video.paused
+            } else if (zoomKeys && (event.key === Qt.Key_Equal || event.key === Qt.Key_Plus)) {
+                image.zoomIn()
+            } else if (zoomKeys && event.key === Qt.Key_Minus) {
+                image.zoomOut()
             } else {
                 return
             }

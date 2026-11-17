@@ -244,13 +244,56 @@ pub unsafe extern "C" fn pv_animation_release(animation: *mut PvAnimation) {
 // View
 
 #[no_mangle]
-pub extern "C" fn pv_view_fit(
-    content_width: f64,
-    content_height: f64,
-    view_width: f64,
-    view_height: f64,
-) -> view::Rect {
-    view::fit(content_width, content_height, view_width, view_height)
+pub extern "C" fn pv_view_fit(content: view::Size, view: view::Size) -> view::Rect {
+    view::fit(content, view)
+}
+
+#[no_mangle]
+pub extern "C" fn pv_view_zoomed(content: view::Size, view: view::Size, zoom: view::Zoom) -> view::Rect {
+    view::zoomed(content, view, zoom)
+}
+
+#[no_mangle]
+pub extern "C" fn pv_view_zoom_by(
+    content: view::Size,
+    view: view::Size,
+    zoom: view::Zoom,
+    factor: f64,
+    x: f64,
+    y: f64,
+) -> view::Zoom {
+    view::zoom_by(content, view, zoom, factor, x, y)
+}
+
+#[no_mangle]
+pub extern "C" fn pv_view_pan_by(
+    content: view::Size,
+    view: view::Size,
+    zoom: view::Zoom,
+    dx: f64,
+    dy: f64,
+) -> view::Zoom {
+    view::pan_by(content, view, zoom, dx, dy)
+}
+
+#[no_mangle]
+pub extern "C" fn pv_view_step_zoom(
+    content: view::Size,
+    view: view::Size,
+    zoom: view::Zoom,
+    steps: c_int,
+) -> view::Zoom {
+    view::step_zoom(content, view, zoom, steps)
+}
+
+#[no_mangle]
+pub extern "C" fn pv_view_wheel_zoom_factor(notches: f64) -> f64 {
+    view::wheel_zoom_factor(notches)
+}
+
+#[no_mangle]
+pub extern "C" fn pv_view_touchpad_zoom_factor(pixels: f64) -> f64 {
+    view::touchpad_zoom_factor(pixels)
 }
 
 // Video

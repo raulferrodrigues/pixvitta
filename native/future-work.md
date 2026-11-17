@@ -43,10 +43,23 @@ down to fit, never up. The Electron app also has a "Fit window" setting
 Proposed direction: a mode argument on `pv_view_fit` when settings reach
 the native app.
 
-### Zoom, pan and scroll layout are not in the core yet
+### Scroll layout is not in the core yet
 
-The plan puts zoom steps, pan limits and the item sizes for continuous
-scroll in the core, with tests. Only fitting is there.
+The plan puts the item sizes for continuous scroll in the core, with tests,
+next to fitting, zoom and pan.
+
+### Pinch does not zoom on Linux
+
+Ctrl and the wheel, Ctrl+= and Ctrl+-, and dragging work as in the Electron
+app, except that a wheel turn zooms the same however the device splits it
+into events. A touchpad pinch does nothing: Chromium turns one into Ctrl
+and the wheel, while Qt delivers it as a pinch gesture, which the app
+ignores.
+
+Proposed direction: a `PinchHandler` with no target, passing each change in
+scale to `pv_view_zoom_by` around its centroid. Its per-change signal needs
+Qt 6.5 or newer; with 6.4, track the ratio of `activeScale` between
+updates.
 
 ## Video
 
