@@ -27,9 +27,15 @@ Window {
             cursorShape: image.zoomed ? (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.ArrowCursor
 
             onWheel: (wheel) => {
-                const touchpad = wheel.pixelDelta.x !== 0 || wheel.pixelDelta.y !== 0
-                // A wheel notch pans 120 pixels, as Chromium's does.
+                // A touchpad scrolls in phases; a slow scroll can round its
+                // pixels to nothing, which must not count as a wheel turn.
+                const touchpad = wheel.phase !== Qt.NoScrollPhase
+                    || wheel.pixelDelta.x !== 0 || wheel.pixelDelta.y !== 0
+                // A wheel notch pans 120 pixels.
                 let delta = touchpad ? wheel.pixelDelta : wheel.angleDelta
+                // Shift turns a plain wheel sideways, with Ctrl too.
+                if (delta.x === 0 && (wheel.modifiers & Qt.ShiftModifier))
+                    delta = Qt.point(delta.y, 0)
                 if (wheel.modifiers & Qt.ControlModifier) {
                     if (touchpad)
                         image.touchpadZoom(delta.y, wheel.x, wheel.y)
@@ -38,9 +44,6 @@ Window {
                     // Sideways still pans.
                     image.panBy(delta.x, 0)
                 } else if (image.zoomed) {
-                    // Shift turns a plain wheel sideways.
-                    if (delta.x === 0 && (wheel.modifiers & Qt.ShiftModifier))
-                        delta = Qt.point(delta.y, 0)
                     image.panBy(delta.x, delta.y)
                 } else {
                     wheel.accepted = false

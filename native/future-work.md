@@ -51,8 +51,10 @@ next to fitting, zoom and pan.
 ### Pinch does not zoom on Linux
 
 Ctrl and the wheel, Ctrl+= and Ctrl+-, and dragging work as in the Electron
-app. A touchpad pinch does nothing: Chromium turns one into Ctrl and the
-wheel, while Qt delivers it as a pinch gesture, which the app ignores.
+app, except that a wheel turn zooms the same however the device splits it
+into events. A touchpad pinch does nothing: Chromium turns one into Ctrl
+and the wheel, while Qt delivers it as a pinch gesture, which the app
+ignores.
 
 Proposed direction: a `PinchHandler` with no target, passing each change in
 scale to `pv_view_zoom_by` around its centroid. Its per-change signal needs
