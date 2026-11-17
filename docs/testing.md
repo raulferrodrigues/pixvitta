@@ -5,10 +5,6 @@ a test suite: a fast answer about its own change, a failure it can diagnose
 without a human, and a way to look at the running app. People benefit from the
 same things.
 
-The working procedure for agents is in
-[`.agents/skills/test-pixvitta`](../.agents/skills/test-pixvitta/SKILL.md). This
-document explains the design.
-
 ## Layers
 
 Each layer fakes exactly one boundary and keeps everything inside it real.
@@ -130,7 +126,6 @@ the commands.
 | Preview tools | `preview_open` on the stage's port shows the real UI in a tab the user can watch, driven with `preview_snapshot`, `preview_act`, and `preview_evaluate` on `window.pixvittaStage`. |
 | Scripts menu | One click each for Verify Diff, Stage, and E2E Tests. |
 | Settle hooks | The stage stops and `pnpm app stop` runs when a thread settles, so nothing outlives the work. |
-| Skills | `.agents/skills/test-pixvitta` teaches the workflow, and `.claude/skills` links to it so every provider finds it. |
 | Inline images | `pnpm app screenshot` and failure screenshots print a path an agent can embed in its reply. |
 
 ### What came from T3 Code's own repository

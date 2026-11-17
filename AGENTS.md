@@ -36,9 +36,10 @@ Use these words consistently, in code and with the user.
 
 Write a test only when both are true: the thing has a defined spec, shape, or well-described behavior, and its implementation is likely to change, to get faster or to work on another system. E2E tests cover only complex modules that are likely to change. Never write smoke tests.
 
-To check your work, run `pnpm verify`. It runs the test layers your diff can affect, and CI runs the rest. The `test-pixvitta` skill has the full procedure, including how to see the UI in a preview tab and drive the real app. `docs/testing.md` explains the design and which layer a new test belongs in.
+To check your work, run `pnpm verify`. It runs the test layers your diff can affect, and CI runs the rest. `docs/testing.md` explains the design and which layer a new test belongs in.
 
 - Never send a request to a real provider, from a test or while checking your work. Every test layer and `pnpm app` answer from `src/main/testing/fakeWeb.ts`; add routes there. Run `pnpm electron:dev` against real sites only when the user asks.
+- Never open a window, browser, or image viewer on the user's screen. The `this-machine` skill says how to run and look at apps instead.
 - Never use real user data. Sandboxes live under `.tmp/app` and `test-results`.
 - Never kill a process found by name or pattern; other worktrees run their own apps. Use `pnpm app stop`, or the PID of a process you started.
 - No sleeps or retries in tests. Wait on something the app does. A flaky test is a bug.
