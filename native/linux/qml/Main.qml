@@ -13,9 +13,42 @@ Window {
     title: folder.count > 0 ? folder.name + " - Pixvitta" : "Pixvitta"
 
     ImageItem {
+        id: image
         anchors.fill: parent
         visible: !window.folder.isVideo
         source: window.folder.count > 0 && !window.folder.isVideo ? window.folder.pathId : ""
+
+        // Ctrl and the wheel zoom at the pointer. Once zoomed in, the wheel
+        // and dragging pan, as in the Electron app.
+        MouseArea {
+            property point last
+
+            anchors.fill: parent
+            cursorShape: image.zoomed ? (pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.ArrowCursor
+
+            onWheel: (wheel) => {
+                const touchpad = wheel.pixelDelta.x !== 0 || wheel.pixelDelta.y !== 0
+                let delta = touchpad ? wheel.pixelDelta : wheel.angleDelta
+                if (wheel.modifiers & Qt.ControlModifier) {
+                    image.wheelZoom(delta.y, wheel.x, wheel.y)
+                } else if (image.zoomed) {
+                    // Shift turns a plain wheel sideways.
+                    if (delta.x === 0 && (wheel.modifiers & Qt.ShiftModifier))
+                        delta = Qt.point(delta.y, 0)
+                    image.panBy(delta.x, delta.y)
+                } else {
+                    wheel.accepted = false
+                }
+            }
+            onPressed: (mouse) => {
+                mouse.accepted = image.zoomed
+                last = Qt.point(mouse.x, mouse.y)
+            }
+            onPositionChanged: (mouse) => {
+                image.panBy(mouse.x - last.x, mouse.y - last.y)
+                last = Qt.point(mouse.x, mouse.y)
+            }
+        }
     }
 
     VideoItem {
@@ -96,12 +129,19 @@ Window {
     Item {
         focus: true
         Keys.onPressed: (event) => {
+            // Ctrl alone, on either the main keys or the keypad.
+            const zoomKeys = (event.modifiers & ~Qt.KeypadModifier) === Qt.ControlModifier
+                && !window.folder.isVideo
             if (event.key === Qt.Key_Right) {
                 window.folder.next()
             } else if (event.key === Qt.Key_Left) {
                 window.folder.previous()
             } else if (event.key === Qt.Key_Space && window.folder.isVideo) {
                 video.paused = !video.paused
+            } else if (zoomKeys && (event.key === Qt.Key_Equal || event.key === Qt.Key_Plus)) {
+                image.zoomIn()
+            } else if (zoomKeys && event.key === Qt.Key_Minus) {
+                image.zoomOut()
             } else {
                 return
             }

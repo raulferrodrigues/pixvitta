@@ -49,6 +49,7 @@ void ImageItem::setSource(const QString &source)
         return;
     m_source = source;
     stop();
+    setZoom({1, 0, 0});
     m_frame = QImage();
     m_frameChanged = true;
     update();
@@ -161,7 +162,7 @@ QSGNode *ImageItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
         node->setTexture(window()->createTextureFromImage(m_frame, QQuickWindow::TextureHasMipmaps));
         m_frameChanged = false;
     }
-    const pv_rect rect = pv_view_fit(m_frame.width(), m_frame.height(), width(), height());
+    const pv_rect rect = pv_view_zoomed(contentSize(), {width(), height()}, m_zoom);
     node->setRect(QRectF(rect.x, rect.y, rect.width, rect.height));
     return node;
 }
@@ -169,5 +170,42 @@ QSGNode *ImageItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 void ImageItem::geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry)
 {
     QQuickItem::geometryChange(newGeometry, oldGeometry);
+    setZoom(pv_view_pan_by(contentSize(), {width(), height()}, m_zoom, 0, 0));
     update();
+}
+
+// Before the first frame there is nothing to zoom, and the core's answer
+// for an empty size is unzoomed.
+pv_size ImageItem::contentSize() const
+{
+    return {qreal(m_frame.width()), qreal(m_frame.height())};
+}
+
+void ImageItem::setZoom(const pv_zoom &zoom)
+{
+    const bool wasZoomed = zoomed();
+    m_zoom = zoom;
+    update();
+    if (zoomed() != wasZoomed)
+        emit zoomedChanged();
+}
+
+void ImageItem::zoomIn()
+{
+    setZoom(pv_view_zoom_by(contentSize(), {width(), height()}, m_zoom, PV_ZOOM_STEP, width() / 2, height() / 2));
+}
+
+void ImageItem::zoomOut()
+{
+    setZoom(pv_view_zoom_by(contentSize(), {width(), height()}, m_zoom, 1 / PV_ZOOM_STEP, width() / 2, height() / 2));
+}
+
+void ImageItem::wheelZoom(qreal delta, qreal x, qreal y)
+{
+    setZoom(pv_view_zoom_by(contentSize(), {width(), height()}, m_zoom, pv_view_wheel_zoom_factor(delta), x, y));
+}
+
+void ImageItem::panBy(qreal dx, qreal dy)
+{
+    setZoom(pv_view_pan_by(contentSize(), {width(), height()}, m_zoom, dx, dy));
 }

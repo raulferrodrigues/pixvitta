@@ -9,10 +9,10 @@ is listed in [`future-work.md`](future-work.md).
 - `core/`: the Rust core, built as a static library with a plain C API
   ([`core/include/pixvitta.h`](core/include/pixvitta.h)). It lists folders,
   decodes images to sRGB RGBA, owns the libmpv player, and does the
-  view calculations both UIs share (for now, where an image is drawn to fit
-  the view: scaled down, never up, and centred). A folder lists a
-  file with an image or video extension as that kind without opening it, and
-  reads the first bytes of every other file to tell whether it is an image or
+  view calculations both UIs share: where an image is drawn to fit the
+  view (scaled down, never up, and centred), and how it zooms and pans. A
+  folder lists a file with an image or video extension as that kind without
+  opening it, and reads the first bytes of every other file to tell whether it is an image or
   a video; TIFF and ICO are only listed by extension. The decoder always goes
   by content, so a mislabelled file still opens. It decodes JPEG,
   PNG, GIF, WebP, BMP, TIFF, ICO, HEIC and AVIF (the primary image, grids
@@ -83,6 +83,8 @@ native/linux/build/pixvitta path/to/folder
 ```
 
 Left and Right step through the files, and Space plays or pauses a video.
+Ctrl and the wheel, or Ctrl+= and Ctrl+-, zoom an image; once it is zoomed
+in, dragging and the wheel pan it.
 
 ## Corpus
 
