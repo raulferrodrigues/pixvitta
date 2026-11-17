@@ -9,7 +9,82 @@ repeated here.
 
 Remove an entry when it is done.
 
-## Images
+Image work is deferred: video and the app come first, and nothing under
+[Deferred: images](#deferred-images) is planned soon.
+
+## Folder scan
+
+### A file with a media extension of the wrong kind fails to open
+
+The scan trusts a recognised extension without reading the file, so a
+`.gif` that is really an MP4 is listed as an image and the decoder refuses
+it.
+
+Proposed direction: when an image fails to decode as unsupported, look at
+its content again and treat it as a video if it is one. That needs either a
+C API call that returns a file's kind by content, or the scan correcting
+its entry.
+
+### Some audio files are listed as videos
+
+`.ogg` is trusted as video by extension, as in the Electron app, so an
+audio-only `.ogg` is listed and has no picture. An MP4 audio file with a
+generic brand (`isom`, `mp42`) and no extension is listed as video too,
+because the brands can't tell them apart.
+
+## View
+
+### Only the default fit is in the core
+
+`pv_view_fit` does the Electron app's default, "native or smaller": scaled
+down to fit, never up. The Electron app also has a "Fit window" setting
+(`mediaScaleMode` in `src/shared/settings.ts`) that scales small images up.
+
+Proposed direction: a mode argument on `pv_view_fit` when settings reach
+the native app.
+
+### Zoom, pan and scroll layout are not in the core yet
+
+The plan puts zoom steps, pan limits and the item sizes for continuous
+scroll in the core, with tests. Only fitting is there.
+
+## Video
+
+### Hardware decoding is not wired up
+
+The player asks libmpv for `hwdec=auto-safe`, but the Linux app gives
+libmpv's render context nothing to reach the GPU with, so video decodes in
+software.
+
+Proposed direction: open the GPU's render node and pass it as
+`MPV_RENDER_PARAM_DRM_DISPLAY_v2` in `linux/src/videoitem.cpp`, then check
+a VA-API and an NVDEC decode actually happen. Step 4 of
+[`video-plan.md`](video-plan.md) has the details.
+
+### A panic on one of rav1d's worker threads still ends the app
+
+A panic in a decoder on the calling thread becomes an error. rav1d decodes
+on its own threads, where a panic cannot be caught and would leave the call
+waiting forever, so a hook aborts the process instead
+(`abort_on_worker_panic` in `core/src/av1.rs`). No file in the test sets or
+the corruption runs triggers it. AV1 video goes through rav1d too (FFmpeg
+calls it), so this covers playback as well as AV1 images.
+
+Proposed direction: look again when rav1d is upgraded; decoding in a
+separate process would contain it but is a large change.
+
+## Not yet seen working
+
+- No video, AV1 or other, has been watched playing on a real screen
+  through the bundled libmpv. The corpus check decodes every sample through
+  it, AV1 through rav1d, and the app starts with it.
+- The core's link line for the C++ standard library on macOS (`c++`) is
+  written and has never been built.
+
+## Deferred: images
+
+Not planned soon. Recorded so the investigation isn't repeated when image
+work resumes.
 
 ### Animated AVIF and HEIF sequences don't play
 
@@ -91,17 +166,6 @@ libheif is upgraded; the rewrite can go once libheif honours such a box.
 
 Issue #81. They no longer crash the app, but nothing bounds the time.
 
-### A panic on one of rav1d's worker threads still ends the app
-
-A panic in a decoder on the calling thread becomes an error. rav1d decodes
-on its own threads, where a panic cannot be caught and would leave the call
-waiting forever, so a hook aborts the process instead
-(`abort_on_worker_panic` in `core/src/av1.rs`). No file in the test sets or
-the corruption runs triggers it.
-
-Proposed direction: look again when rav1d is upgraded; decoding in a
-separate process would contain it but is a large change.
-
 ### Where AVIF decoding time goes is not measured
 
 A 12-megapixel AVIF takes about 264 ms with rav1d's assembly, down from 377
@@ -113,67 +177,12 @@ one thread, but it was not measured.
 The plan decodes a large image at screen size first and at full resolution
 when the user zooms in. The C API has no way to ask for a smaller size yet.
 
-## Folder scan
-
-### A file with a media extension of the wrong kind fails to open
-
-The scan trusts a recognised extension without reading the file, so a
-`.gif` that is really an MP4 is listed as an image and the decoder refuses
-it.
-
-Proposed direction: when an image fails to decode as unsupported, look at
-its content again and treat it as a video if it is one. That needs either a
-C API call that returns a file's kind by content, or the scan correcting
-its entry.
-
 ### TIFF and ICO files without their extension are not listed
 
 The scan only lists them by extension: TIFF because camera RAW files start
 the same way, ICO because its four-byte header is too weak to trust. A
 mislabelled or extensionless one is skipped.
 
-### Some audio files are listed as videos
+### No HEIC file has been opened in the running app
 
-`.ogg` is trusted as video by extension, as in the Electron app, so an
-audio-only `.ogg` is listed and has no picture. An MP4 audio file with a
-generic brand (`isom`, `mp42`) and no extension is listed as video too,
-because the brands can't tell them apart.
-
-## View
-
-### Only the default fit is in the core
-
-`pv_view_fit` does the Electron app's default, "native or smaller": scaled
-down to fit, never up. The Electron app also has a "Fit window" setting
-(`mediaScaleMode` in `src/shared/settings.ts`) that scales small images up.
-
-Proposed direction: a mode argument on `pv_view_fit` when settings reach
-the native app.
-
-### Zoom, pan and scroll layout are not in the core yet
-
-The plan puts zoom steps, pan limits and the item sizes for continuous
-scroll in the core, with tests. Only fitting is there.
-
-## Video
-
-### Hardware decoding is not wired up
-
-The player asks libmpv for `hwdec=auto-safe`, but the Linux app gives
-libmpv's render context nothing to reach the GPU with, so video decodes in
-software.
-
-Proposed direction: open the GPU's render node and pass it as
-`MPV_RENDER_PARAM_DRM_DISPLAY_v2` in `linux/src/videoitem.cpp`, then check
-a VA-API and an NVDEC decode actually happen. Step 4 of
-[`video-plan.md`](video-plan.md) has the details.
-
-## Not yet seen working
-
-- No video, AV1 or other, has been watched playing on a real screen
-  through the bundled libmpv. The corpus check decodes every sample through
-  it, AV1 through rav1d, and the app starts with it.
-- No HEIC file has been opened in the running Linux app. The decode is
-  covered by the corpus through the same C API call.
-- The core's link line for the C++ standard library on macOS (`c++`) is
-  written and has never been built.
+The decode is covered by the corpus through the same C API call.
