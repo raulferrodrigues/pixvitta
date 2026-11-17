@@ -26,8 +26,11 @@ public:
     bool paused() const { return m_paused; }
     void setPaused(bool paused);
 
-    // Read by the renderer only while the GUI thread is blocked in sync.
+    // Called by the renderer only while the GUI thread is blocked in sync.
     pv_player *player() const { return m_player; }
+    // Loads the source if it changed since the last load. The renderer calls
+    // it once libmpv's render context exists.
+    void loadPendingSource();
 
 signals:
     void sourceChanged();
@@ -36,5 +39,6 @@ signals:
 private:
     pv_player *m_player = nullptr;
     QString m_source;
+    QString m_loadedSource;
     bool m_paused = false;
 };

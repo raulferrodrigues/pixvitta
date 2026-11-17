@@ -28,12 +28,15 @@ public:
     {
         // The render context is created here, on the render thread with the
         // context current, the first time the item is drawn.
-        pv_player *player = static_cast<VideoItem *>(item)->player();
+        auto *video = static_cast<VideoItem *>(item);
+        pv_player *player = video->player();
         if (!m_renderer && player) {
             const int status = pv_video_renderer_create(player, getProcAddress, nullptr, &m_renderer);
             if (status != PV_OK)
                 qWarning("Could not create the video renderer: %s", pv_error_string(status));
         }
+        if (m_renderer)
+            video->loadPendingSource();
     }
 
     QOpenGLFramebufferObject *createFramebufferObject(const QSize &size) override
@@ -92,11 +95,15 @@ void VideoItem::setSource(const QString &source)
     if (source == m_source)
         return;
     m_source = source;
-    if (m_player) {
-        if (source.isEmpty())
+    // Stopping can't wait: the item is hidden and won't be drawn. A file is
+    // loaded on the next draw instead (loadPendingSource), once the render
+    // context exists; libmpv started without one shows no picture.
+    if (source.isEmpty()) {
+        if (m_player)
             pv_player_stop(m_player);
-        else
-            pv_player_load(m_player, MediaFolder::pathFromId(source).constData());
+        m_loadedSource.clear();
+    } else {
+        update();
     }
     emit sourceChanged();
     // A new file starts playing.
@@ -104,6 +111,14 @@ void VideoItem::setSource(const QString &source)
         m_paused = false;
         emit pausedChanged();
     }
+}
+
+void VideoItem::loadPendingSource()
+{
+    if (!m_player || m_source.isEmpty() || m_source == m_loadedSource)
+        return;
+    m_loadedSource = m_source;
+    pv_player_load(m_player, MediaFolder::pathFromId(m_source).constData());
 }
 
 void VideoItem::setPaused(bool paused)
