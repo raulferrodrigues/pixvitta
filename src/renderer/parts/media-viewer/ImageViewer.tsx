@@ -10,7 +10,7 @@ export function ImageViewer({ item }: { item: MediaItem }) {
   const [loadedItemId, setLoadedItemId] = useState<string | null>(null);
   const settings = useViewerStore((state) => state.settings);
   const source = useMediaSource(item);
-  const interactions = useImageZoomInteractions(true);
+  const interactions = useImageZoomInteractions();
   const isLoaded = loadedItemId === item.id;
 
   function showContextMenu(event: ReactMouseEvent) {

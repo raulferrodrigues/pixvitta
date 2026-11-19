@@ -34,7 +34,7 @@ type StageCall = { method: string; args: unknown[] };
  * error. "already-added" is main's answer to adding a source that is already
  * a member: nothing changes, and the add says so.
  */
-export type StageSource = MediaCollection | OpenSourceError | "already-added";
+type StageSource = MediaCollection | OpenSourceError | "already-added";
 
 export type StageControls = {
   readonly calls: StageCall[];

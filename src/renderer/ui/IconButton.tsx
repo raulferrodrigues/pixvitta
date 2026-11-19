@@ -3,11 +3,10 @@ import { useCallback, useState, type ComponentProps, type ReactNode } from "reac
 import { classNames } from "./classNames";
 import "./tooltip.css";
 
-type IconButtonVariant = "primary" | "secondary" | "prominent";
+type IconButtonVariant = "primary" | "secondary";
 
 type IconButtonProps = Omit<ComponentProps<"button">, "title"> & {
   label: string;
-  tooltip?: string;
   variant?: IconButtonVariant;
   children: ReactNode;
 };
@@ -16,14 +15,11 @@ const variantClassNames: Record<IconButtonVariant, string> = {
   primary:
     "h-10 w-10 border-pix-control-border bg-pix-control text-pix-text max-[420px]:h-[38px] max-[420px]:w-[38px]",
   secondary:
-    "h-[34px] w-[34px] border-pix-border bg-pix-control-muted text-pix-muted max-[420px]:h-8 max-[420px]:w-8",
-  prominent:
-    "h-10 w-10 border-pix-control-border bg-pix-control text-pix-text max-[420px]:h-[38px] max-[420px]:w-[38px]"
+    "h-[34px] w-[34px] border-pix-border bg-pix-control-muted text-pix-muted max-[420px]:h-8 max-[420px]:w-8"
 };
 
 export function IconButton({
   label,
-  tooltip = label,
   variant = "secondary",
   className,
   children,
@@ -45,7 +41,7 @@ export function IconButton({
         className
       )}
       aria-label={label}
-      title={props.disabled ? tooltip : undefined}
+      title={props.disabled ? label : undefined}
       {...props}
     >
       {children}
@@ -57,7 +53,7 @@ export function IconButton({
       <Tooltip.Trigger asChild ref={findTooltipLayer}>{button}</Tooltip.Trigger>
       <Tooltip.Portal container={tooltipLayer}>
         <Tooltip.Content className="pix-tooltip" side="bottom" sideOffset={7} collisionPadding={8}>
-          {tooltip}
+          {label}
         </Tooltip.Content>
       </Tooltip.Portal>
     </Tooltip.Root>

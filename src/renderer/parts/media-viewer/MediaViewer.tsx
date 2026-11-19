@@ -37,12 +37,6 @@ export function MediaViewer() {
           </div>
         </div>
       )}
-      {loadState === "error" && (
-        <div className="flex flex-col items-center justify-center gap-4 text-center text-pix-state" data-testid="app-error">
-          <p><T>Something went wrong.</T></p>
-          <PrimaryButton onClick={() => void openFolder()}><FolderOpen size={20} aria-hidden /><span><T>Open Folder</T></span></PrimaryButton>
-        </div>
-      )}
       {readyItem ? (
         <>
           {viewMode === "continuous" ? <ContinuousViewer /> : <SingleMedia item={readyItem} />}

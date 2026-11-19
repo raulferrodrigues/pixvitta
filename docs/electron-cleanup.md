@@ -7,7 +7,7 @@ its commit finds nothing left to fix. This file is deleted before the PR merges.
 ## Dead code and indirection
 
 - [x] 1. Remove dead code in main: unused functions, exports, fields, options and handlers.
-- [ ] 2. Remove dead code in the renderer: unused exports, props, parameters and branches.
+- [x] 2. Remove dead code in the renderer: unused exports, props, parameters and branches.
 - [ ] 3. Remove barrel files and aliases that only re-export, and import the real modules.
 - [ ] 4. Remove `void x` and `_x` hacks for unused parameters.
 
@@ -41,6 +41,10 @@ its commit finds nothing left to fix. This file is deleted before the PR merges.
 - [ ] 27. Filmstrip: TanStack virtualizer defaults, one-ref resizer, inline thumbnail geometry.
 - [ ] 28. Small parts fixes: context-menu helper, `DownloadButtons`, `VideoButtons`, `WebSourceDialog`, `SettingsList`, `UpdateRow`, sources panel, `ContinuousViewer` state, download-state selector, `RecentSourceItem` classes.
 - [ ] 29. Stage: `for` loops, no nested ternaries, no build-then-strip objects.
+
+## Before merge
+
+- [ ] 30. Stress test the whole app: every provider, mixes, downloads, thumbnails, quitting mid-work.
 
 ## Not in this PR
 

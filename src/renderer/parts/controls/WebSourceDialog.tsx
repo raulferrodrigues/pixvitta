@@ -14,24 +14,17 @@ export function WebSourceDialog({
 }) {
   const gt = useGT();
   const dialogRef = useRef<HTMLDialogElement | null>(null);
-  const sourceIdWhenOpenedRef = useRef<string | null>(null);
   const sourceId = useViewerStore((state) => state.source?.id ?? null);
   const isSourceLoading = useViewerStore((state) => state.isSourceLoading);
 
+  // Opening or closing a source closes the dialog.
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (
-      dialog?.open &&
-      sourceIdWhenOpenedRef.current !== sourceId
-    ) {
-      dialog.close();
-    }
+    dialogRef.current?.close();
   }, [sourceId]);
 
   function openDialog() {
     const dialog = dialogRef.current;
     if (!dialog || dialog.open) return;
-    sourceIdWhenOpenedRef.current = sourceId;
     dialog.showModal();
     window.requestAnimationFrame(() => {
       dialog.querySelector<HTMLInputElement>("input")?.focus();

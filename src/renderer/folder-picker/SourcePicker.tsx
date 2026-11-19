@@ -27,15 +27,6 @@ export function SourcePicker({ buildInfo }: { buildInfo: AppBuildInfo }) {
     );
   }
 
-  if (loadState === "error") {
-    return (
-      <main className="source-picker flex h-screen w-screen flex-col items-center justify-center gap-4 text-center text-pix-state" data-testid="app-error">
-        <p><T>Something went wrong.</T></p>
-        <PrimaryButton onClick={() => void openFolder()}><FolderOpen size={20} aria-hidden /><span><T>Open Folder</T></span></PrimaryButton>
-      </main>
-    );
-  }
-
   return (
     <main className="source-picker flex h-screen w-screen items-center justify-center">
       <div className="grid max-h-[min(640px,calc(100vh-96px))] w-[min(720px,calc(100vw-48px))] gap-6 text-pix-soft" data-testid="project-picker">

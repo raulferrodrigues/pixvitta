@@ -20,14 +20,14 @@ import { nextIndex, previousIndex } from "./navigation";
 import { createVideoController, type VideoController } from "./videoController";
 import { selectCurrentItem } from "./viewerSelectors";
 
-export type ViewerLoadState = "idle" | "loading" | "ready" | "empty" | "error";
-export type ViewMode = "single" | "continuous";
+type ViewerLoadState = "idle" | "loading" | "ready" | "empty";
+type ViewMode = "single" | "continuous";
 
-export const DEFAULT_FILMSTRIP_WIDTH = 168;
+const DEFAULT_FILMSTRIP_WIDTH = 168;
 export const MIN_FILMSTRIP_WIDTH = 128;
 export const MAX_FILMSTRIP_WIDTH = 320;
-export const MIN_CONTINUOUS_COLUMN_SCALE = 0.3;
-export const MAX_CONTINUOUS_COLUMN_SCALE = 1;
+const MIN_CONTINUOUS_COLUMN_SCALE = 0.3;
+const MAX_CONTINUOUS_COLUMN_SCALE = 1;
 const VIDEO_AUDIO_SAVE_DELAY_MS = 250;
 
 export type ViewerState = {
@@ -73,7 +73,7 @@ export type ViewerState = {
   updateState: UpdateState | null;
 };
 
-export type ViewerActions = {
+type ViewerActions = {
   initialize(): Promise<void>;
   openFolder(): Promise<void>;
   openLocation(location: string): Promise<void>;
@@ -121,7 +121,7 @@ export type ViewerActions = {
   markMediaBroken(id: string): void;
   attachVideoElement(element: HTMLVideoElement | null): void;
   toggleVideoPlayback(): Promise<void>;
-  seekVideoBy(seconds: number): boolean;
+  seekVideoBy(seconds: number): void;
   setVideoPlaying(isPlaying: boolean): void;
   setVideoAudio(volume: number, muted: boolean): void;
   toggleVideoLoop(): void;
@@ -144,10 +144,10 @@ export type ViewerActions = {
   exitFullscreen(): Promise<void>;
 };
 
-export type SourceNotice = "already-added";
+type SourceNotice = "already-added";
 
 // "updates" is the settings list, scrolled to the update row.
-export type SettingsView = "settings" | "updates" | "shortcuts";
+type SettingsView = "settings" | "updates" | "shortcuts";
 
 export type ViewerStore = ViewerState & ViewerActions;
 export type ViewerStoreApi = StoreApi<ViewerStore>;
@@ -717,8 +717,7 @@ export function createViewerStore(
       },
 
       seekVideoBy(seconds: number) {
-        if (selectCurrentItem(get())?.kind !== "video") return false;
-        return videoController.seekBy(seconds);
+        if (selectCurrentItem(get())?.kind === "video") videoController.seekBy(seconds);
       },
 
       setVideoPlaying(isVideoPlaying: boolean) {

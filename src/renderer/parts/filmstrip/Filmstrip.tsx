@@ -12,7 +12,7 @@ const FILMSTRIP_OVERSCAN = 8;
 const DEFAULT_VIEWPORT_HEIGHT = 600;
 const HORIZONTAL_ITEM_SIZE_PX = 72;
 
-export type FilmstripOrientation = "vertical" | "horizontal";
+type FilmstripOrientation = "vertical" | "horizontal";
 
 // Vertical filmstrips size their square tiles from the resizable column width.
 // Horizontal filmstrips use a fixed tile size and scroll sideways.

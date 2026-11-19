@@ -67,7 +67,7 @@ function brokenImage(id: string, kind: "missing" | "flaky"): MediaItem {
 }
 
 /** Builds a collection whose items' IDs include the source ID, as the real catalog's do. */
-export function stageCollection(
+function stageCollection(
   title: string,
   items: MediaItem[],
   capabilities: MediaSourceCapabilities = FOLDER_CAPABILITIES

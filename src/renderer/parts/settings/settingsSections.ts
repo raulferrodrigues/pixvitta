@@ -4,7 +4,7 @@ import { FILE_ORDER_OPTIONS } from "../../settings/fileOrderOptions";
 type SwitchSettingKey = "videoAutoplay" | "videoLoopByDefault" | "showVideoControls" | "wrapNavigation" | "includeHidden" | "glowEffects";
 type SelectSettingKey = "viewerLayout" | "mediaScaleMode" | "fileOrder";
 
-export type SwitchSettingRow = {
+type SwitchSettingRow = {
   kind: "switch";
   setting: SwitchSettingKey;
   testId: string;
@@ -24,7 +24,7 @@ export type SelectSettingRow = {
 }[SelectSettingKey];
 
 export type SettingRow = SwitchSettingRow | SelectSettingRow;
-export type SettingSection = { label: string; rows: SettingRow[] };
+type SettingSection = { label: string; rows: SettingRow[] };
 
 // Labels are English source strings; the rows translate them when rendering.
 export const settingSections = [

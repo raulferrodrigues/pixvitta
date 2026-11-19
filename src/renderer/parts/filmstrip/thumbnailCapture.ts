@@ -1,16 +1,16 @@
 const THUMBNAIL_MAX_SIZE = 512;
 const THUMBNAIL_JPEG_QUALITY = 0.9;
 
-export type CoverThumbnailGeometry = { sourceX: number; sourceY: number; sourceSize: number; outputSize: number };
+type CoverThumbnailGeometry = { sourceX: number; sourceY: number; sourceSize: number; outputSize: number };
 
-export function getCoverThumbnailGeometry(sourceWidth: number, sourceHeight: number, maxSize = THUMBNAIL_MAX_SIZE): CoverThumbnailGeometry | null {
-  if (!Number.isFinite(sourceWidth) || !Number.isFinite(sourceHeight) || sourceWidth <= 0 || sourceHeight <= 0 || maxSize <= 0) return null;
+function getCoverThumbnailGeometry(sourceWidth: number, sourceHeight: number): CoverThumbnailGeometry | null {
+  if (!Number.isFinite(sourceWidth) || !Number.isFinite(sourceHeight) || sourceWidth <= 0 || sourceHeight <= 0) return null;
   const sourceSize = Math.min(sourceWidth, sourceHeight);
   return {
     sourceX: (sourceWidth - sourceSize) / 2,
     sourceY: (sourceHeight - sourceSize) / 2,
     sourceSize,
-    outputSize: Math.max(1, Math.round(Math.min(maxSize, sourceSize)))
+    outputSize: Math.max(1, Math.round(Math.min(THUMBNAIL_MAX_SIZE, sourceSize)))
   };
 }
 

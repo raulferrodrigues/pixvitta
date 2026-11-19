@@ -3,7 +3,6 @@ import {
   type PointerEvent as ReactPointerEvent,
   type RefObject,
   type WheelEvent as ReactWheelEvent,
-  useEffect,
   useRef,
   useState
 } from "react";
@@ -40,7 +39,7 @@ type ImageStageInteractionProps = {
   onPointerCancel(event: ReactPointerEvent<HTMLElement>): void;
 };
 
-export type ImageZoomInteractions = {
+type ImageZoomInteractions = {
   imageRef: RefObject<HTMLImageElement | null>;
   imageStyle: CSSProperties;
   isImageZoomed: boolean;
@@ -92,7 +91,7 @@ function getPinchPanDelta(event: ReactWheelEvent<HTMLElement>) {
   return { x: deltaX, y: event.deltaZ !== 0 ? deltaY : 0 };
 }
 
-export function useImageZoomInteractions(enabled: boolean): ImageZoomInteractions {
+export function useImageZoomInteractions(): ImageZoomInteractions {
   const imageRef = useRef<HTMLImageElement | null>(null);
   const panGestureRef = useRef<ImagePanGesture | null>(null);
   const [isImagePanning, setIsImagePanning] = useState(false);
@@ -101,12 +100,6 @@ export function useImageZoomInteractions(enabled: boolean): ImageZoomInteraction
   const imagePanY = useViewerStore((state) => state.imagePanY);
   const zoomCurrentImage = useViewerStore((state) => state.zoomCurrentImage);
   const setImageView = useViewerStore((state) => state.setImageView);
-
-  useEffect(() => {
-    if (enabled) return;
-    panGestureRef.current = null;
-    setIsImagePanning(false);
-  }, [enabled]);
 
   function getImageGeometry(stage: HTMLElement): ImageGeometry | null {
     const image = imageRef.current;
@@ -127,7 +120,6 @@ export function useImageZoomInteractions(enabled: boolean): ImageZoomInteraction
   }
 
   function handleWheel(event: ReactWheelEvent<HTMLElement>) {
-    if (!enabled) return;
     if (event.ctrlKey) {
       event.preventDefault();
       const zoomDelta = getWheelZoomDelta(event);
@@ -166,7 +158,7 @@ export function useImageZoomInteractions(enabled: boolean): ImageZoomInteraction
   }
 
   function startImagePan(event: ReactPointerEvent<HTMLElement>) {
-    if (!enabled || event.button !== 0 || imageZoom <= MIN_IMAGE_ZOOM || !getImageGeometry(event.currentTarget)) return;
+    if (event.button !== 0 || imageZoom <= MIN_IMAGE_ZOOM || !getImageGeometry(event.currentTarget)) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     panGestureRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startPanX: imagePanX, startPanY: imagePanY };
@@ -175,7 +167,7 @@ export function useImageZoomInteractions(enabled: boolean): ImageZoomInteraction
 
   function moveImagePan(event: ReactPointerEvent<HTMLElement>) {
     const gesture = panGestureRef.current;
-    if (!enabled || !gesture || gesture.pointerId !== event.pointerId) return;
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
     const geometry = getImageGeometry(event.currentTarget);
     if (!geometry) return;
     event.preventDefault();
@@ -194,7 +186,7 @@ export function useImageZoomInteractions(enabled: boolean): ImageZoomInteraction
   return {
     imageRef,
     imageStyle: { transform: imageTransformStyle(imageZoom, imagePanX, imagePanY) },
-    isImageZoomed: enabled && imageZoom > MIN_IMAGE_ZOOM,
+    isImageZoomed: imageZoom > MIN_IMAGE_ZOOM,
     isImagePanning,
     stageInteractionProps: {
       onWheel: handleWheel,
