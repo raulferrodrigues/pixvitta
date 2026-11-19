@@ -1,13 +1,16 @@
 import { BrowserWindow, ipcMain } from "electron";
 import type { AppSettings } from "../../shared/settings";
-import { getSettings as getStoredSettings, saveSettings as saveStoredSettings } from "../stores";
+import {
+  getSettings as getStoredSettings,
+  saveSettings as saveStoredSettings
+} from "../stores/stores";
 
 /*
  * Settings are an app-level main-process capability. Callers should ask for the
  * current settings or save new settings; they should not know where the JSON
  * file lives or how changes are broadcast to renderers.
  *
- * Persistence lives behind "../stores". This module owns the settings feature:
+ * Persistence lives in ../stores/stores.ts. This module owns the settings feature:
  * the app-level function names, settings IPC, and fan-out to renderer windows
  * after a successful save.
  *

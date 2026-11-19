@@ -1,13 +1,13 @@
 import { app, BrowserWindow, Menu } from "electron";
-import { MAIN_HOTKEYS } from "../app";
+import { MAIN_HOTKEYS } from "../../shared/hotkeys";
+import type { PixvittaCommand } from "../../shared/pixvittaApi";
 import {
   closeAppWindow,
   resetFocusedWindowZoom,
   sendMenuCommand,
-  type WindowMenuCommand,
   zoomFocusedWindowIn,
   zoomFocusedWindowOut
-} from "../windows";
+} from "../windows/windows";
 
 /*
  * Electron menus are real native application menus, not React components. On
@@ -21,7 +21,7 @@ import {
  * creating the menu is one app-shell action, not a pile of wiring.
  */
 
-function sendViewerCommand(command: WindowMenuCommand): void {
+function sendViewerCommand(command: PixvittaCommand): void {
   sendMenuCommand(command);
 }
 

@@ -1,12 +1,15 @@
 import { app, BrowserWindow, ipcMain, protocol } from "electron";
-import { canDownloadCollection, resolveMediaId, resolveMediaUrl } from "../library";
+import { canDownloadCollection, resolveMediaId, resolveMediaUrl } from "../library/librarySession";
 import { ProviderError } from "../library/providers";
 import {
   showLocalMediaContextMenu,
   showRemoteMediaContextMenu
 } from "./mediaContextMenu";
-import type { RequestPriority } from "../requestBroker";
-import { publishMainWindowDownloadActivity, publishMainWindowSourceError } from "../windows";
+import type { RequestPriority } from "../requestBroker/types";
+import {
+  publishMainWindowDownloadActivity,
+  publishMainWindowSourceError
+} from "../windows/windows";
 import { saveMediaForClipboard } from "./clipboardFile";
 import { DownloadManager } from "./downloadManager";
 

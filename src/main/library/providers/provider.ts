@@ -1,7 +1,7 @@
 import type { MediaItem, OpenSourceError } from "../../../shared/media";
 import type { RecentSourceKind } from "../../../shared/recentSources";
 import type { AppSettings } from "../../../shared/settings";
-import type { RequestPriority } from "../../requestBroker";
+import type { RequestPriority } from "../../requestBroker/types";
 
 export type MediaResource = {
   respond(

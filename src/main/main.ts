@@ -1,13 +1,11 @@
 import { app, BrowserWindow } from "electron";
 import { configureAppIdentity } from "./app/buildInfo";
-import { createAppMenu } from "./menus";
-import { registerIpcHandlers } from "./ipc";
-import {
-  openFileAsCollection
-} from "./library";
-import "./media";
-import { startAutomaticUpdates } from "./updates";
-import { createMainWindow } from "./windows";
+import { createAppMenu } from "./menus/appMenu";
+import { registerIpcHandlers } from "./ipc/ipcHandlers";
+import { openFileAsCollection } from "./library/librarySession";
+import "./media/mediaFeature";
+import { startAutomaticUpdates } from "./updates/updateService";
+import { createMainWindow } from "./windows/windows";
 
 function fileArguments(argv: string[]): string[] {
   // Switches come out first because Chromium moves them ahead of the positional

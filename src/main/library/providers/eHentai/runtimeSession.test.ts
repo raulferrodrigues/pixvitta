@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { setTimeout } from "node:timers/promises";
-import { ResourceAcquisitions } from "../../../providerRuntime";
+import { ResourceAcquisitions } from "../../../providerRuntime/acquisitions";
 import { createRequestBroker } from "../../../requestBroker/scheduler";
-import type { BrokerRequestOptions, RequestBroker, RequestPriority } from "../../../requestBroker";
-import { cache } from "../../../resourceCache";
+import type {
+  BrokerRequestOptions,
+  RequestBroker,
+  RequestPriority
+} from "../../../requestBroker/types";
+import { cache } from "../../../resourceCache/resourceCache";
 import { GalleryAuthentication } from "./galleryAccess";
 import { eHentaiSite, exHentaiSite } from "./gallerySite";
 import { EHentaiRuntimeSession } from "./runtimeSession";

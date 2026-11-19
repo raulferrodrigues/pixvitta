@@ -1,5 +1,6 @@
-import { RequestCancelledError, type RequestPriority } from "../requestBroker";
-import type { CachedFile } from "../resourceCache";
+import { RequestCancelledError } from "../requestBroker/scheduler";
+import type { RequestPriority } from "../requestBroker/types";
+import type { CachedFile } from "../resourceCache/resourceCache";
 import { ResourceAcquisitions, type ProviderIO, type ResourceLease } from "./acquisitions";
 
 export type CollectionAdapter<Thumbnail> = {

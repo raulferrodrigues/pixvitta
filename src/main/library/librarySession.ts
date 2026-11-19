@@ -3,8 +3,8 @@ import path from "node:path";
 import type { AccountState } from "../../shared/accounts";
 import type { AddSourceRequest, AddSourceResult, OpenSourceRequest } from "../../shared/media";
 import { isRecentMix, type RecentEntry, type RecentMix } from "../../shared/recentSources";
-import { parseDialogResponses } from "../app";
-import { getSettings } from "../settings";
+import { parseDialogResponses } from "../app/dialogResponses";
+import { getSettings } from "../settings/settingsFeature";
 import {
   getRecentSources as getStoredRecentSources,
   getSavedMix,
@@ -14,7 +14,7 @@ import {
   renameSavedMix,
   saveMix,
   saveRecentSource
-} from "../stores";
+} from "../stores/stores";
 import {
   isMainWindow,
   publishMainWindowAccounts,
@@ -24,7 +24,7 @@ import {
   publishMainWindowReplaceConfirmation,
   publishMainWindowSavedMixRename,
   publishMainWindowSourceError
-} from "../windows";
+} from "../windows/windows";
 import { MediaLibrary } from "./mediaLibrary";
 import type { RegisteredMediaItem } from "./mediaRegistry";
 import {

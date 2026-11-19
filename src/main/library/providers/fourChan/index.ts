@@ -1,17 +1,12 @@
 import type { MediaKind } from "../../../../shared/media";
 import { parseFragment } from "parse5";
 import { createMediaFileResponse } from "../../../media/mediaResponses";
-import {
-  ProviderCollectionRuntime,
-  ResourceAcquisitions,
-  type ProviderIO
-} from "../../../providerRuntime";
-import {
-  broker,
-  RequestCancelledError,
-  type RequestPolicy
-} from "../../../requestBroker";
-import type { CachedFile } from "../../../resourceCache";
+import { ProviderCollectionRuntime } from "../../../providerRuntime/collectionRuntime";
+import { ResourceAcquisitions, type ProviderIO } from "../../../providerRuntime/acquisitions";
+import { broker } from "../../../requestBroker/requestBroker";
+import { RequestCancelledError } from "../../../requestBroker/scheduler";
+import type { RequestPolicy } from "../../../requestBroker/types";
+import type { CachedFile } from "../../../resourceCache/resourceCache";
 import { mediaFileTypes } from "../../../utils/mediaTypes";
 import type {
   MediaProvider,

@@ -8,7 +8,7 @@ import type {
 import type { AccountState } from "../../shared/accounts";
 import type { PixvittaCommand } from "../../shared/pixvittaApi";
 import type { RecentEntry } from "../../shared/recentSources";
-import { rendererUrl } from "../app";
+import { rendererUrl } from "../app/appUrl";
 import { createMainWindow as createMainBrowserWindow } from "./mainWindow";
 import { notifyWindowChromeChanged } from "./windowChrome";
 
@@ -26,13 +26,11 @@ import { notifyWindowChromeChanged } from "./windowChrome";
  * reference and the policy around it.
  *
  * A few Electron handlers are registered at import time. That is deliberate:
- * importing "../windows" means the windows feature is present, including its
- * renderer readiness IPC and app-wide window-close policy. Callers should invoke
- * capabilities such as createMainWindow(), not
- * remember a separate "register window handlers" step.
+ * importing this module means the windows feature is present, including its
+ * renderer readiness IPC and app-wide window-close policy. Callers invoke
+ * capabilities such as createMainWindow(), with no separate "register window
+ * handlers" step.
  */
-
-export type WindowMenuCommand = PixvittaCommand;
 
 // App zoom controls change Chromium page zoom for the focused native window.
 // Keeping the step here means menu labels and accelerators do not own window
@@ -204,7 +202,7 @@ export function closeAppWindow(window: BrowserWindow | null | undefined): void {
   window.close();
 }
 
-export function sendMenuCommand(command: WindowMenuCommand): void {
+export function sendMenuCommand(command: PixvittaCommand): void {
   // Native menu items are outside React, but many commands should reuse the
   // viewer's existing toolbar/store flows. A tiny command message keeps that
   // bridge narrow and avoids moving folder UI state into main.

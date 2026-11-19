@@ -1,6 +1,7 @@
-import { ResourceAcquisitions } from "../../../providerRuntime";
+import { ResourceAcquisitions } from "../../../providerRuntime/acquisitions";
 import { EHentaiRuntimeSession, type ImageLimit } from "./runtimeSession";
-import { broker, type RequestPriority } from "../../../requestBroker";
+import { broker } from "../../../requestBroker/requestBroker";
+import type { RequestPriority } from "../../../requestBroker/types";
 import type {
   MediaProvider,
   ProviderCollection,
