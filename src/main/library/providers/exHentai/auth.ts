@@ -13,7 +13,7 @@ let pendingSignIn: Promise<boolean> | null = null;
 let signInCancelled = false;
 const authentication = new GalleryAuthentication();
 
-export function getExHentaiSession(): Electron.Session {
+function getExHentaiSession(): Electron.Session {
   return session.fromPartition(partition);
 }
 
@@ -132,11 +132,7 @@ async function runSignIn(parent: BrowserWindow | null): Promise<boolean> {
   window.webContents.on("will-navigate", (event, url) => {
     if (!validLoginNavigation(url)) event.preventDefault();
   });
-  window.webContents.session.setPermissionRequestHandler((contents, permission, callback) => {
-    void contents;
-    void permission;
-    callback(false);
-  });
+  window.webContents.session.setPermissionRequestHandler((contents, permission, callback) => callback(false));
 
   const closed = new Promise<void>((resolve) => window.once("closed", resolve));
   try {

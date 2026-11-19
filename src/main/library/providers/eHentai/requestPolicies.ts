@@ -1,4 +1,4 @@
-import type { RequestPolicy } from "../../../requestBroker";
+import type { RequestPolicy } from "../../../requestBroker/types";
 
 export const API_POLICY = {
   id: "e-hentai:api",

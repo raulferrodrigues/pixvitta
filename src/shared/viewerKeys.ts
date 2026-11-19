@@ -2,7 +2,7 @@ import type { PixvittaCommand } from "./pixvittaApi";
 
 // The fields of a key press both Electron's Input and a DOM KeyboardEvent can
 // supply.
-export type ViewerKeyInput = { key: string; meta: boolean; control: boolean; alt: boolean };
+type ViewerKeyInput = { key: string; meta: boolean; control: boolean; alt: boolean };
 
 // Viewer keys that main takes before the page sees them: the arrows step
 // through media, and J, K and L seek and play video. Arrows go with any

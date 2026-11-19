@@ -1,9 +1,9 @@
 import type { BuildFlavor } from "../../shared/appBuild";
 import type { UpdateChannel, UpdateUnavailableReason } from "../../shared/updates";
 
-export type LinuxUpdatePackageType = "appimage" | "deb";
+type LinuxUpdatePackageType = "appimage" | "deb";
 
-export type UpdateSupport = {
+type UpdateSupport = {
   isPackaged: boolean;
   platform: NodeJS.Platform;
   appImagePath?: string;

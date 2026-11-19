@@ -107,32 +107,32 @@ const pixvittaApi = {
   // Event subscriptions are push-style messages from main to renderer. Each one
   // returns an unsubscribe function so React effects can clean up listeners.
   onWindowChromeChanged: (callback: (state: WindowChromeState) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, state: WindowChromeState) => callback(state);
+    const listener = (event: Electron.IpcRendererEvent, state: WindowChromeState) => callback(state);
     ipcRenderer.on("window:chrome-changed", listener);
     return () => ipcRenderer.removeListener("window:chrome-changed", listener);
   },
   onCommand: (callback: (command: PixvittaCommand) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, command: PixvittaCommand) => callback(command);
+    const listener = (event: Electron.IpcRendererEvent, command: PixvittaCommand) => callback(command);
     ipcRenderer.on("menu:command", listener);
     return () => ipcRenderer.removeListener("menu:command", listener);
   },
   onCollectionChanged: (callback: (collection: MediaCollection) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, collection: MediaCollection) => callback(collection);
+    const listener = (event: Electron.IpcRendererEvent, collection: MediaCollection) => callback(collection);
     ipcRenderer.on("library:collection-changed", listener);
     return () => ipcRenderer.removeListener("library:collection-changed", listener);
   },
   onSourceLoadingChanged: (callback: (isLoading: boolean) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, isLoading: boolean) => callback(isLoading);
+    const listener = (event: Electron.IpcRendererEvent, isLoading: boolean) => callback(isLoading);
     ipcRenderer.on("library:loading-changed", listener);
     return () => ipcRenderer.removeListener("library:loading-changed", listener);
   },
   onReplaceConfirmation: (callback: (confirmation: ReplaceConfirmation) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, confirmation: ReplaceConfirmation) => callback(confirmation);
+    const listener = (event: Electron.IpcRendererEvent, confirmation: ReplaceConfirmation) => callback(confirmation);
     ipcRenderer.on("library:confirm-replace", listener);
     return () => ipcRenderer.removeListener("library:confirm-replace", listener);
   },
   onSourceError: (callback: (error: OpenSourceError, accountId?: string) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, error: OpenSourceError, accountId?: string) => callback(error, accountId);
+    const listener = (event: Electron.IpcRendererEvent, error: OpenSourceError, accountId?: string) => callback(error, accountId);
     ipcRenderer.on("library:source-error", listener);
     return () => ipcRenderer.removeListener("library:source-error", listener);
   },
@@ -142,10 +142,7 @@ const pixvittaApi = {
     const listener = (
       event: Electron.IpcRendererEvent,
       snapshot: DownloadActivitySnapshot
-    ) => {
-      void event;
-      callback(snapshot);
-    };
+    ) => callback(snapshot);
     ipcRenderer.on("media:download-activity-changed", listener);
     return () =>
       ipcRenderer.removeListener(
@@ -155,32 +152,29 @@ const pixvittaApi = {
   },
   onRecentSourcesChanged: (callback: (sources: RecentEntry[]) => void): (() => void) => {
     const listener = (
-      _event: Electron.IpcRendererEvent,
+      event: Electron.IpcRendererEvent,
       sources: RecentEntry[]
     ) => callback(sources);
     ipcRenderer.on("recent-sources:changed", listener);
     return () => ipcRenderer.removeListener("recent-sources:changed", listener);
   },
   onSavedMixRenameRequested: (callback: (id: string) => void): (() => void) => {
-    const listener = (event: Electron.IpcRendererEvent, id: string) => {
-      void event;
-      callback(id);
-    };
+    const listener = (event: Electron.IpcRendererEvent, id: string) => callback(id);
     ipcRenderer.on("saved-mixes:rename-requested", listener);
     return () => ipcRenderer.removeListener("saved-mixes:rename-requested", listener);
   },
   onSettingsChanged: (callback: (settings: AppSettings) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, settings: AppSettings) => callback(settings);
+    const listener = (event: Electron.IpcRendererEvent, settings: AppSettings) => callback(settings);
     ipcRenderer.on("settings:changed", listener);
     return () => ipcRenderer.removeListener("settings:changed", listener);
   },
   onUpdateStateChanged: (callback: (state: UpdateState) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, state: UpdateState) => callback(state);
+    const listener = (event: Electron.IpcRendererEvent, state: UpdateState) => callback(state);
     ipcRenderer.on("updates:state-changed", listener);
     return () => ipcRenderer.removeListener("updates:state-changed", listener);
   },
   onAccountsChanged: (callback: (accounts: AccountState[]) => void): (() => void) => {
-    const listener = (_event: Electron.IpcRendererEvent, accounts: AccountState[]) => callback(accounts);
+    const listener = (event: Electron.IpcRendererEvent, accounts: AccountState[]) => callback(accounts);
     ipcRenderer.on("accounts:changed", listener);
     return () => ipcRenderer.removeListener("accounts:changed", listener);
   }
@@ -241,7 +235,6 @@ async function encodePng(bytes: Uint8Array, mimeType: string): Promise<Uint8Arra
 }
 
 ipcRenderer.on("clipboard:encode-png", (event, request: EncodePngRequest) => {
-  void event;
   void encodePng(request.bytes, request.mimeType).then(
     (png) => ipcRenderer.send("clipboard:encoded-png", { id: request.id, png }),
     (error: unknown) =>

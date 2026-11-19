@@ -1,21 +1,18 @@
-import { ResourceAcquisitions } from "../../../providerRuntime";
+import { ResourceAcquisitions } from "../../../providerRuntime/acquisitions";
 import { EHentaiRuntimeSession, type ImageLimit } from "./runtimeSession";
-import { broker, type RequestPriority } from "../../../requestBroker";
+import { broker } from "../../../requestBroker/requestBroker";
+import type { RequestPriority } from "../../../requestBroker/types";
 import type {
   MediaProvider,
   ProviderCollection,
   ProviderLoadRequest
 } from "../provider";
 import { ProviderError } from "../provider";
-import { API_POLICY } from "./requestPolicies";
 import { authenticationRequired, eHentaiSite, galleryRequest, isAuthenticationResponse, type GallerySite } from "./gallerySite";
 import { parseGalleryImagePages, type EHentaiImagePageReference } from "./html";
-import { PAGES_POLICY } from "./requestPolicies";
+import { API_POLICY, PAGES_POLICY } from "./requestPolicies";
 import { parseEHentaiGalleryUrl, type EHentaiGalleryReference } from "./galleryUrl";
 import type { GalleryAccess } from "./galleryAccess";
-
-export { parseEHentaiGalleryUrl } from "./galleryUrl";
-export type { EHentaiGalleryReference } from "./galleryUrl";
 
 const USER_AGENT =
   "Pixvitta media viewer (+https://github.com/raulferrodrigues/pixvitta)";
@@ -134,7 +131,7 @@ export class EHentaiProvider implements MediaProvider {
       imageLimit: this.imageLimit
     });
     const nameWidth = Math.max(3, String(metadata.fileCount).length);
-    const items = Array.from({ length: metadata.fileCount }, (_, index) => {
+    const items = Array.from({ length: metadata.fileCount }, (value, index) => {
       const pageNumber = index + 1;
       const pageLabel = String(pageNumber).padStart(nameWidth, "0");
       return {

@@ -1,6 +1,6 @@
 import { BrowserWindow } from "electron";
 import path from "node:path";
-import { HOTKEYS } from "../../shared/hotkeys";
+import { MAIN_HOTKEYS } from "../../shared/hotkeys";
 import { viewerKeyCommand } from "../../shared/viewerKeys";
 import { appBuildInfo } from "../app/buildInfo";
 import { installTextEditingContextMenu } from "./textEditingContextMenu";
@@ -58,7 +58,6 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
   // reports its own state once it is up.
   let isTextEntryFocused = false;
   window.webContents.ipc.on("window:text-entry-focused", (event, focused: unknown) => {
-    void event;
     if (typeof focused === "boolean") isTextEntryFocused = focused;
   });
   window.webContents.on("render-process-gone", () => {
@@ -87,7 +86,7 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
       window.webContents.send("menu:command", viewerCommand);
       return;
     }
-    if (isCommandShortcut(input, HOTKEYS.closeWindow)) {
+    if (isCommandShortcut(input, MAIN_HOTKEYS.closeWindow)) {
       event.preventDefault();
       options.onCloseShortcut(window);
       return;

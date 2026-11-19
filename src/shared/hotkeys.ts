@@ -8,5 +8,3 @@ export const MAIN_HOTKEYS = {
   appZoomIn: "Shift+CommandOrControl+=",
   appZoomOut: "Shift+CommandOrControl+-"
 } as const;
-
-export const HOTKEYS = MAIN_HOTKEYS;

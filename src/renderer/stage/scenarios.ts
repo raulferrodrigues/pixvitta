@@ -67,7 +67,7 @@ function brokenImage(id: string, kind: "missing" | "flaky"): MediaItem {
 }
 
 /** Builds a collection whose items' IDs include the source ID, as the real catalog's do. */
-export function stageCollection(
+function stageCollection(
   title: string,
   items: MediaItem[],
   capabilities: MediaSourceCapabilities = FOLDER_CAPABILITIES
@@ -209,7 +209,6 @@ function mergedSources(
     savedMix("studies", [WATERCOLOURS, SKETCHES], 7, { name: "Studies", pinned: true }),
     ...(memberCount > 1 ? [savedMix("current-mix", members.map(({ title, location, kind }) => {
       const { openedMs, ...member } = recent({ title, location, kind }, 0);
-      void openedMs;
       return member;
     }), 6, currentMix)] : []),
     recent(MERGE_MEMBERS[0], 5),

@@ -1,9 +1,7 @@
 import path from "node:path";
 import type { MediaKind } from "../../shared/media";
 
-export type { MediaKind } from "../../shared/media";
-
-export type MediaFileType = {
+type MediaFileType = {
   extension: `.${string}`;
   kind: MediaKind;
   mimeType: string;
@@ -43,10 +41,6 @@ export function getMediaFileType(filePath: string): MediaFileType | null {
   // Extensions are normalized once at lookup, so callers can pass display names,
   // absolute paths, or mixed-case Finder paths without special handling.
   return mediaFileTypesByExtension.get(path.extname(filePath).toLowerCase()) ?? null;
-}
-
-export function getMediaKind(filePath: string): MediaKind | null {
-  return getMediaFileType(filePath)?.kind ?? null;
 }
 
 export function isSupportedMediaPath(filePath: string): boolean {

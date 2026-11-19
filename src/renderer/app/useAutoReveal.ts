@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 
 const FADE_DELAY_MS = 1200;
 
-export type PointerArea = (x: number, y: number) => boolean;
+type PointerArea = (x: number, y: number) => boolean;
 
 // Controls start revealed and fade after a short idle. Moving the pointer into
 // their area reveals them again and keeps them visible until it leaves.

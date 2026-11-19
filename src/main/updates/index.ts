@@ -1,1 +1,0 @@
-export { startAutomaticUpdates } from "./updateService";

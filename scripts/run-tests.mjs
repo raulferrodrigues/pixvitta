@@ -40,8 +40,9 @@ function parseArguments(argv) {
 const testDoubles = {
   name: "pixvitta-test-doubles",
   setup(pluginBuild) {
-    pluginBuild.onResolve({ filter: /^\.\/requestBroker$/ }, (resolved) =>
-      resolved.resolveDir.endsWith(path.join("main", "requestBroker"))
+    const realBroker = path.resolve("src/main/requestBroker/requestBroker");
+    pluginBuild.onResolve({ filter: /\/requestBroker$/ }, (resolved) =>
+      path.resolve(resolved.resolveDir, resolved.path) === realBroker
         ? { path: path.resolve("src/main/testing/testBroker.ts") }
         : undefined
     );

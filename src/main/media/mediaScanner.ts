@@ -13,9 +13,7 @@ import { getThumbnail } from "../thumbnailer";
  * the media service can register IDs and then strip paths before renderer IPC.
  */
 
-export type { MediaKind } from "../utils/mediaTypes";
-
-export type MediaFileRecord = {
+type MediaFileRecord = {
   id: string;
   name: string;
   absolutePath: string;
@@ -28,16 +26,12 @@ export type MediaFileRecord = {
   createdMs: number;
 };
 
-// Compatibility alias for current internal callers. The public renderer-safe
-// MediaItem lives in src/shared/media and deliberately does not include paths.
-export type MediaItem = MediaFileRecord;
-
-export type FolderScanResult = {
+type FolderScanResult = {
   folderPath: string;
   items: MediaFileRecord[];
 };
 
-export type ScanOptions = {
+type ScanOptions = {
   fileOrder?: FileOrder;
   includeHidden?: boolean;
   randomSeed?: string;
@@ -53,7 +47,7 @@ const collator = new Intl.Collator(undefined, {
 // IDs are derived from absolute paths so they are stable during a session and do
 // not expose the path to the renderer URL. The short hash is enough for a local
 // folder-sized registry without making URLs enormous.
-export function createMediaId(absolutePath: string): string {
+function createMediaId(absolutePath: string): string {
   return createHash("sha256").update(absolutePath).digest("hex").slice(0, 32);
 }
 
@@ -61,7 +55,7 @@ export function createMediaId(absolutePath: string): string {
 // order. The renderer can then keep navigation and filmstrip rendering simple.
 function sortMediaItems(
   items: MediaFileRecord[],
-  fileOrder: NonNullable<ScanOptions["fileOrder"]>,
+  fileOrder: FileOrder,
   randomSeed?: string
 ): MediaFileRecord[] {
   const compareNames = (a: MediaFileRecord, b: MediaFileRecord) => collator.compare(a.name, b.name);

@@ -15,9 +15,9 @@ export function PlayButton({ keepSpace = false }: VideoButtonProps) {
   const isVideoPlaying = useViewerStore((state) => state.isVideoPlaying);
   const toggleVideoPlayback = useViewerStore((state) => state.toggleVideoPlayback);
   const button = isVideo ? (
-    <IconButton label={gt("Play or pause video")} variant="prominent" onClick={() => void toggleVideoPlayback()}>{isVideoPlaying ? <Pause size={20} aria-hidden /> : <Play size={20} aria-hidden />}</IconButton>
+    <IconButton label={gt("Play or pause video")} variant="primary" onClick={() => void toggleVideoPlayback()}>{isVideoPlaying ? <Pause size={20} aria-hidden /> : <Play size={20} aria-hidden />}</IconButton>
   ) : keepSpace ? (
-    <IconButton label={gt("Play or pause video")} variant="prominent" className="video-control-placeholder" disabled data-testid="video-playback-placeholder"><Play size={20} aria-hidden /></IconButton>
+    <IconButton label={gt("Play or pause video")} variant="primary" className="video-control-placeholder" disabled data-testid="video-playback-placeholder"><Play size={20} aria-hidden /></IconButton>
   ) : null;
   if (!keepSpace) return button;
   return (

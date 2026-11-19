@@ -1,8 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { createMediaFileResponse } from "../../../media/mediaResponses";
-import { ResourceAcquisitions, ProviderCollectionRuntime, type ProviderIO } from "../../../providerRuntime";
-import { RequestCancelledError, type RequestPriority } from "../../../requestBroker";
-import type { CachedFile } from "../../../resourceCache";
+import { ResourceAcquisitions, type ProviderIO } from "../../../providerRuntime/acquisitions";
+import { ProviderCollectionRuntime } from "../../../providerRuntime/collectionRuntime";
+import { RequestCancelledError } from "../../../requestBroker/scheduler";
+import type { RequestPriority } from "../../../requestBroker/types";
+import type { CachedFile } from "../../../resourceCache/resourceCache";
 import { mediaFileTypes } from "../../../utils/mediaTypes";
 import { GalleryAccessExpiredError, type GalleryAccess } from "./galleryAccess";
 import { authenticationRequired, galleryRequest, isAuthenticationResponse, type GallerySite } from "./gallerySite";

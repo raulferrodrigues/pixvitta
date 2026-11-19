@@ -25,7 +25,7 @@ export type Thumbnail = {
   url: string;
 };
 
-export type ResolvedThumbnailFile = ThumbnailFile & {
+type ResolvedThumbnailFile = ThumbnailFile & {
   id: string;
 };
 
@@ -115,25 +115,6 @@ export function resolveThumbnailUrl(rawUrl: string): ResolvedThumbnailFile | nul
 
   const file = resolveThumbnailId(id);
   if (!file || file.revision !== revision) return null;
-
-  return {
-    id: file.id,
-    filePath: file.filePath,
-    sizeBytes: file.sizeBytes,
-    modifiedMs: file.modifiedMs
-  };
-}
-
-export function resolveThumbnailReference(reference: unknown): ResolvedThumbnailFile | null {
-  // The current renderer-assisted thumbnail path still sends a media-looking ID
-  // for historical reasons. During this refactor, thumbnail IDs are derived the
-  // same way as media IDs, so the runtime can accept either a full thumbnail URL
-  // or an ID while keeping the path lookup private to thumbnailer.
-  if (typeof reference !== "string" || reference.length === 0) return null;
-  if (reference.startsWith("pixvitta-thumb:")) return resolveThumbnailUrl(reference);
-
-  const file = resolveThumbnailId(reference);
-  if (!file) return null;
 
   return {
     id: file.id,

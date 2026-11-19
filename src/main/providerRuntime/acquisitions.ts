@@ -1,5 +1,12 @@
-import { broker, RequestCancelledError, type BrokerRequestOptions, type BrokerTask, type RequestBroker, type RequestPriority } from "../requestBroker";
-import { cache, type CachedFile } from "../resourceCache";
+import { broker } from "../requestBroker/requestBroker";
+import { RequestCancelledError } from "../requestBroker/scheduler";
+import type {
+  BrokerRequestOptions,
+  BrokerTask,
+  RequestBroker,
+  RequestPriority
+} from "../requestBroker/types";
+import { cache, type CachedFile } from "../resourceCache/resourceCache";
 
 const ranks: Record<RequestPriority, number> = { low: 0, normal: 1, high: 2 };
 

@@ -3,7 +3,7 @@ type IndexedEntry = {
   lastUsedMs: number;
 };
 
-export type CacheLimits = {
+type CacheLimits = {
   maxBytes: number;
   /** Entries used within this window are never evicted. */
   protectedMs: number;

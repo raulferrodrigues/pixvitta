@@ -18,7 +18,7 @@ import type {
 } from "./providers";
 import { ProviderError } from "./providers/provider";
 
-export type MediaLibraryPhase = "idle" | "loading" | "awaiting-renderer";
+type MediaLibraryPhase = "idle" | "loading" | "awaiting-renderer";
 
 // One source behind the active collection, as its provider loaded it. The ID
 // is opaque to the renderer and survives a refresh of the member. A member

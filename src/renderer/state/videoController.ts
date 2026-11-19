@@ -1,7 +1,7 @@
 export type VideoController = {
   attach(element: HTMLVideoElement | null): void;
   togglePlayback(): Promise<void>;
-  seekBy(seconds: number): boolean;
+  seekBy(seconds: number): void;
 };
 
 export function createVideoController(): VideoController {
@@ -27,12 +27,11 @@ export function createVideoController(): VideoController {
     },
 
     seekBy(seconds) {
-      if (!element || !Number.isFinite(seconds)) return false;
+      if (!element || !Number.isFinite(seconds)) return;
       const currentTime = Number.isFinite(element.currentTime) ? element.currentTime : 0;
       const duration = Number.isFinite(element.duration) ? element.duration : undefined;
       const targetTime = Math.max(0, currentTime + seconds);
       element.currentTime = duration === undefined ? targetTime : Math.min(duration, targetTime);
-      return true;
     }
   };
 }

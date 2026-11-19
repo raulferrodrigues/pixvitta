@@ -34,7 +34,7 @@ type StageCall = { method: string; args: unknown[] };
  * error. "already-added" is main's answer to adding a source that is already
  * a member: nothing changes, and the add says so.
  */
-export type StageSource = MediaCollection | OpenSourceError | "already-added";
+type StageSource = MediaCollection | OpenSourceError | "already-added";
 
 export type StageControls = {
   readonly calls: StageCall[];
@@ -260,7 +260,6 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
       return changeMix(id, (mix) => {
         if (!mix.pinned) return mix;
         const { name: previousName, ...rest } = mix;
-        void previousName;
         const trimmed = name.trim();
         return trimmed
           ? { ...rest, name: trimmed, title: trimmed }

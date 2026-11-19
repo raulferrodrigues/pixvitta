@@ -7,7 +7,7 @@
 /** electron-updater's channel name. Stable builds follow "latest". */
 export type UpdateChannel = "latest" | "nightly";
 
-export type UpdateStatus =
+type UpdateStatus =
   | "unavailable"
   | "idle"
   | "checking"
@@ -17,7 +17,7 @@ export type UpdateStatus =
   | "downloaded"
   | "error";
 
-export type UpdateErrorContext = "check" | "download" | "install";
+type UpdateErrorContext = "check" | "download" | "install";
 
 /** Why a build cannot update itself. The renderer turns it into a sentence. */
 export type UpdateUnavailableReason = "unpackaged" | "unsigned-macos" | "unsupported-linux-package";
@@ -37,7 +37,7 @@ export type UpdateState = {
 };
 
 /** The one step the update button offers next, if any. */
-export type UpdateAction = "check" | "download" | "install" | "none";
+type UpdateAction = "check" | "download" | "install" | "none";
 
 export function createUpdateState(
   currentVersion: string,

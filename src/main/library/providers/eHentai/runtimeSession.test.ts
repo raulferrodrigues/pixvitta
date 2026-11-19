@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { setTimeout } from "node:timers/promises";
-import { ResourceAcquisitions } from "../../../providerRuntime";
+import { ResourceAcquisitions } from "../../../providerRuntime/acquisitions";
 import { createRequestBroker } from "../../../requestBroker/scheduler";
-import type { BrokerRequestOptions, RequestBroker, RequestPriority } from "../../../requestBroker";
-import { cache } from "../../../resourceCache";
+import type {
+  BrokerRequestOptions,
+  RequestBroker,
+  RequestPriority
+} from "../../../requestBroker/types";
+import { cache } from "../../../resourceCache/resourceCache";
 import { GalleryAuthentication } from "./galleryAccess";
 import { eHentaiSite, exHentaiSite } from "./gallerySite";
 import { EHentaiRuntimeSession } from "./runtimeSession";
@@ -119,7 +123,7 @@ test("ExHentai addresses index pages by the account's page size and accepts its 
   const gallery = "601";
   const pageUrl = `https://exhentai.org/g/${gallery}/abcdef1234/`;
   const pageReference = (page: number) => ({
-    pageNumber: page, pageUrl: `https://exhentai.org/s/abcdef/${gallery}-${page}`, pageToken: "abcdef", thumbnail: null
+    pageUrl: `https://exhentai.org/s/abcdef/${gallery}-${page}`, pageToken: "abcdef", thumbnail: null
   });
   const upstream: string[] = [];
   const fetch = async (request: Request): Promise<Response> => {

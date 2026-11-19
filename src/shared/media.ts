@@ -110,7 +110,7 @@ export type DownloadActivityState =
   | "complete"
   | "failed";
 
-export type DownloadActivityRow = {
+type DownloadActivityRow = {
   id: string;
   mediaId: string;
   name: string;

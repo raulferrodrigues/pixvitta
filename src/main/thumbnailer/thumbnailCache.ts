@@ -14,16 +14,18 @@ import { Readable } from "node:stream";
 // Bump this when the cache file format or generation strategy changes. Old
 // thumbnails then live under a different directory and stop being reused.
 export const THUMBNAIL_CACHE_VERSION = "v3";
-export const THUMBNAIL_SIZE_PX = 512;
-export const THUMBNAIL_JPEG_QUALITY = 90;
-export const THUMBNAIL_CACHE_MAX_BYTES = 1024 * 1024 * 1024;
-export const THUMBNAIL_CACHE_TARGET_BYTES = 900 * 1024 * 1024;
+const THUMBNAIL_SIZE_PX = 512;
+const THUMBNAIL_JPEG_QUALITY = 90;
+const CACHE_MAX_BYTES = 1024 * 1024 * 1024;
+const CACHE_TARGET_BYTES = 900 * 1024 * 1024;
 
 // Thumbnailing many large images at once can make the app feel hung. A tiny
 // queue keeps the UI responsive while still letting a couple of thumbnails build
 // in parallel.
-const DEFAULT_THUMBNAIL_CONCURRENCY = 2;
-const DEFAULT_PRUNE_DELAY_MS = 30_000;
+const THUMBNAIL_CONCURRENCY = 2;
+
+const PRUNE_DELAY_MS = 30_000;
+const DISPOSE_TIMEOUT_MS = 5_000;
 
 type ThumbnailSize = {
   width: number;
@@ -35,22 +37,11 @@ type GeneratedThumbnail = {
   toJPEG(quality: number): Buffer;
 };
 
-export type CreateThumbnail = (filePath: string, size: ThumbnailSize) => Promise<GeneratedThumbnail>;
-
-export type ThumbnailCacheStats = {
-  fileCount: number;
-  totalBytes: number;
-};
+type CreateThumbnail = (filePath: string, size: ThumbnailSize) => Promise<GeneratedThumbnail>;
 
 type ThumbnailCacheOptions = {
   cacheDir: string;
   createThumbnail: CreateThumbnail;
-  thumbnailSizePx?: number;
-  jpegQuality?: number;
-  maxBytes?: number;
-  targetBytes?: number;
-  concurrency?: number;
-  pruneDelayMs?: number;
   debug?: boolean;
 };
 
@@ -132,7 +123,7 @@ class AsyncQueue {
 // A cache key must change when the source file changes or when thumbnail output
 // settings change. Including the path keeps two different files with identical
 // size/mtime from sharing a thumbnail.
-function cacheKeyFor(filePath: string, sizeBytes: number, modifiedMs: number, thumbnailSizePx: number, jpegQuality: number): string {
+function cacheKeyFor(filePath: string, sizeBytes: number, modifiedMs: number): string {
   return createHash("sha256")
     .update(THUMBNAIL_CACHE_VERSION)
     .update("\0")
@@ -142,9 +133,9 @@ function cacheKeyFor(filePath: string, sizeBytes: number, modifiedMs: number, th
     .update("\0")
     .update(String(Math.round(modifiedMs)))
     .update("\0")
-    .update(String(thumbnailSizePx))
+    .update(String(THUMBNAIL_SIZE_PX))
     .update("\0")
-    .update(String(jpegQuality))
+    .update(String(THUMBNAIL_JPEG_QUALITY))
     .digest("hex");
 }
 
@@ -160,28 +151,12 @@ async function fileExists(filePath: string): Promise<boolean> {
 }
 
 export class ThumbnailCache {
-  private readonly createThumbnail: CreateThumbnail;
-  private readonly thumbnailSizePx: number;
-  private readonly jpegQuality: number;
-  private readonly maxBytes: number;
-  private readonly targetBytes: number;
-  private readonly pruneDelayMs: number;
-  private readonly queue: AsyncQueue;
+  private readonly queue = new AsyncQueue(THUMBNAIL_CONCURRENCY);
   private readonly inFlight = new Map<string, Promise<string | null>>();
   private pruneTimer: NodeJS.Timeout | null = null;
   private isPruning = false;
 
-  constructor(private readonly options: ThumbnailCacheOptions) {
-    // The constructor normalizes all tunable values once, so the hot path can
-    // avoid repeating defaulting logic for every thumbnail request.
-    this.createThumbnail = options.createThumbnail;
-    this.thumbnailSizePx = options.thumbnailSizePx ?? THUMBNAIL_SIZE_PX;
-    this.jpegQuality = options.jpegQuality ?? THUMBNAIL_JPEG_QUALITY;
-    this.maxBytes = options.maxBytes ?? THUMBNAIL_CACHE_MAX_BYTES;
-    this.targetBytes = Math.min(options.targetBytes ?? THUMBNAIL_CACHE_TARGET_BYTES, this.maxBytes);
-    this.pruneDelayMs = options.pruneDelayMs ?? DEFAULT_PRUNE_DELAY_MS;
-    this.queue = new AsyncQueue(Math.max(1, options.concurrency ?? DEFAULT_THUMBNAIL_CONCURRENCY));
-  }
+  constructor(private readonly options: ThumbnailCacheOptions) {}
 
   // Debug logging is intentionally opt-in because thumbnail requests happen a
   // lot while scrolling the filmstrip.
@@ -199,7 +174,7 @@ export class ThumbnailCache {
   // cached JPEG names.
   private async getCachedPathForSource(filePath: string): Promise<string> {
     const details = await stat(filePath);
-    const key = cacheKeyFor(filePath, details.size, details.mtimeMs, this.thumbnailSizePx, this.jpegQuality);
+    const key = cacheKeyFor(filePath, details.size, details.mtimeMs);
     return path.join(this.options.cacheDir, `${key}.jpg`);
   }
 
@@ -272,33 +247,10 @@ export class ThumbnailCache {
     return cachedPath;
   }
 
-  async getStats(): Promise<ThumbnailCacheStats> {
-    const entries = await readdir(this.options.cacheDir, { withFileTypes: true }).catch(() => []);
-    const files = await Promise.all(
-      entries
-        .filter((entry) => entry.isFile() && entry.name.endsWith(".jpg"))
-        .map((entry) => stat(path.join(this.options.cacheDir, entry.name)))
-    );
-    return {
-      fileCount: files.length,
-      totalBytes: files.reduce((sum, file) => sum + file.size, 0)
-    };
-  }
-
-  async clearCache(): Promise<void> {
-    if (this.pruneTimer) {
-      clearTimeout(this.pruneTimer);
-      this.pruneTimer = null;
-    }
-    await this.queue.onIdle();
-    await rm(this.options.cacheDir, { recursive: true, force: true });
-    await mkdir(this.options.cacheDir, { recursive: true });
-    this.debug("cache cleared");
-  }
-
   // Pruning keeps the cache bounded. It removes the oldest touched files until
-  // the cache drops below targetBytes, leaving recently viewed thumbnails alone.
-  async pruneCache(): Promise<void> {
+  // the cache drops below CACHE_TARGET_BYTES, leaving recently viewed
+  // thumbnails alone.
+  private async pruneCache(): Promise<void> {
     if (this.isPruning) return;
     this.isPruning = true;
     try {
@@ -318,11 +270,11 @@ export class ThumbnailCache {
       );
 
       let totalBytes = files.reduce((sum, file) => sum + file.sizeBytes, 0);
-      if (totalBytes <= this.maxBytes) return;
+      if (totalBytes <= CACHE_MAX_BYTES) return;
 
       files.sort((a, b) => a.modifiedMs - b.modifiedMs);
       for (const file of files) {
-        if (totalBytes <= this.targetBytes) break;
+        if (totalBytes <= CACHE_TARGET_BYTES) break;
         await rm(file.filePath, { force: true });
         totalBytes -= file.sizeBytes;
       }
@@ -333,7 +285,7 @@ export class ThumbnailCache {
 
   // Called during app quit. It stops new work, waits for active work to settle,
   // and caps that wait so a stuck thumbnail cannot block quitting forever.
-  async dispose(timeoutMs = 5_000): Promise<void> {
+  async dispose(): Promise<void> {
     if (this.pruneTimer) {
       clearTimeout(this.pruneTimer);
       this.pruneTimer = null;
@@ -342,7 +294,7 @@ export class ThumbnailCache {
     await Promise.race([
       this.queue.onIdle(),
       new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, timeoutMs);
+        const timer = setTimeout(resolve, DISPOSE_TIMEOUT_MS);
         timer.unref?.();
       })
     ]);
@@ -355,16 +307,16 @@ export class ThumbnailCache {
 
     this.debug("generating thumbnail", { filePath, cachedPath });
     await mkdir(this.options.cacheDir, { recursive: true });
-    const image = await this.createThumbnail(filePath, {
-      width: this.thumbnailSizePx,
-      height: this.thumbnailSizePx
+    const image = await this.options.createThumbnail(filePath, {
+      width: THUMBNAIL_SIZE_PX,
+      height: THUMBNAIL_SIZE_PX
     });
     if (image.isEmpty()) {
       this.debug("thumbnail generation returned an empty image", { filePath });
       return null;
     }
 
-    const jpeg = image.toJPEG(this.jpegQuality);
+    const jpeg = image.toJPEG(THUMBNAIL_JPEG_QUALITY);
     if (jpeg.length === 0) {
       this.debug("thumbnail jpeg encoding returned an empty buffer", { filePath });
       return null;
@@ -394,7 +346,7 @@ export class ThumbnailCache {
     this.pruneTimer = setTimeout(() => {
       this.pruneTimer = null;
       void this.pruneCache().catch((error) => console.error(error));
-    }, this.pruneDelayMs);
+    }, PRUNE_DELAY_MS);
     this.pruneTimer.unref?.();
   }
 }

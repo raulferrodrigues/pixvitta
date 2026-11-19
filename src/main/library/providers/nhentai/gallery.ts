@@ -13,7 +13,7 @@ export type NHentaiGalleryReference = {
   apiUrl: string;
 };
 
-export type NHentaiPage = {
+type NHentaiPage = {
   number: number;
   name: string;
   path: string;

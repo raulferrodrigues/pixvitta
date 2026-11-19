@@ -12,11 +12,11 @@ function isFileOrder(value: string): value is FileOrder {
 
 export function FileOrderMenu({
   value,
-  disabled = false,
+  disabled,
   onChange
 }: {
   value: FileOrder;
-  disabled?: boolean;
+  disabled: boolean;
   onChange(value: FileOrder): void;
 }) {
   const gt = useGT();

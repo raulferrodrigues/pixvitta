@@ -15,9 +15,14 @@ import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { debugLog } from "../utils/debugLog";
 import { CacheIndex } from "./cacheIndex";
-import type { CachedFile } from "./types";
 
-export const RESOURCE_CACHE_MAX_BYTES = 2 * 1024 * 1024 * 1024;
+export type CachedFile = Readonly<{
+  filePath: string;
+  contentType: string;
+  byteLength: number;
+}>;
+
+const RESOURCE_CACHE_MAX_BYTES = 2 * 1024 * 1024 * 1024;
 const RECENTLY_USED_MS = 60_000;
 
 type CacheMetadata = {

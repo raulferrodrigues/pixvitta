@@ -1,12 +1,15 @@
 import { app, BrowserWindow, ipcMain, protocol } from "electron";
-import { canDownloadCollection, resolveMediaId, resolveMediaUrl } from "../library";
+import { canDownloadCollection, resolveMediaId, resolveMediaUrl } from "../library/librarySession";
 import { ProviderError } from "../library/providers";
 import {
   showLocalMediaContextMenu,
   showRemoteMediaContextMenu
 } from "./mediaContextMenu";
-import type { RequestPriority } from "../requestBroker";
-import { publishMainWindowDownloadActivity, publishMainWindowSourceError } from "../windows";
+import type { RequestPriority } from "../requestBroker/types";
+import {
+  publishMainWindowDownloadActivity,
+  publishMainWindowSourceError
+} from "../windows/windows";
 import { saveMediaForClipboard } from "./clipboardFile";
 import { DownloadManager } from "./downloadManager";
 
@@ -107,21 +110,12 @@ function registerMediaIpcHandler(): void {
     const window = BrowserWindow.fromWebContents(event.sender);
     return window ? showMediaContextMenu(window, mediaId) : false;
   });
-  ipcMain.handle("media:download", (event, mediaId: unknown) => {
-    void event;
-    return downloadMedia(mediaId);
-  });
+  ipcMain.handle("media:download", (event, mediaId: unknown) => downloadMedia(mediaId));
   ipcMain.handle(
     "media:download-collection",
-    (event, collectionName: unknown, mediaIds: unknown) => {
-      void event;
-      return downloadCollection(collectionName, mediaIds);
-    }
+    (event, collectionName: unknown, mediaIds: unknown) => downloadCollection(collectionName, mediaIds)
   );
-  ipcMain.handle("media:get-download-activity", (event) => {
-    void event;
-    return downloadManager.getSnapshot();
-  });
+  ipcMain.handle("media:get-download-activity", () => downloadManager.getSnapshot());
 }
 
 function registerMediaProtocolHandler(): void {

@@ -1,13 +1,11 @@
 import { app, BrowserWindow } from "electron";
 import { configureAppIdentity } from "./app/buildInfo";
-import { createAppMenu } from "./menus";
-import { registerIpcHandlers } from "./ipc";
-import {
-  openFileAsCollection
-} from "./library";
-import "./media";
-import { startAutomaticUpdates } from "./updates";
-import { createMainWindow } from "./windows";
+import { createAppMenu } from "./menus/appMenu";
+import { registerIpcHandlers } from "./ipc/ipcHandlers";
+import { openFileAsCollection } from "./library/librarySession";
+import "./media/mediaFeature";
+import { startAutomaticUpdates } from "./updates/updateService";
+import { createMainWindow } from "./windows/windows";
 
 function fileArguments(argv: string[]): string[] {
   // Switches come out first because Chromium moves them ahead of the positional
@@ -56,7 +54,7 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
 } else {
-  app.on("second-instance", (_event, argv, workingDirectory) => {
+  app.on("second-instance", (event, argv, workingDirectory) => {
     void app
       .whenReady()
       .then(() => openFileArgument(argv, workingDirectory))
@@ -96,15 +94,11 @@ void app.whenReady().then(async () => {
   if (!(await openFileArgument(process.argv))) createMainWindow();
   startAutomaticUpdates();
 
-  // macOS keeps apps open after their windows close. When the dock icon is
-  // clicked again, activate should recreate the viewer window.
+  // Pixvitta quits when its window closes, so this only covers macOS activating
+  // the app while no window exists yet, or while it finishes quitting.
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow();
     }
-  });
-
-  app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") app.quit();
   });
 });

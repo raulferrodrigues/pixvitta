@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { setImmediate } from "node:timers/promises";
 import { createRequestBroker, RequestCancelledError } from "../requestBroker/scheduler";
-import type { BrokerRequestOptions, RequestBroker, RequestPriority } from "../requestBroker";
-import type { CachedFile } from "../resourceCache";
+import type { BrokerRequestOptions, RequestBroker, RequestPriority } from "../requestBroker/types";
+import type { CachedFile } from "../resourceCache/resourceCache";
 import { ResourceAcquisitions } from "./acquisitions";
 import { ProviderCollectionRuntime } from "./collectionRuntime";
 

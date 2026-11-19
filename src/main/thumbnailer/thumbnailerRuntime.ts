@@ -5,10 +5,7 @@ import {
   isImageMediaPath,
   isVideoMediaPath
 } from "../utils/mediaTypes";
-import {
-  resolveThumbnailReference,
-  resolveThumbnailUrl
-} from "./thumbnailer";
+import { resolveThumbnailUrl } from "./thumbnailer";
 import {
   createThumbnailFileResponse,
   ThumbnailCache,
@@ -131,7 +128,7 @@ async function createThumbnailResponse(request: Request): Promise<Response> {
 async function finishThumbnailFromRenderer(reference: unknown, dataUrl: unknown): Promise<boolean> {
   // This IPC endpoint accepts pixels only for files registered by thumbnailer.
   // The renderer never supplies a path or chooses a cache location.
-  const file = resolveThumbnailReference(reference);
+  const file = typeof reference === "string" ? resolveThumbnailUrl(reference) : null;
   if (!file || (!isImageMediaPath(file.filePath) && !isVideoMediaPath(file.filePath)) || typeof dataUrl !== "string") return false;
 
   const jpeg = decodeRendererJpegDataUrl(dataUrl);
@@ -168,7 +165,7 @@ function registerThumbnailIpcHandlers(): void {
   // The renderer does not know about cache files. It can only send captured
   // image data for a thumbnailer-created reference, and this runtime decides
   // whether that data is useful.
-  ipcMain.handle("thumbnail:save-media", (_event, reference: unknown, dataUrl: unknown) => {
+  ipcMain.handle("thumbnail:save-media", (event, reference: unknown, dataUrl: unknown) => {
     return finishThumbnailFromRenderer(reference, dataUrl);
   });
 }

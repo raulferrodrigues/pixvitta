@@ -1,17 +1,12 @@
 import type { MediaKind } from "../../../../shared/media";
 import { parseFragment } from "parse5";
 import { createMediaFileResponse } from "../../../media/mediaResponses";
-import {
-  ProviderCollectionRuntime,
-  ResourceAcquisitions,
-  type ProviderIO
-} from "../../../providerRuntime";
-import {
-  broker,
-  RequestCancelledError,
-  type RequestPolicy
-} from "../../../requestBroker";
-import type { CachedFile } from "../../../resourceCache";
+import { ProviderCollectionRuntime } from "../../../providerRuntime/collectionRuntime";
+import { ResourceAcquisitions, type ProviderIO } from "../../../providerRuntime/acquisitions";
+import { broker } from "../../../requestBroker/requestBroker";
+import { RequestCancelledError } from "../../../requestBroker/scheduler";
+import type { RequestPolicy } from "../../../requestBroker/types";
+import type { CachedFile } from "../../../resourceCache/resourceCache";
 import { mediaFileTypes } from "../../../utils/mediaTypes";
 import type {
   MediaProvider,
@@ -67,7 +62,7 @@ const supportedVideoContentTypes = new Set<string>(
     .map((fileType) => fileType.mimeType)
 );
 
-export type FourChanThreadReference = {
+type FourChanThreadReference = {
   board: string;
   threadId: string;
   pageUrl: string;
@@ -107,7 +102,7 @@ type CachedThread = {
   lastModified: string;
 };
 
-export function parseFourChanThreadUrl(input: string): FourChanThreadReference | null {
+function parseFourChanThreadUrl(input: string): FourChanThreadReference | null {
   let url: URL;
   try {
     url = new URL(input.trim());
