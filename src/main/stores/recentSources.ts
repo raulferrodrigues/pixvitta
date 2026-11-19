@@ -17,7 +17,7 @@ import {
  */
 
 // Unpinned entries kept, sources and mixes together. Pinned mixes do not count.
-export const maxRecentSources = 10;
+const maxRecentSources = 10;
 const maxMixNameLength = 120;
 
 type StoredEntry = RecentSource | SavedMix;
@@ -137,7 +137,7 @@ function arrange(entries: StoredEntry[]): StoredEntry[] {
 // Recents JSON is recoverable user data, not trusted program state. Invalid
 // entries are skipped and duplicates collapse to the newest: sources by
 // location, mixes by ID.
-export function sanitizeRecentEntries(value: unknown): StoredEntry[] {
+function sanitizeRecentEntries(value: unknown): StoredEntry[] {
   const rawItems = Array.isArray(value) ? value : [];
   const newestByKey = new Map<string, StoredEntry>();
 
@@ -158,7 +158,7 @@ export function sanitizeRecentEntries(value: unknown): StoredEntry[] {
   );
 }
 
-export function addRecentSource(
+function addRecentSource(
   items: StoredEntry[],
   source: RecentSourceInput,
   openedMs = Date.now()

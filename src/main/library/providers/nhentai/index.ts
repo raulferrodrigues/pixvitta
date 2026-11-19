@@ -30,8 +30,6 @@ import {
   type NHentaiGalleryReference
 } from "./gallery";
 
-export { parseNHentaiGalleryUrl } from "./gallery";
-
 const CDN_CONFIG_URL = "https://nhentai.net/api/v2/cdn";
 const CDN_CONFIG_LIFETIME_MS = 60 * 60 * 1_000;
 const API_TIMEOUT_MS = 15_000;

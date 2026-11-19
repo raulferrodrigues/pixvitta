@@ -5,10 +5,7 @@ import {
   isImageMediaPath,
   isVideoMediaPath
 } from "../utils/mediaTypes";
-import {
-  resolveThumbnailReference,
-  resolveThumbnailUrl
-} from "./thumbnailer";
+import { resolveThumbnailUrl } from "./thumbnailer";
 import {
   createThumbnailFileResponse,
   ThumbnailCache,
@@ -131,7 +128,7 @@ async function createThumbnailResponse(request: Request): Promise<Response> {
 async function finishThumbnailFromRenderer(reference: unknown, dataUrl: unknown): Promise<boolean> {
   // This IPC endpoint accepts pixels only for files registered by thumbnailer.
   // The renderer never supplies a path or chooses a cache location.
-  const file = resolveThumbnailReference(reference);
+  const file = typeof reference === "string" ? resolveThumbnailUrl(reference) : null;
   if (!file || (!isImageMediaPath(file.filePath) && !isVideoMediaPath(file.filePath)) || typeof dataUrl !== "string") return false;
 
   const jpeg = decodeRendererJpegDataUrl(dataUrl);

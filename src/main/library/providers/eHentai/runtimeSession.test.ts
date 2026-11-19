@@ -119,7 +119,7 @@ test("ExHentai addresses index pages by the account's page size and accepts its 
   const gallery = "601";
   const pageUrl = `https://exhentai.org/g/${gallery}/abcdef1234/`;
   const pageReference = (page: number) => ({
-    pageNumber: page, pageUrl: `https://exhentai.org/s/abcdef/${gallery}-${page}`, pageToken: "abcdef", thumbnail: null
+    pageUrl: `https://exhentai.org/s/abcdef/${gallery}-${page}`, pageToken: "abcdef", thumbnail: null
   });
   const upstream: string[] = [];
   const fetch = async (request: Request): Promise<Response> => {

@@ -7,15 +7,11 @@ import type {
   ProviderLoadRequest
 } from "../provider";
 import { ProviderError } from "../provider";
-import { API_POLICY } from "./requestPolicies";
 import { authenticationRequired, eHentaiSite, galleryRequest, isAuthenticationResponse, type GallerySite } from "./gallerySite";
 import { parseGalleryImagePages, type EHentaiImagePageReference } from "./html";
-import { PAGES_POLICY } from "./requestPolicies";
+import { API_POLICY, PAGES_POLICY } from "./requestPolicies";
 import { parseEHentaiGalleryUrl, type EHentaiGalleryReference } from "./galleryUrl";
 import type { GalleryAccess } from "./galleryAccess";
-
-export { parseEHentaiGalleryUrl } from "./galleryUrl";
-export type { EHentaiGalleryReference } from "./galleryUrl";
 
 const USER_AGENT =
   "Pixvitta media viewer (+https://github.com/raulferrodrigues/pixvitta)";

@@ -28,7 +28,6 @@ function findElement(
 }
 
 export type EHentaiImagePageReference = {
-  pageNumber: number;
   pageUrl: string;
   pageToken: string;
   thumbnail: EHentaiThumbnailReference | null;
@@ -152,7 +151,6 @@ export function parseGalleryImagePages(
             const pageNumber = Number(match[2]);
             if (Number.isSafeInteger(pageNumber)) {
               references.set(pageNumber, {
-                pageNumber,
                 pageUrl: url.href.replace(/\/$/, ""),
                 pageToken: match[1].toLowerCase(),
                 thumbnail: thumbnailFrom(node, galleryOrigin)
@@ -170,20 +168,6 @@ export function parseGalleryImagePages(
   const grid = findElement(document, (node) => attribute(node, "id") === "gdt");
   if (grid) visit(grid);
   return references;
-}
-
-export function parseFirstImagePageUrl(
-  html: string,
-  galleryUrl: string,
-  galleryId: string
-): { pageUrl: string; pageToken: string } | null {
-  const first = parseGalleryImagePages(html, galleryUrl, galleryId).get(1);
-  return first
-    ? {
-        pageUrl: first.pageUrl,
-        pageToken: first.pageToken
-      }
-    : null;
 }
 
 export function parseDisplayedImageUrl(

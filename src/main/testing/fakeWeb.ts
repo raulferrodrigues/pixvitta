@@ -25,7 +25,7 @@ export type RecordedRequest = {
   status: number;
 };
 
-export type FakeHandler = (request: Request) => Response | Promise<Response>;
+type FakeHandler = (request: Request) => Response | Promise<Response>;
 
 type Waiter = {
   predicate: () => boolean;
@@ -157,7 +157,7 @@ function pngResponse(body: Buffer): Response {
   });
 }
 
-export type FakeThread = {
+type FakeThread = {
   /** What a person pastes into the app. */
   pageUrl: string;
   apiUrl: string;
@@ -204,7 +204,7 @@ export function addFourChanThread(
   return { pageUrl: `https://boards.4chan.org/${board}/thread/${threadId}`, apiUrl, mediaUrls, thumbnailUrls, bodies };
 }
 
-export type FakeGallery = {
+type FakeGallery = {
   pageUrl: string;
   apiUrl: string;
   cdnUrl: string;

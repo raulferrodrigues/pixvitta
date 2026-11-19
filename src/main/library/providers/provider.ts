@@ -10,7 +10,7 @@ export type MediaResource = {
   ): Promise<Response>;
 };
 
-export type ProviderThumbnail =
+type ProviderThumbnail =
   | { kind: "direct"; url: string }
   | { kind: "resource"; resource: MediaResource }
   | { kind: "none" };

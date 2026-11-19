@@ -109,7 +109,7 @@ function copyItem(
   };
 }
 
-export type RemoteMediaActions = {
+type RemoteMediaActions = {
   download(): void;
   // Resolves to a local copy of the media, fetched through its provider.
   saveFile(): Promise<string>;

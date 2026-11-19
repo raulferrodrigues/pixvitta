@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain } from "electron";
 import type {
   DownloadActivitySnapshot,
   MediaCollection,
@@ -16,9 +16,9 @@ import { notifyWindowChromeChanged } from "./windowChrome";
  * Windows are a main-process feature, not an object main.ts should assemble.
  *
  * This module owns the live BrowserWindow references and exposes only app-level
- * window capabilities. Other features, like the app menu or message dialogs, can
- * import these operations directly without receiving a custom "window manager"
- * bag from the entry point.
+ * window capabilities. Other features, like the app menu, can import these
+ * operations directly without receiving a custom "window manager" bag from the
+ * entry point.
  *
  * Pixvitta has one native window, the main viewer. Settings and the keyboard
  * shortcuts are drawn by React as a modal inside it. The BrowserWindow
@@ -33,12 +33,6 @@ import { notifyWindowChromeChanged } from "./windowChrome";
  */
 
 export type WindowMenuCommand = PixvittaCommand;
-
-// Pixvitta currently behaves like a document-style viewer: if all normal
-// windows are closed, the app quits. Keeping this as an explicit policy constant
-// makes a future macOS-style "stay resident with no windows" change local to
-// this module instead of scattering that decision through main.ts.
-const SHOULD_KEEP_OPEN_AFTER_LAST_WINDOW_CLOSED = false;
 
 // App zoom controls change Chromium page zoom for the focused native window.
 // Keeping the step here means menu labels and accelerators do not own window
@@ -193,15 +187,6 @@ export function isMainWindow(window: BrowserWindow | null): boolean {
   return !!window && window === mainWindow && !window.isDestroyed();
 }
 
-export async function showAppMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> {
-  // Dialog parenting is a native-window detail. Callers ask the app to show a
-  // message, while this module decides whether the main viewer can own it.
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    return dialog.showMessageBox(mainWindow, options);
-  }
-  return dialog.showMessageBox(options);
-}
-
 export function closeAppWindow(window: BrowserWindow | null | undefined): void {
   if (!window || window.isDestroyed()) return;
 
@@ -262,10 +247,6 @@ ipcMain.handle("viewer:ready", (event) => {
   flushMainWindowEvents();
 });
 
-// Window-close policy belongs with the windows feature. The rest of the app
-// should not ask whether a close event should quit; it should just let this
-// module own the native BrowserWindow rules.
-app.on("window-all-closed", () => {
-  if (SHOULD_KEEP_OPEN_AFTER_LAST_WINDOW_CLOSED) return;
-  app.quit();
-});
+// Pixvitta is a document-style viewer: closing its last window quits the app,
+// on macOS too.
+app.on("window-all-closed", () => app.quit());

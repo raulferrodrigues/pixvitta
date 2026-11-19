@@ -49,7 +49,7 @@ function normalizeVideoVolume(value: unknown): number {
 // Treat settings loaded from disk, or received over IPC, as untrusted input. The
 // renderer gets back a complete AppSettings object even if the JSON file was
 // manually edited or came from an older Pixvitta build.
-export function sanitizeSettings(value: unknown): AppSettings {
+function sanitizeSettings(value: unknown): AppSettings {
   const raw = value && typeof value === "object" ? (value as Partial<AppSettings>) : {};
   return {
     videoAutoplay: typeof raw.videoAutoplay === "boolean" ? raw.videoAutoplay : defaultSettings.videoAutoplay,

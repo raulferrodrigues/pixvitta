@@ -6,7 +6,7 @@ its commit finds nothing left to fix. This file is deleted before the PR merges.
 
 ## Dead code and indirection
 
-- [ ] 1. Remove dead code in main: unused functions, exports, fields, options and handlers.
+- [x] 1. Remove dead code in main: unused functions, exports, fields, options and handlers.
 - [ ] 2. Remove dead code in the renderer: unused exports, props, parameters and branches.
 - [ ] 3. Remove barrel files and aliases that only re-export, and import the real modules.
 - [ ] 4. Remove `void x` and `_x` hacks for unused parameters.

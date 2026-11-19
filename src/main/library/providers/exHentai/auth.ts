@@ -13,7 +13,7 @@ let pendingSignIn: Promise<boolean> | null = null;
 let signInCancelled = false;
 const authentication = new GalleryAuthentication();
 
-export function getExHentaiSession(): Electron.Session {
+function getExHentaiSession(): Electron.Session {
   return session.fromPartition(partition);
 }
 

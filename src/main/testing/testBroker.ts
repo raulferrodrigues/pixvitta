@@ -10,7 +10,7 @@ import type { BrokerRequestOptions, BrokerTask, RequestBroker, RequestPolicy } f
  * honors the upstream's limit. E2E tests cover real pacing on the wire.
  */
 
-export type SubmittedRequest = {
+type SubmittedRequest = {
   url: string;
   policy: RequestPolicy;
 };

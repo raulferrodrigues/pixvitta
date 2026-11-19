@@ -19,7 +19,6 @@ export {
   publishMainWindowSourceError,
   resetFocusedWindowZoom,
   sendMenuCommand,
-  showAppMessageBox,
   zoomFocusedWindowIn,
   zoomFocusedWindowOut
 } from "./windows";

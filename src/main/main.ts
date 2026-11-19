@@ -96,15 +96,11 @@ void app.whenReady().then(async () => {
   if (!(await openFileArgument(process.argv))) createMainWindow();
   startAutomaticUpdates();
 
-  // macOS keeps apps open after their windows close. When the dock icon is
-  // clicked again, activate should recreate the viewer window.
+  // Pixvitta quits when its window closes, so this only covers macOS activating
+  // the app while no window exists yet, or while it finishes quitting.
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createMainWindow();
     }
-  });
-
-  app.on("window-all-closed", () => {
-    if (process.platform !== "darwin") app.quit();
   });
 });

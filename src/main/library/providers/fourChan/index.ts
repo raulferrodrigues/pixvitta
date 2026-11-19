@@ -67,7 +67,7 @@ const supportedVideoContentTypes = new Set<string>(
     .map((fileType) => fileType.mimeType)
 );
 
-export type FourChanThreadReference = {
+type FourChanThreadReference = {
   board: string;
   threadId: string;
   pageUrl: string;
@@ -107,7 +107,7 @@ type CachedThread = {
   lastModified: string;
 };
 
-export function parseFourChanThreadUrl(input: string): FourChanThreadReference | null {
+function parseFourChanThreadUrl(input: string): FourChanThreadReference | null {
   let url: URL;
   try {
     url = new URL(input.trim());

@@ -9,7 +9,7 @@ import { getMediaFileType, mediaFileTypes } from "../utils/mediaTypes";
 
 const MAX_FILENAME_ATTEMPTS = 10_000;
 
-export function safeDownloadName(name: string): string {
+function safeDownloadName(name: string): string {
   const leafName = path.basename(name.replace(/\\/g, "/"));
   const sanitized = leafName
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
