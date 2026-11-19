@@ -54,7 +54,7 @@ const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
 } else {
-  app.on("second-instance", (_event, argv, workingDirectory) => {
+  app.on("second-instance", (event, argv, workingDirectory) => {
     void app
       .whenReady()
       .then(() => openFileArgument(argv, workingDirectory))

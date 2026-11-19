@@ -209,7 +209,6 @@ function mergedSources(
     savedMix("studies", [WATERCOLOURS, SKETCHES], 7, { name: "Studies", pinned: true }),
     ...(memberCount > 1 ? [savedMix("current-mix", members.map(({ title, location, kind }) => {
       const { openedMs, ...member } = recent({ title, location, kind }, 0);
-      void openedMs;
       return member;
     }), 6, currentMix)] : []),
     recent(MERGE_MEMBERS[0], 5),

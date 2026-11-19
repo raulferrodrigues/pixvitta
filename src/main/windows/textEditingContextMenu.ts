@@ -6,7 +6,7 @@ import { BrowserWindow, Menu } from "electron";
  * input, textarea, or contenteditable element invoked it.
  */
 export function installTextEditingContextMenu(window: BrowserWindow): void {
-  window.webContents.on("context-menu", (_event, params) => {
+  window.webContents.on("context-menu", (event, params) => {
     if (!params.isEditable) return;
 
     const flags = params.editFlags;

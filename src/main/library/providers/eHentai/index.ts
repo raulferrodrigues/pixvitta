@@ -131,7 +131,7 @@ export class EHentaiProvider implements MediaProvider {
       imageLimit: this.imageLimit
     });
     const nameWidth = Math.max(3, String(metadata.fileCount).length);
-    const items = Array.from({ length: metadata.fileCount }, (_, index) => {
+    const items = Array.from({ length: metadata.fileCount }, (value, index) => {
       const pageNumber = index + 1;
       const pageLabel = String(pageNumber).padStart(nameWidth, "0");
       return {

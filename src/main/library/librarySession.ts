@@ -252,7 +252,7 @@ ipcMain.on("source:refresh", (event) => {
   void refreshSource();
 });
 
-ipcMain.handle("source:open-origin", (_event, sourceId: unknown) => {
+ipcMain.handle("source:open-origin", (event, sourceId: unknown) => {
   return typeof sourceId === "string" ? openSourceOrigin(sourceId) : false;
 });
 
@@ -331,27 +331,24 @@ ipcMain.on("library:renderer-stable", (event) => {
 });
 
 ipcMain.handle("recent-sources:get", () => getRecentSources());
-ipcMain.handle("recent-sources:remove", (_event, location: unknown) =>
+ipcMain.handle("recent-sources:remove", (event, location: unknown) =>
   typeof location === "string"
     ? removeRecentSource(location)
     : getRecentSources()
 );
-ipcMain.handle("saved-mixes:remove", (event, id: unknown) => {
-  void event;
-  return typeof id === "string" ? removeSavedMix(id) : getRecentSources();
-});
-ipcMain.handle("saved-mixes:pin", (event, id: unknown, pinned: unknown) => {
-  void event;
-  return typeof id === "string" && typeof pinned === "boolean"
+ipcMain.handle("saved-mixes:remove", (event, id: unknown) =>
+  typeof id === "string" ? removeSavedMix(id) : getRecentSources()
+);
+ipcMain.handle("saved-mixes:pin", (event, id: unknown, pinned: unknown) =>
+  typeof id === "string" && typeof pinned === "boolean"
     ? pinSavedMix(id, pinned)
-    : getRecentSources();
-});
-ipcMain.handle("saved-mixes:rename", (event, id: unknown, name: unknown) => {
-  void event;
-  return typeof id === "string" && typeof name === "string"
+    : getRecentSources()
+);
+ipcMain.handle("saved-mixes:rename", (event, id: unknown, name: unknown) =>
+  typeof id === "string" && typeof name === "string"
     ? renameSavedMix(id, name)
-    : getRecentSources();
-});
+    : getRecentSources()
+);
 ipcMain.on("saved-mixes:show-menu", (event, id: unknown, position: unknown) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   if (!window || !isMainWindow(window) || typeof id !== "string") return;

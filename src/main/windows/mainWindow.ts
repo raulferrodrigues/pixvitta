@@ -58,7 +58,6 @@ export function createMainWindow(options: MainWindowOptions): BrowserWindow {
   // reports its own state once it is up.
   let isTextEntryFocused = false;
   window.webContents.ipc.on("window:text-entry-focused", (event, focused: unknown) => {
-    void event;
     if (typeof focused === "boolean") isTextEntryFocused = focused;
   });
   window.webContents.on("render-process-gone", () => {

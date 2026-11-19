@@ -49,6 +49,6 @@ ipcMain.handle("settings:get", () => {
   return getSettings();
 });
 
-ipcMain.handle("settings:save", (_event, settings: AppSettings) => {
+ipcMain.handle("settings:save", (event, settings: AppSettings) => {
   return saveSettings(settings);
 });

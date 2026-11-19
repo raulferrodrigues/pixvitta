@@ -63,7 +63,7 @@ export function createAppMenu(): void {
           accelerator: MAIN_HOTKEYS.closeWindow,
           // The clicked window argument is sometimes absent depending on focus,
           // so fall back to Electron's focused-window lookup.
-          click: (_menuItem, window) =>
+          click: (menuItem, window) =>
             closeAppWindow(window instanceof BrowserWindow ? window : BrowserWindow.getFocusedWindow())
         },
         { type: "separator" },

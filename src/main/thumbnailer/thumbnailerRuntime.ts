@@ -165,7 +165,7 @@ function registerThumbnailIpcHandlers(): void {
   // The renderer does not know about cache files. It can only send captured
   // image data for a thumbnailer-created reference, and this runtime decides
   // whether that data is useful.
-  ipcMain.handle("thumbnail:save-media", (_event, reference: unknown, dataUrl: unknown) => {
+  ipcMain.handle("thumbnail:save-media", (event, reference: unknown, dataUrl: unknown) => {
     return finishThumbnailFromRenderer(reference, dataUrl);
   });
 }

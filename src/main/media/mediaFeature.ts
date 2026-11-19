@@ -110,21 +110,12 @@ function registerMediaIpcHandler(): void {
     const window = BrowserWindow.fromWebContents(event.sender);
     return window ? showMediaContextMenu(window, mediaId) : false;
   });
-  ipcMain.handle("media:download", (event, mediaId: unknown) => {
-    void event;
-    return downloadMedia(mediaId);
-  });
+  ipcMain.handle("media:download", (event, mediaId: unknown) => downloadMedia(mediaId));
   ipcMain.handle(
     "media:download-collection",
-    (event, collectionName: unknown, mediaIds: unknown) => {
-      void event;
-      return downloadCollection(collectionName, mediaIds);
-    }
+    (event, collectionName: unknown, mediaIds: unknown) => downloadCollection(collectionName, mediaIds)
   );
-  ipcMain.handle("media:get-download-activity", (event) => {
-    void event;
-    return downloadManager.getSnapshot();
-  });
+  ipcMain.handle("media:get-download-activity", () => downloadManager.getSnapshot());
 }
 
 function registerMediaProtocolHandler(): void {

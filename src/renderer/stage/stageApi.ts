@@ -260,7 +260,6 @@ export function createStage(): { api: PixvittaApi; controls: StageControls } {
       return changeMix(id, (mix) => {
         if (!mix.pinned) return mix;
         const { name: previousName, ...rest } = mix;
-        void previousName;
         const trimmed = name.trim();
         return trimmed
           ? { ...rest, name: trimmed, title: trimmed }

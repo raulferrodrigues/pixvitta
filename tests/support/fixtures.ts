@@ -103,7 +103,6 @@ export const test = base.extend<E2EFixtures>({
       await running.app.evaluate(({ BrowserWindow }) => {
         const reports = globalThis as { lastTextEntryFocusReport?: boolean };
         BrowserWindow.getAllWindows()[0].webContents.ipc.on("window:text-entry-focused", (event, focused: boolean) => {
-          void event;
           reports.lastTextEntryFocusReport = focused;
         });
       });
